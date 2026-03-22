@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+/* ============================================
+   TAILWIND V4 - SHADCN/UI COMPATIBILITY
+   ============================================ */
+
+@theme {
+  /* Shadcn UI semantic colors */
+  --color-background: var(--bg-secondary);
+  --color-foreground: var(--text-primary);
+  --color-muted: var(--bg-tertiary);
+  --color-muted-foreground: var(--text-muted);
+  --color-border: var(--border-color);
+  --color-ring: var(--color-primary-500);
+  --color-input: var(--border-color);
+  
+  /* Primary - Ko'k (Kitob chap tomoni) */
+  --color-primary-50: #E8EDF4;
+  --color-primary-100: #C5D3E8;
+  --color-primary-200: #9FB5D6;
+  --color-primary-300: #7897C4;
+  --color-primary-400: #5A7FB5;
+  --color-primary-500: #3D67A6;
+  --color-primary-600: #2A4A7A;
+  --color-primary-700: #1B365D;
+  --color-primary-800: #142846;
+  --color-primary-900: #0D1A2F;
+
+  /* Secondary - To'q sariq (Kitob o'ng tomoni) */
+  --color-secondary-50: #FFF4E6;
+  --color-secondary-100: #FFE4BF;
+  --color-secondary-200: #FFD199;
+  --color-secondary-300: #FFBE73;
+  --color-secondary-400: #FFAB4D;
+  --color-secondary-500: #F28C28;
+  --color-secondary-600: #E07B00;
+  --color-secondary-700: #B86600;
+  --color-secondary-800: #8F5000;
+  --color-secondary-900: #663A00;
+
+  /* Success */
+  --color-success-50: #ECFDF5;
+  --color-success-100: #D1FAE5;
+  --color-success-500: #22C55E;
+  --color-success-600: #16A34A;
+  --color-success-700: #15803D;
+  --color-success-900: #14532D;
+
+  /* Warning */
+  --color-warning-50: #FFFBEB;
+  --color-warning-100: #FEF3C7;
+  --color-warning-500: #F59E0B;
+  --color-warning-600: #D97706;
+  --color-warning-900: #78350F;
+
+  /* Danger */
+  --color-danger-50: #FEF2F2;
+  --color-danger-100: #FEE2E2;
+  --color-danger-500: #EF4444;
+  --color-danger-600: #DC2626;
+  --color-danger-700: #B91C1C;
+  --color-danger-900: #7F1D1D;
+}
+
+/* ============================================
+   CSS VARIABLES FOR THEMING
+   ============================================ */
+
+:root {
+  /* Background */
+  --bg-primary: #F8F9FA;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #F1F3F5;
+  
+  /* Text */
+  --text-primary: #1A202C;
+  --text-secondary: #4A5568;
+  --text-muted: #A0AEC0;
+  
+  /* Border */
+  --border-color: #E2E8F0;
+  --border-hover: #CBD5E1;
+  
+  /* Sidebar */
+  --sidebar-bg: #FFFFFF;
+  --sidebar-text: #4A5568;
+  --sidebar-active-bg: #E8EDF4;
+  --sidebar-active-text: #1B365D;
+  --sidebar-hover-bg: #F1F3F5;
+}
+
+.dark {
+  /* Background */
+  --bg-primary: #0F172A;
+  --bg-secondary: #1E293B;
+  --bg-tertiary: #334155;
+  
+  /* Text */
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #64748B;
+  
+  /* Border */
+  --border-color: #334155;
+  --border-hover: #475569;
+  
+  /* Sidebar */
+  --sidebar-bg: #1E293B;
+  --sidebar-text: #CBD5E1;
+  --sidebar-active-bg: #334155;
+  --sidebar-active-text: #F28C28;
+  --sidebar-hover-bg: #2D3A4F;
+}
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ============================================
+   CUSTOM COMPONENT CLASSES
+   ============================================ */
+
+/* Card */
+.card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  border-color: var(--border-hover);
+}
+
+/* Sidebar */
+.sidebar {
+  background-color: var(--sidebar-bg);
+  border-right: 1px solid var(--border-color);
+}
+
+.sidebar-item {
+  color: var(--sidebar-text);
+  transition: all 0.2s ease;
+}
+
+.sidebar-item:hover {
+  background-color: var(--sidebar-hover-bg);
+}
+
+.sidebar-item.active {
+  background-color: var(--sidebar-active-bg);
+  color: var(--sidebar-active-text);
+  font-weight: 600;
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.dark .glass {
+  background: rgba(30, 41, 59, 0.8);
+}
+
+/* Text gradient */
+.text-gradient {
+  background: linear-gradient(135deg, #1B365D, #F28C28);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}

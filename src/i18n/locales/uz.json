@@ -1,0 +1,300 @@
+{
+  "nav": {
+    "dashboard": "Bosh sahifa",
+    "students": "O'quvchilar",
+    "teachers": "O'qituvchilar",
+    "groups": "Guruhlar",
+    "courses": "Kurslar",
+    "payments": "To'lovlar",
+    "attendance": "Davomat",
+    "leads": "Lidlar",
+    "finance": "Moliya",
+    "rooms": "Xonalar",
+    "exams": "Imtihonlar",
+    "notifications": "Bildirishnomalar",
+    "branches": "Filiallar",
+    "audit": "Audit",
+    "settings": "Sozlamalar"
+  },
+  "common": {
+    "search": "Qidirish...",
+    "add": "Qo'shish",
+    "edit": "Tahrirlash",
+    "delete": "O'chirish",
+    "save": "Saqlash",
+    "cancel": "Bekor qilish",
+    "confirm": "Tasdiqlash",
+    "close": "Yopish",
+    "loading": "Yuklanmoqda...",
+    "noData": "Ma'lumot topilmadi",
+    "actions": "Amallar",
+    "status": "Status",
+    "active": "Faol",
+    "inactive": "Faol emas",
+    "all": "Barchasi",
+    "filter": "Filter",
+    "export": "Eksport",
+    "import": "Import",
+    "total": "Jami",
+    "back": "Orqaga",
+    "next": "Keyingi",
+    "previous": "Oldingi",
+    "yes": "Ha",
+    "no": "Yo'q",
+    "name": "Nomi",
+    "phone": "Telefon",
+    "email": "Email",
+    "address": "Manzil",
+    "date": "Sana",
+    "time": "Vaqt",
+    "from": "Dan",
+    "to": "Gacha",
+    "created": "Yaratilgan",
+    "updated": "Yangilangan"
+  },
+  "auth": {
+    "login": "Kirish",
+    "logout": "Chiqish",
+    "email": "Email manzil",
+    "password": "Parol",
+    "forgotPassword": "Parolni unutdingizmi?",
+    "loginTitle": "Tizimga kirish",
+    "loginSubtitle": "O'quv markazingizni boshqaring"
+  },
+  "dashboard": {
+    "title": "Bosh sahifa",
+    "totalStudents": "Jami o'quvchilar",
+    "activeStudents": "Faol o'quvchilar",
+    "totalGroups": "Jami guruhlar",
+    "activeGroups": "Faol guruhlar",
+    "totalTeachers": "O'qituvchilar",
+    "monthlyIncome": "Oylik daromad",
+    "totalDebt": "Umumiy qarz",
+    "todayAttendance": "Bugungi davomat",
+    "recentPayments": "So'nggi to'lovlar",
+    "upcomingLessons": "Kelgusi darslar",
+    "debtors": "Qarzdorlar"
+  },
+  "students": {
+    "title": "O'quvchilar",
+    "addStudent": "O'quvchi qo'shish",
+    "firstName": "Ism",
+    "lastName": "Familiya",
+    "phone": "Telefon",
+    "parentPhone": "Ota-ona telefoni",
+    "parentName": "Ota-ona ismi",
+    "birthDate": "Tug'ilgan sana",
+    "gender": "Jinsi",
+    "male": "Erkak",
+    "female": "Ayol",
+    "balance": "Balans",
+    "source": "Manba",
+    "groups": "Guruhlar",
+    "freeze": "Muzlatish",
+    "unfreeze": "Faollashtirish",
+    "archive": "Arxivlash",
+    "debtors": "Qarzdorlar",
+    "tags": "Teglar",
+    "frozen": "Muzlatilgan",
+    "graduated": "Bitirgan",
+    "dropped": "Chiqib ketgan",
+    "passport": "Passport seriyasi",
+    "notes": "Izohlar",
+    "enrolledDate": "Ro'yxatdan o'tgan",
+    "statistics": "Statistika"
+  },
+  "teachers": {
+    "title": "O'qituvchilar",
+    "addTeacher": "O'qituvchi qo'shish",
+    "subjects": "Fanlar",
+    "salary": "Ish haqi",
+    "salaryType": "Ish haqi turi",
+    "fixed": "Belgilangan",
+    "hourly": "Soatlik",
+    "percent": "Foizli",
+    "hiredDate": "Ishga kirgan",
+    "bio": "Bio",
+    "onLeave": "Ta'tilda"
+  },
+  "groups": {
+    "title": "Guruhlar",
+    "addGroup": "Guruh qo'shish",
+    "course": "Kurs",
+    "teacher": "O'qituvchi",
+    "schedule": "Jadval",
+    "days": "Kunlar",
+    "startTime": "Boshlanish",
+    "endTime": "Tugash",
+    "maxStudents": "Max o'quvchilar",
+    "studentsCount": "O'quvchilar soni",
+    "price": "Narxi",
+    "room": "Xona",
+    "forming": "Shakllanmoqda",
+    "completed": "Tugallangan",
+    "cancelled": "Bekor qilingan",
+    "addStudent": "O'quvchi qo'shish",
+    "removeStudent": "O'quvchini chiqarish",
+    "transfer": "Ko'chirish"
+  },
+  "payments": {
+    "title": "To'lovlar",
+    "addPayment": "To'lov qo'shish",
+    "amount": "Summa",
+    "method": "To'lov usuli",
+    "cash": "Naqd",
+    "card": "Karta",
+    "transfer": "O'tkazma",
+    "student": "O'quvchi",
+    "group": "Guruh",
+    "receipt": "Kvitansiya",
+    "refund": "Qaytarish",
+    "discount": "Chegirma"
+  },
+  "attendance": {
+    "title": "Davomat",
+    "present": "Kelgan",
+    "absent": "Kelmagan",
+    "late": "Kechikkan",
+    "excused": "Sababli",
+    "markAttendance": "Davomat belgilash",
+    "attendanceRate": "Davomat foizi"
+  },
+  "finance": {
+    "title": "Moliya",
+    "income": "Daromad",
+    "expense": "Xarajat",
+    "profit": "Foyda",
+    "transactions": "Tranzaksiyalar",
+    "reports": "Hisobotlar"
+  },
+  "branches": {
+    "title": "Filiallar",
+    "addBranch": "Filial qo'shish",
+    "mainBranch": "Asosiy filial",
+    "city": "Shahar",
+    "district": "Tuman",
+    "manager": "Boshqaruvchi",
+    "workingHours": "Ish vaqti",
+    "statistics": "Statistika"
+  },
+  "notifications": {
+    "title": "Bildirishnomalar",
+    "reminders": "Eslatmalar",
+    "autoSms": "Avtomatik SMS",
+    "sendSms": "SMS yuborish",
+    "markRead": "O'qilgan deb belgilash",
+    "unread": "O'qilmagan"
+  },
+  "landing": {
+    "heroTitle": "O'quv markazingizni",
+    "heroTitleHighlight": "yangi bosqichga",
+    "heroTitleEnd": "olib chiqing!",
+    "heroSubtitle": "MarkazEdu — o'quv markazlar uchun zamonaviy boshqaruv tizimi. O'quvchilar, guruhlar, to'lovlar, davomat va boshqalarni bir joydan boshqaring.",
+    "startFree": "Bepul boshlash",
+    "watchDemo": "Demo olish",
+    "statsTitle": "Raqamlar o'zi gapiradi",
+    "trustedBy": "Ishonch bildirgan markazlar",
+    "featuresTitle": "Barcha kerakli vositalar",
+    "featuresSubtitle": "bir joyda",
+    "statsStudents": "O'quvchilar",
+    "statsCenters": "O'quv markazlar",
+    "statsGroups": "Guruhlar",
+    "statsTransactions": "Tranzaksiyalar",
+    "testimonialsTitle": "Mijozlarimiz fikri",
+    "pricingTitle": "Qulay narxlar",
+    "pricingSubtitle": "Har qanday o'lchamdagi markaz uchun",
+    "faqTitle": "Ko'p beriladigan savollar",
+    "ctaTitle": "Hoziroq boshlang!",
+    "ctaSubtitle": "7 kun bepul sinab ko'ring. Bank karta talab qilinmaydi.",
+    "footerDesc": "O'quv markazlar uchun zamonaviy CRM tizimi",
+    "demoTitle": "Demo so'rovi",
+    "demoSubtitle": "Ma'lumotlaringizni qoldiring, biz siz bilan bog'lanamiz",
+    "demoName": "Ismingiz",
+    "demoPhone": "Telefon raqam",
+    "demoCenterName": "O'quv markaz nomi",
+    "demoMessage": "Xabar",
+    "demoSubmit": "Demo so'rovi yuborish",
+    "demoSuccess": "So'rovingiz qabul qilindi!",
+    "demoSuccessDesc": "Tez orada siz bilan bog'lanamiz va demo ko'rsatamiz",
+    "features": {
+      "students": {
+        "title": "O'quvchilar boshqaruvi",
+        "desc": "O'quvchilarni ro'yxatga olish, guruhga biriktirish, balans va to'lovlarni kuzatish"
+      },
+      "groups": {
+        "title": "Guruhlar va jadval",
+        "desc": "Guruhlar yaratish, jadval tuzish, xona va o'qituvchi biriktirish"
+      },
+      "payments": {
+        "title": "To'lovlar tizimi",
+        "desc": "Avtomatik yechib olish, qarzdorlar ro'yxati, moliyaviy hisobotlar"
+      },
+      "attendance": {
+        "title": "Davomat nazorati",
+        "desc": "Kunlik davomat belgilash, hisobotlar, ota-onalarga bildirishnoma"
+      },
+      "analytics": {
+        "title": "Analitika va hisobotlar",
+        "desc": "Konversiya, samaradorlik, moliyaviy hisobotlar va ko'rsatkichlar"
+      },
+      "sms": {
+        "title": "SMS va bildirishnomalar",
+        "desc": "Avtomatik SMS eslatmalar, qarz xabar, tug'ilgan kun tabriknomasi"
+      },
+      "leads": {
+        "title": "Lidlar boshqaruvi",
+        "desc": "Potentsial o'quvchilarni kuzatish, konversiya tahlili"
+      },
+      "branches": {
+        "title": "Filiallar tizimi",
+        "desc": "Ko'p filiallarni bir joydan boshqarish, har bir filial statistikasi"
+      }
+    },
+    "pricing": {
+      "starter": {
+        "name": "Starter",
+        "price": "Bepul",
+        "period": "",
+        "desc": "Kichik markazlar uchun",
+        "features": ["100 tagacha o'quvchi", "3 ta guruh", "Asosiy hisobotlar", "Email qo'llab-quvvatlash"]
+      },
+      "professional": {
+        "name": "Professional",
+        "price": "299,000",
+        "period": "so'm/oy",
+        "desc": "O'sib borayotgan markazlar uchun",
+        "popular": true,
+        "features": ["Cheksiz o'quvchilar", "Cheksiz guruhlar", "SMS integratsiya", "Moliyaviy hisobotlar", "Filiallar tizimi", "24/7 qo'llab-quvvatlash"]
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "price": "Kelishuv",
+        "period": "",
+        "desc": "Yirik tarmoqlar uchun",
+        "features": ["Barcha Professional imkoniyatlari", "API integratsiya", "Maxsus sozlamalar", "Shaxsiy menejer", "On-premise o'rnatish", "SLA kafolat"]
+      }
+    },
+    "faq": [
+      {
+        "q": "MarkazEdu qanday ishlaydi?",
+        "a": "MarkazEdu bulutli CRM tizimi bo'lib, brauzer orqali ishlaydi. Ro'yxatdan o'tganingizdan so'ng o'quv markazingizni to'liq boshqarishingiz mumkin."
+      },
+      {
+        "q": "Sinov muddati qancha?",
+        "a": "7 kunlik bepul sinov muddati beriladi. Bu vaqt ichida barcha imkoniyatlardan foydalanishingiz mumkin."
+      },
+      {
+        "q": "Ma'lumotlarim xavfsizmi?",
+        "a": "Ha, barcha ma'lumotlar SSL shifrlash bilan himoyalangan. Har bir markaz alohida izolyatsiyalangan bazada saqlanadi."
+      },
+      {
+        "q": "Nechta filial qo'shish mumkin?",
+        "a": "Professional va Enterprise rejalarida cheksiz filial qo'shishingiz mumkin."
+      },
+      {
+        "q": "Mobil ilova bormi?",
+        "a": "Ha, MarkazEdu mobil brauzerda to'liq ishlaydigan responsive dizaynga ega. Maxsus mobil ilova ham tez orada chiqadi."
+      }
+    ]
+  }
+}
