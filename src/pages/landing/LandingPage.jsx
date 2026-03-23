@@ -33,7 +33,9 @@ function DemoModal({ isOpen, onClose }) {
     setLoading(true);
 
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const API_URL = import.meta.env.DEV
+        ? (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1')
+        : `${window.location.origin}/api/v1`;
       await axios.post(`${API_URL}/demo-requests/`, {
         name: formData.name,
         phone: formData.phone,
