@@ -4,15 +4,15 @@ const API_URL = import.meta.env.DEV
   ? (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1')
   : `${window.location.origin}/api/v1`;
 
-// Axios instance
 const api = axios.create({
   baseURL: API_URL,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor - token qo'shish
+// Request interceptor — token qo'shish
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
@@ -24,17 +24,47 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor - token refresh
+// Refresh jarayonida bir nechta so'rov kelsa, barchasini kutish
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+// Response interceptor — token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // Refresh allaqachon ishlayapti — navbatga qo'shish
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        });
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
 
       try {
         const refreshToken = localStorage.getItem('refresh_token');
+        if (!refreshToken) {
+          throw new Error('No refresh token');
+        }
+
         const response = await axios.post(`${API_URL}/auth/refresh/`, {
           refresh: refreshToken,
         });
@@ -42,13 +72,20 @@ api.interceptors.response.use(
         const { access } = response.data;
         localStorage.setItem('access_token', access);
 
+        processQueue(null, access);
+
         originalRequest.headers.Authorization = `Bearer ${access}`;
         return api(originalRequest);
       } catch (refreshError) {
+        processQueue(refreshError, null);
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('permissions');
         window.location.href = '/login';
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 
