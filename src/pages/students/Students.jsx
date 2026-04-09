@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -250,6 +251,7 @@ const getInitials = (f, l) => `${f?.[0] || ''}${l?.[0] || ''}`.toUpperCase();
 export default function Students() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
+  const navigate = useNavigate();
 
   // Data
   const [students, setStudents] = useState([]);
@@ -1211,6 +1213,14 @@ export default function Students() {
                     </div>
                   )}
                 </div>
+                <button
+                  onClick={() => navigate(`/app/students/${selectedStudent.id}/finance`)}
+                  className="mt-3 w-full h-10 rounded-xl text-white font-semibold text-xs shadow-md transition-all flex items-center justify-center gap-2"
+                  style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}
+                >
+                  <FontAwesomeIcon icon={faWallet} className="w-3.5 h-3.5" />
+                  Moliya tafsilotlari
+                </button>
               </div>
             </div>
 

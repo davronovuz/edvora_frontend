@@ -12,6 +12,7 @@ const LandingPage = lazy(() => import('./pages/landing/LandingPage'));
 import Login from './pages/auth/Login';
 import Dashboard from './pages/dashboard/Dashboard';
 import Students from './pages/students/Students';
+import StudentFinanceDetail from './pages/students/StudentFinanceDetail';
 import Teachers from './pages/teachers/Teachers';
 import Courses from './pages/courses/Courses';
 import Groups from './pages/groups/Groups';
@@ -77,6 +78,7 @@ export default function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="students" element={<ProtectedRoute allowedRoles={['owner', 'admin', 'teacher', 'registrar']}><Students /></ProtectedRoute>} />
+          <Route path="students/:id/finance" element={<ProtectedRoute allowedRoles={['owner', 'admin', 'accountant', 'registrar']}><StudentFinanceDetail /></ProtectedRoute>} />
           <Route path="teachers" element={<ProtectedRoute allowedRoles={['owner']}><Teachers /></ProtectedRoute>} />
           <Route path="courses" element={<ProtectedRoute allowedRoles={['owner', 'admin', 'teacher']}><Courses /></ProtectedRoute>} />
           <Route path="groups" element={<ProtectedRoute allowedRoles={['owner', 'admin', 'teacher', 'registrar']}><Groups /></ProtectedRoute>} />

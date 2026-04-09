@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -13,7 +14,7 @@ import {
   expenseCategoriesService, expensesService, transactionsService,
   salariesService, financeDashboardService,
 } from '@/services/finance';
-import { paymentsService } from '@/services/payments';
+import { paymentsService, invoicesService } from '@/services/payments';
 
 // ============================================
 // CONFIG
@@ -126,11 +127,13 @@ const emptyExpense = { category: '', title: '', description: '', amount: '', exp
 
 export default function Finance() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const [tab, setTab] = useState('dashboard');
   const [dashboard, setDashboard] = useState(null);
   const [monthlyData, setMonthlyData] = useState([]);
   const [debtors, setDebtors] = useState([]);
+  const [upcomingInvoices, setUpcomingInvoices] = useState([]);
   const [paymentStats, setPaymentStats] = useState(null);
   const [expenses, setExpenses] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -157,11 +160,12 @@ export default function Finance() {
   // ============================================
   const fetchDashboard = async () => {
     try {
-      const [dashRes, monthRes, debtRes, statsRes] = await Promise.all([
+      const [dashRes, monthRes, debtRes, statsRes, invRes] = await Promise.all([
         financeDashboardService.summary().catch(() => null),
         financeDashboardService.monthlyReport().catch(() => null),
         paymentsService.debtors().catch(() => null),
         paymentsService.statistics().catch(() => null),
+        invoicesService.getAll({ page_size: 100 }).catch(() => null),
       ]);
       setDashboard(dashRes?.data?.data || dashRes?.data || {});
       const mData = monthRes?.data?.data || monthRes?.data?.monthly_data || monthRes?.data || [];
@@ -169,6 +173,19 @@ export default function Finance() {
       const dData = debtRes?.data?.data || debtRes?.data?.results || debtRes?.data || [];
       setDebtors(Array.isArray(dData) ? dData : []);
       setPaymentStats(statsRes?.data?.data || statsRes?.data || null);
+
+      // Compute upcoming / overdue invoices
+      const invRaw = invRes?.data?.data || invRes?.data?.results || invRes?.data || [];
+      const today = new Date();
+      const upcoming = (Array.isArray(invRaw) ? invRaw : [])
+        .filter(i => i.status !== 'paid' && i.status !== 'cancelled' && i.due_date)
+        .map(i => {
+          const days = Math.ceil((new Date(i.due_date) - today) / (1000 * 60 * 60 * 24));
+          return { ...i, daysLeft: days };
+        })
+        .filter(i => i.daysLeft <= 7) // overdue or due within 7 days
+        .sort((a, b) => a.daysLeft - b.daysLeft);
+      setUpcomingInvoices(upcoming);
     } catch {}
     setLoading(false);
   };
@@ -444,6 +461,47 @@ export default function Finance() {
               </div>
             </div>
 
+            {/* Upcoming & Overdue Invoices */}
+            {upcomingInvoices.length > 0 && (
+              <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    <FontAwesomeIcon icon={faCalendarAlt} className="mr-2 w-4 h-4" style={{ color: '#F97316' }} />
+                    Yaqinlashayotgan va muddati o'tgan to'lovlar ({upcomingInvoices.length})
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {upcomingInvoices.slice(0, 12).map(inv => {
+                    const isOverdue = inv.daysLeft < 0;
+                    const isUrgent = inv.daysLeft >= 0 && inv.daysLeft <= 2;
+                    const color = isOverdue ? '#EF4444' : isUrgent ? '#EAB308' : '#3B82F6';
+                    const bg = isOverdue ? 'rgba(239,68,68,0.08)' : isUrgent ? 'rgba(234,179,8,0.08)' : 'rgba(59,130,246,0.06)';
+                    const sid = inv.student_id || inv.student;
+                    return (
+                      <div key={inv.id} onClick={() => sid && navigate(`/app/students/${sid}/finance`)}
+                        className="rounded-xl border p-3 cursor-pointer transition-all" style={{ borderColor: color + '60', backgroundColor: bg }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = color}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = color + '60'}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ color, backgroundColor: color + '15' }}>
+                            {isOverdue ? `${Math.abs(inv.daysLeft)} kun o'tgan` : inv.daysLeft === 0 ? 'Bugun' : `${inv.daysLeft} kun qoldi`}
+                          </span>
+                          <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>#{inv.invoice_number || inv.id}</span>
+                        </div>
+                        <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                          {inv.student_name || `O'quvchi #${sid || '—'}`}
+                        </div>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{inv.due_date}</span>
+                          <span className="text-sm font-bold" style={{ color }}>{formatMoney(inv.total || inv.amount)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Debtors */}
             {debtors.length > 0 && (
               <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
@@ -464,8 +522,11 @@ export default function Finance() {
                       </tr>
                     </thead>
                     <tbody>
-                      {debtors.slice(0, 10).map((d, i) => (
-                        <tr key={i} className="border-b last:border-0 transition-colors" style={{ borderColor: 'var(--border-color)' }}
+                      {debtors.slice(0, 10).map((d, i) => {
+                        const sid = d.student_id || d.id || d.student?.id;
+                        return (
+                        <tr key={i} className="border-b last:border-0 transition-colors cursor-pointer" style={{ borderColor: 'var(--border-color)' }}
+                          onClick={() => sid && navigate(`/app/students/${sid}/finance`)}
                           onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
                           onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                         >
@@ -476,7 +537,8 @@ export default function Finance() {
                           <td className="px-3 py-2.5" style={{ color: 'var(--text-secondary)' }}>{d.group_name || d.groups?.[0]?.name || '-'}</td>
                           <td className="px-3 py-2.5 text-right font-bold" style={{ color: '#EF4444' }}>{formatMoney(Math.abs(d.balance || d.debt || d.amount || 0))}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
