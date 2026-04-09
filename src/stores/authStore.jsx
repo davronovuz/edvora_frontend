@@ -9,10 +9,10 @@ export const useAuthStore = create((set, get) => ({
   error: null,
 
   // Login
-  login: async (email, password) => {
+  login: async (phone, password) => {
     set({ isLoading: true, error: null });
     try {
-      const { user, permissions } = await authService.login(email, password);
+      const { user, permissions } = await authService.login(phone, password);
       set({ 
         user, 
         permissions: permissions || {}, 
@@ -23,7 +23,7 @@ export const useAuthStore = create((set, get) => ({
     } catch (error) {
       const message = error.response?.data?.detail || 
                       error.response?.data?.message || 
-                      'Email yoki parol xato!';
+                      'Telefon raqam yoki parol xato!';
       set({ 
         error: message, 
         isLoading: false 

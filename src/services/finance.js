@@ -30,4 +30,11 @@ export const salariesService = {
 
 export const financeDashboardService = {
   get: () => api.get('/finance/dashboard/'),
+  summary: (params = {}) => api.get('/finance/dashboard/summary/', { params }),
+  monthlyReport: (params = {}) => api.get('/finance/dashboard/monthly_report/', { params }),
+};
+
+export const paymentStatsService = {
+  statistics: (params = {}) => api.get('/payments/statistics/', { params }),
+  debtors: (params = {}) => api.get('/payments/debtors/', { params }),
 };

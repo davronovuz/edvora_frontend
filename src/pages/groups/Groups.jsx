@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faSearch, faEdit, faTrash, faUsers, faTimes, faExchangeAlt, faExclamationTriangle, faUserPlus } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faSearch, faEdit, faTrash, faUsers, faTimes, faExchangeAlt, faExclamationTriangle, faUserPlus, faEye, faArchive } from '@fortawesome/free-solid-svg-icons';
 import { groupsService } from '@/services/groups';
 import { branchesService } from '@/services/branches';
 import api from '@/services/api';
@@ -13,6 +14,7 @@ const emptyForm = { name: '', course: '', teacher: '', start_date: '', end_date:
 
 export default function Groups() {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const lang = i18n.language || 'uz';
   const days = dayNames[lang] || dayNames.uz;
 
@@ -21,6 +23,7 @@ export default function Groups() {
     active: { label: t('common.active'), color: '#22C55E', bg: 'rgba(34,197,94,0.15)' },
     completed: { label: t('groups.completed'), color: '#3B82F6', bg: 'rgba(59,130,246,0.15)' },
     cancelled: { label: t('groups.cancelled'), color: '#EF4444', bg: 'rgba(239,68,68,0.15)' },
+    archived: { label: 'Arxiv', color: '#6B7280', bg: 'rgba(107,114,128,0.15)' },
   };
 
   const [groups, setGroups] = useState([]);
@@ -90,6 +93,15 @@ export default function Groups() {
     if (!confirm(t('common.delete') + '?')) return;
     try { await groupsService.delete(id); toast.success(t('common.delete') + ' ✓'); fetchGroups(); }
     catch { toast.error('Xato'); }
+  };
+
+  const handleArchive = async (g) => {
+    if (!confirm(`"${g.name}" guruhni arxivga o'tkazilsinmi?`)) return;
+    try {
+      await groupsService.update(g.id, { status: 'archived' });
+      toast.success('Guruh arxivga o\'tkazildi');
+      fetchGroups();
+    } catch { toast.error('Xato'); }
   };
 
   const handleEdit = (g) => {
@@ -206,8 +218,10 @@ export default function Groups() {
                 <tr><td colSpan={8} className="px-4 py-12 text-center" style={{ color: 'var(--text-muted)' }}>{t('common.noData')}</td></tr>
               ) : groups.map(g => (
                 <tr key={g.id} className="border-t hover:bg-black/5 dark:hover:bg-white/5" style={{ borderColor: 'var(--border-color)' }}>
-                  <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {g.name}
+                  <td className="px-4 py-3 font-medium">
+                    <button onClick={() => navigate(`/app/groups/${g.id}`)} className="text-left hover:text-primary-600 transition-colors" style={{ color: 'var(--text-primary)' }}>
+                      {g.name}
+                    </button>
                     {g.branch_name && <span className="block text-xs" style={{ color: 'var(--text-muted)' }}>{g.branch_name}</span>}
                   </td>
                   <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{g.course_name}</td>
@@ -225,10 +239,14 @@ export default function Groups() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
+                      <button onClick={() => navigate(`/app/groups/${g.id}`)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800" title="Batafsil"><FontAwesomeIcon icon={faEye} className="w-3.5 h-3.5 text-primary-600" /></button>
                       <button onClick={() => viewStudents(g)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800" title={t('groups.studentsCount')}><FontAwesomeIcon icon={faUsers} className="w-3.5 h-3.5 text-blue-500" /></button>
                       <button onClick={() => openAddStudent(g)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800" title={t('groups.addStudent')}><FontAwesomeIcon icon={faUserPlus} className="w-3.5 h-3.5 text-green-500" /></button>
                       <button onClick={() => { setShowTransfer(g); }} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800" title={t('groups.transfer')}><FontAwesomeIcon icon={faExchangeAlt} className="w-3.5 h-3.5 text-purple-500" /></button>
                       <button onClick={() => handleEdit(g)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800" title={t('common.edit')}><FontAwesomeIcon icon={faEdit} className="w-3.5 h-3.5 text-amber-500" /></button>
+                      {g.status !== 'archived' && (
+                        <button onClick={() => handleArchive(g)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800" title="Arxivga"><FontAwesomeIcon icon={faArchive} className="w-3.5 h-3.5 text-gray-500" /></button>
+                      )}
                       <button onClick={() => handleDelete(g.id)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800" title={t('common.delete')}><FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 text-red-500" /></button>
                     </div>
                   </td>

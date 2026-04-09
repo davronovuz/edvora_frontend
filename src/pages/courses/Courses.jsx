@@ -95,7 +95,7 @@ function Input({ label, required, error, prefix, suffix, className = '', ...prop
           </div>
         )}
         <input
-          className={`w-full h-12 px-4 rounded-xl border bg-transparent transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 ${prefix ? 'rounded-l-none' : ''} ${suffix ? 'rounded-r-none' : ''} ${error ? 'border-red-500' : ''}`}
+          className={`w-full h-12 px-4 rounded-xl border bg-transparent transition-all focus:outline-none focus:ring-2 focus:ring-orange-400 ${prefix ? 'rounded-l-none' : ''} ${suffix ? 'rounded-r-none' : ''} ${error ? 'border-red-500' : ''}`}
           style={{ borderColor: error ? '#EF4444' : 'var(--border-color)', color: 'var(--text-primary)' }}
           {...props}
         />
@@ -121,7 +121,7 @@ function Select({ label, required, options, value, onChange, error, placeholder,
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`w-full h-12 px-4 rounded-xl border bg-transparent transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer ${error ? 'border-red-500' : ''}`}
+        className={`w-full h-12 px-4 rounded-xl border bg-transparent transition-all focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none cursor-pointer ${error ? 'border-red-500' : ''}`}
         style={{ borderColor: error ? '#EF4444' : 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)' }}
       >
         {placeholder && <option value="">{placeholder}</option>}
@@ -198,9 +198,12 @@ export default function Courses() {
       const res = await coursesService.getAll();
       let data = [];
       if (Array.isArray(res)) data = res;
+      else if (res?.data?.results && Array.isArray(res.data.results)) data = res.data.results;
       else if (res?.data?.data && Array.isArray(res.data.data)) data = res.data.data;
       else if (Array.isArray(res?.data)) data = res.data;
-      
+
+      // Backend is_active -> frontend status mapping
+      data = data.map(c => ({ ...c, status: c.is_active !== false ? 'active' : 'inactive' }));
       setCourses(data);
       calcStats(data);
     } catch (error) {
@@ -227,61 +230,27 @@ export default function Courses() {
     }
   };
 
-  // Fan nomidan slug yaratish
-  const createSlug = (name) => {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim() || `subject-${Date.now()}`;
-  };
-
   // Fan topish yoki yaratish
   const getOrCreateSubject = async (name) => {
     const trimmedName = name.trim();
-    
+
     // Mavjud fanni qidirish (case-insensitive)
     const existingSubject = subjects.find(
       s => s.name.toLowerCase() === trimmedName.toLowerCase()
     );
-    
-    if (existingSubject) {
-      console.log('Existing subject found:', existingSubject);
-      return existingSubject;
+
+    if (existingSubject) return existingSubject;
+
+    // Yangi fan yaratish (slug serverda avtomatik yaratiladi)
+    const res = await subjectsService.create({ name: trimmedName });
+    const newSubject = res?.data?.data || res?.data || res;
+
+    if (newSubject?.id) {
+      setSubjects(prev => [...prev, newSubject]);
+      return newSubject;
     }
-    
-    // Yangi fan yaratish
-    try {
-      const slug = createSlug(trimmedName);
-      console.log('Creating new subject:', { name: trimmedName, slug });
-      
-      const res = await subjectsService.create({ name: trimmedName, slug });
-      console.log('Subject create response:', res);
-      
-      // Response strukturasini tekshirish
-      let newSubject = null;
-      if (res?.data?.data) {
-        newSubject = res.data.data;
-      } else if (res?.data) {
-        newSubject = res.data;
-      } else {
-        newSubject = res;
-      }
-      
-      console.log('New subject:', newSubject);
-      
-      if (newSubject && newSubject.id) {
-        // Subjects ro'yxatini yangilash
-        setSubjects(prev => [...prev, newSubject]);
-        return newSubject;
-      }
-      
-      throw new Error('Subject yaratilmadi');
-    } catch (error) {
-      console.log('Create subject error:', error.response?.data || error);
-      throw error;
-    }
+
+    throw new Error('Fan yaratilmadi');
   };
 
   const calcStats = (data) => {
@@ -355,8 +324,7 @@ export default function Courses() {
         price: Number(form.price),
         duration_months: Number(form.duration_months),
         level: form.level,
-        color: form.color,
-        status: form.status,
+        is_active: form.status === 'active',
         subject: subject.id,
       };
       if (form.description?.trim()) data.description = form.description.trim();
@@ -373,8 +341,11 @@ export default function Courses() {
       setIsFormOpen(false);
       fetchCourses();
     } catch (error) {
-      console.log('Submit error:', error.response?.data);
-      toast.error("Xatolik yuz berdi!");
+      const errData = error.response?.data;
+      const errMsg = errData?.error?.message || errData?.detail ||
+                     (typeof errData === 'object' ? Object.values(errData).flat().join(', ') : null) ||
+                     "Xatolik yuz berdi!";
+      toast.error(errMsg);
     } finally {
       setFormLoading(false);
     }
@@ -386,8 +357,13 @@ export default function Courses() {
       toast.success("Kurs o'chirildi!");
       setIsDeleteOpen(false);
       fetchCourses();
-    } catch {
-      toast.error("Xatolik yuz berdi!");
+    } catch (e) {
+      const msg = e.response?.data?.error?.message || e.response?.data?.detail || '';
+      if (e.response?.status === 400 || e.response?.status === 409 || msg.toLowerCase().includes('protect') || msg.toLowerCase().includes('foreign') || msg.toLowerCase().includes('bog\'langan')) {
+        toast.error("Bu kursni o'chirib bo'lmaydi — unga guruhlar bog'langan. Avval guruhlarni o'chiring yoki boshqa kursga o'tkazing.");
+      } else {
+        toast.error(msg || "Xatolik yuz berdi!");
+      }
     }
   };
 
@@ -419,7 +395,7 @@ export default function Courses() {
             </span>
           </div>
         </div>
-        <button onClick={openCreate} className="h-10 px-5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-medium flex items-center gap-2 transition-colors">
+        <button onClick={openCreate} className="h-10 px-5 rounded-xl text-white font-medium flex items-center gap-2 transition-colors" style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.9'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
           <FontAwesomeIcon icon={faPlus} className="w-4 h-4" />
           Yangi kurs
         </button>
@@ -435,14 +411,14 @@ export default function Courses() {
               placeholder="Kurs nomi bo'yicha qidirish..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-11 pl-11 pr-4 rounded-xl border bg-transparent transition-all focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full h-11 pl-11 pr-4 rounded-xl border bg-transparent transition-all focus:outline-none focus:ring-2 focus:ring-orange-400"
               style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
             />
           </div>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-11 px-4 rounded-xl border bg-transparent cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="h-11 px-4 rounded-xl border bg-transparent cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-400"
             style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)' }}
           >
             <option value="all">Barchasi</option>
@@ -455,7 +431,7 @@ export default function Courses() {
       {/* COURSES GRID */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
+          <div className="w-10 h-10 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
         <div className="card flex flex-col items-center justify-center py-20">
@@ -464,7 +440,7 @@ export default function Courses() {
           </div>
           <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Kurslar topilmadi</h3>
           <p className="mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>Yangi kurs qo'shing</p>
-          <button onClick={openCreate} className="h-11 px-6 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-medium flex items-center gap-2 transition-colors">
+          <button onClick={openCreate} className="h-11 px-6 rounded-xl text-white font-medium flex items-center gap-2 transition-colors" style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.9'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
             <FontAwesomeIcon icon={faPlus} className="w-4 h-4" />
             Yangi kurs
           </button>
@@ -483,7 +459,7 @@ export default function Courses() {
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => openEdit(course)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                    <FontAwesomeIcon icon={faEdit} className="w-4 h-4 text-primary-600" />
+                    <FontAwesomeIcon icon={faEdit} className="w-4 h-4 text-orange-500" />
                   </button>
                   <button onClick={() => openDelete(course)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                     <FontAwesomeIcon icon={faTrash} className="w-4 h-4 text-red-500" />
@@ -556,7 +532,7 @@ export default function Courses() {
               placeholder="Kurs haqida qisqacha..."
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl border bg-transparent resize-none focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-4 py-3 rounded-xl border bg-transparent resize-none focus:outline-none focus:ring-2 focus:ring-orange-400"
               style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
             />
           </div>
@@ -604,7 +580,7 @@ export default function Courses() {
                   key={color}
                   type="button"
                   onClick={() => setForm({ ...form, color })}
-                  className={`w-10 h-10 rounded-xl transition-all ${form.color === color ? 'ring-2 ring-offset-2 ring-primary-500 scale-110' : 'hover:scale-105'}`}
+                  className={`w-10 h-10 rounded-xl transition-all ${form.color === color ? 'ring-2 ring-offset-2 ring-orange-400 scale-110' : 'hover:scale-105'}`}
                   style={{ backgroundColor: color }}
                 />
               ))}
@@ -623,7 +599,10 @@ export default function Courses() {
             <button
               onClick={handleSubmit}
               disabled={formLoading}
-              className="flex-1 h-12 rounded-xl bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-medium flex items-center justify-center gap-2 transition-colors"
+              className="flex-1 h-12 rounded-xl disabled:opacity-50 text-white font-medium flex items-center justify-center gap-2 transition-colors"
+              style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
             >
               {formLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

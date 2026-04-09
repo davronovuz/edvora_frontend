@@ -2,8 +2,8 @@ import api from './api';
 
 export const authService = {
   // Login
-  login: async (email, password) => {
-    const response = await api.post('/auth/login/', { email, password });
+  login: async (phone, password) => {
+    const response = await api.post('/auth/login/', { phone, password });
     const { access, refresh, user, permissions } = response.data;
     
     localStorage.setItem('access_token', access);

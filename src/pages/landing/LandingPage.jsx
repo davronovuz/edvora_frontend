@@ -84,12 +84,12 @@ function DemoModal({ isOpen, onClose }) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-3xl shadow-2xl overflow-hidden"
+            className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
           >
             {/* Header gradient */}
-            <div className="bg-gradient-to-r from-primary-600 via-primary-700 to-primary-800 px-6 py-8 text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-40 h-40 bg-secondary-500/20 rounded-full blur-3xl" />
-              <div className="absolute bottom-0 left-0 w-32 h-32 bg-primary-400/20 rounded-full blur-2xl" />
+            <div className="bg-gradient-to-r from-orange-600 via-orange-700 to-orange-800 px-6 py-8 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/20 rounded-full blur-3xl" />
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-orange-400/20 rounded-full blur-2xl" />
 
               <button
                 onClick={handleClose}
@@ -99,7 +99,7 @@ function DemoModal({ isOpen, onClose }) {
               </button>
 
               <div className="relative z-10">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-secondary-400 to-secondary-600 flex items-center justify-center mb-4 shadow-lg">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center mb-4 shadow-lg">
                   <Send className="w-7 h-7" />
                 </div>
                 <h2 className="text-2xl font-bold">
@@ -123,19 +123,19 @@ function DemoModal({ isOpen, onClose }) {
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
-                    className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-500/20 flex items-center justify-center mx-auto mb-4"
+                    className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4"
                   >
                     <CheckCircle className="w-10 h-10 text-green-500" />
                   </motion.div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">
                     {t('landing.demoSuccess') || "So'rovingiz qabul qilindi!"}
                   </h3>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  <p className="text-gray-500 text-sm">
                     {t('landing.demoSuccessDesc') || "Tez orada siz bilan bog'lanamiz va demo ko'rsatamiz"}
                   </p>
                   <button
                     onClick={handleClose}
-                    className="mt-6 px-6 py-3 rounded-xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-colors"
+                    className="mt-6 px-6 py-3 rounded-xl bg-orange-600 text-white font-semibold hover:bg-orange-700 transition-colors"
                   >
                     {t('common.close') || 'Yopish'}
                   </button>
@@ -144,7 +144,7 @@ function DemoModal({ isOpen, onClose }) {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {/* Name */}
                   <div>
-                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5 block">
+                    <label className="text-sm font-semibold text-gray-700 mb-1.5 block">
                       {t('landing.demoName') || "Ismingiz"} *
                     </label>
                     <div className="relative">
@@ -156,14 +156,14 @@ function DemoModal({ isOpen, onClose }) {
                         value={formData.name}
                         onChange={handleChange}
                         placeholder="Ism Familiya"
-                        className="w-full h-12 pl-11 pr-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all outline-none"
+                        className="w-full h-12 pl-11 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition-all outline-none"
                       />
                     </div>
                   </div>
 
                   {/* Phone */}
                   <div>
-                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5 block">
+                    <label className="text-sm font-semibold text-gray-700 mb-1.5 block">
                       {t('landing.demoPhone') || "Telefon raqam"} *
                     </label>
                     <div className="relative">
@@ -175,14 +175,14 @@ function DemoModal({ isOpen, onClose }) {
                         value={formData.phone}
                         onChange={handleChange}
                         placeholder="+998 90 123 45 67"
-                        className="w-full h-12 pl-11 pr-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all outline-none"
+                        className="w-full h-12 pl-11 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition-all outline-none"
                       />
                     </div>
                   </div>
 
                   {/* Center Name */}
                   <div>
-                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5 block">
+                    <label className="text-sm font-semibold text-gray-700 mb-1.5 block">
                       {t('landing.demoCenterName') || "O'quv markaz nomi"}
                     </label>
                     <div className="relative">
@@ -193,14 +193,14 @@ function DemoModal({ isOpen, onClose }) {
                         value={formData.centerName}
                         onChange={handleChange}
                         placeholder="Markaz nomi"
-                        className="w-full h-12 pl-11 pr-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all outline-none"
+                        className="w-full h-12 pl-11 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition-all outline-none"
                       />
                     </div>
                   </div>
 
                   {/* Message */}
                   <div>
-                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5 block">
+                    <label className="text-sm font-semibold text-gray-700 mb-1.5 block">
                       {t('landing.demoMessage') || "Xabar"}
                     </label>
                     <div className="relative">
@@ -211,7 +211,7 @@ function DemoModal({ isOpen, onClose }) {
                         value={formData.message}
                         onChange={handleChange}
                         placeholder="Qo'shimcha ma'lumot..."
-                        className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all outline-none resize-none"
+                        className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition-all outline-none resize-none"
                       />
                     </div>
                   </div>
@@ -220,7 +220,7 @@ function DemoModal({ isOpen, onClose }) {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full h-12 mt-2 bg-gradient-to-r from-secondary-500 to-secondary-600 hover:from-secondary-600 hover:to-secondary-700 disabled:opacity-70 text-white font-semibold rounded-xl shadow-lg shadow-secondary-500/25 flex items-center justify-center gap-2 transition-all duration-300"
+                    className="w-full h-12 mt-2 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 disabled:opacity-70 text-white font-semibold rounded-xl shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 transition-all duration-300"
                   >
                     {loading ? (
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -248,7 +248,7 @@ export default function LandingPage() {
   const closeDemo = () => setDemoOpen(false);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950 overflow-x-hidden">
+    <div className="min-h-screen bg-white overflow-x-hidden">
       <LandingHeader onOpenDemo={openDemo} />
       <HeroSection onOpenDemo={openDemo} />
       <FeaturesSection />

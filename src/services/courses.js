@@ -16,16 +16,15 @@ export const coursesService = {
     return response;
   },
 
-create: async (data) => {
-  console.log('📤 Creating course:', data);
-  try {
-    const response = await api.post('/courses/', data);
-    return response;
-  } catch (error) {
-    console.log('❌ Error response data:', JSON.stringify(error.response?.data));
-    throw error;
-  }
-},
+  create: async (data) => {
+    try {
+      const response = await api.post('/courses/', data);
+      return response;
+    } catch (error) {
+      console.log('Course create error:', error.response?.data);
+      throw error;
+    }
+  },
 
   update: async (id, data) => {
     try {

@@ -34,6 +34,10 @@ import {
   faWallet,
   faHistory,
   faBuilding,
+  faStar,
+  faCalendarCheck,
+  faChartPie,
+  faTimes,
 } from '@fortawesome/free-solid-svg-icons';
 import Logo from '@/assets/logo.png';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
@@ -41,28 +45,35 @@ import { useTranslation } from 'react-i18next';
 
 // Navigation items grouped by sections with role access
 // Names are i18n keys, resolved in render via t()
+// Rollar: owner (direktor) = to'liq ruxsat, admin = cheklangan, teacher, registrar, accountant
 const getNavigation = (t) => [
   { name: t('nav.dashboard'), href: '/app', icon: faHouse },
 
   { section: t('nav.groups') },
   { name: t('nav.students'), href: '/app/students', icon: faUserGraduate, roles: ['owner', 'admin', 'teacher', 'registrar'] },
-  { name: t('nav.teachers'), href: '/app/teachers', icon: faChalkboardTeacher, roles: ['owner', 'admin'] },
+  { name: t('nav.teachers'), href: '/app/teachers', icon: faChalkboardTeacher, roles: ['owner'] },
   { name: t('nav.courses'), href: '/app/courses', icon: faBook, roles: ['owner', 'admin', 'teacher'] },
   { name: t('nav.groups'), href: '/app/groups', icon: faUsers, roles: ['owner', 'admin', 'teacher', 'registrar'] },
-  { name: t('nav.rooms'), href: '/app/rooms', icon: faDoorOpen, roles: ['owner', 'admin'] },
+  { name: t('nav.rooms'), href: '/app/rooms', icon: faDoorOpen, roles: ['owner'] },
   { name: t('nav.attendance'), href: '/app/attendance', icon: faClipboardCheck, roles: ['owner', 'admin', 'teacher'] },
   { name: t('nav.exams'), href: '/app/exams', icon: faFileAlt, roles: ['owner', 'admin', 'teacher'] },
+  { name: 'Reyting', href: '/app/rating', icon: faStar, roles: ['owner', 'admin', 'teacher'] },
+  { name: 'Eslatmalar', href: '/app/reminders', icon: faBell, roles: ['owner', 'admin', 'teacher', 'registrar'] },
+
+  { section: 'Hisobotlar' },
+  { name: 'Davomat hisobotlari', href: '/app/attendance-reports', icon: faChartPie, roles: ['owner', 'admin', 'teacher'] },
+  { name: 'Ustozlar davomati', href: '/app/teacher-attendance', icon: faCalendarCheck, roles: ['owner'] },
 
   { section: t('nav.finance') },
   { name: t('nav.payments'), href: '/app/payments', icon: faMoneyBill, roles: ['owner', 'admin', 'accountant', 'registrar'] },
-  { name: t('nav.finance'), href: '/app/finance', icon: faWallet, roles: ['owner', 'admin', 'accountant'] },
+  { name: t('nav.finance'), href: '/app/finance', icon: faWallet, roles: ['owner', 'accountant'] },
 
   { section: t('nav.settings') },
-  { name: t('nav.leads'), href: '/app/leads', icon: faChartLine, roles: ['owner', 'admin', 'registrar'] },
-  { name: t('nav.branches'), href: '/app/branches', icon: faBuilding, roles: ['owner', 'admin'] },
-  { name: t('nav.notifications'), href: '/app/notifications', icon: faBell },
-  { name: t('nav.audit'), href: '/app/audit', icon: faHistory, roles: ['owner', 'admin'] },
-  { name: t('nav.settings'), href: '/app/settings', icon: faCog },
+  { name: t('nav.leads'), href: '/app/leads', icon: faChartLine, roles: ['owner', 'registrar'] },
+  { name: t('nav.branches'), href: '/app/branches', icon: faBuilding, roles: ['owner'] },
+  { name: t('nav.notifications'), href: '/app/notifications', icon: faBell, roles: ['owner', 'admin'] },
+  { name: t('nav.audit'), href: '/app/audit', icon: faHistory, roles: ['owner'] },
+  { name: t('nav.settings'), href: '/app/settings', icon: faCog, roles: ['owner', 'admin'] },
 ];
 
 export default function MainLayout() {
@@ -110,32 +121,58 @@ export default function MainLayout() {
 
       {/* Sidebar */}
       <aside
-        className={`sidebar fixed top-0 left-0 z-50 h-full transform transition-all duration-300 ease-in-out
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
+        className={`sidebar fixed top-0 left-0 z-50 h-full flex flex-col transform transition-all duration-300 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
-          ${sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'}
+          ${sidebarCollapsed ? 'lg:w-[72px]' : 'lg:w-64'}
           w-64
         `}
       >
-        {/* Logo */}
-        <div className={`h-20 flex items-center justify-center px-1 border-b transition-all duration-300`} style={{ borderColor: 'var(--border-color)' }}>
+        {/* Logo + Collapse toggle */}
+        <div className="h-14 flex-shrink-0 flex items-center border-b px-3" style={{ borderColor: 'var(--border-color)' }}>
           {!sidebarCollapsed ? (
-            <img src={Logo} alt="MarkazEdu" className=" relative h-50 left-0" />
+            <>
+              <div className="flex-1 flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
+                  <span className="text-white font-bold text-sm">M</span>
+                </div>
+                <span className="font-bold text-base truncate" style={{ color: 'var(--text-primary)' }}>MarkazEdu</span>
+              </div>
+              {/* Desktop collapse */}
+              <button
+                onClick={toggleCollapse}
+                className="hidden lg:flex w-7 h-7 rounded-md items-center justify-center transition-colors"
+                style={{ color: 'var(--text-muted)' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                title="Sidebarni yig'ish"
+              >
+                <FontAwesomeIcon icon={faChevronLeft} className="w-3.5 h-3.5" />
+              </button>
+              {/* Mobile close */}
+              <button
+                className="lg:hidden w-7 h-7 rounded-md flex items-center justify-center"
+                style={{ color: 'var(--text-muted)' }}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
+              </button>
+            </>
           ) : (
-            <img src={Logo} alt="MarkazEdu" className="h-0  mx-auto" style={{ maxWidth: '80px', objectFit: 'contain' }} />
+            <button
+              onClick={toggleCollapse}
+              className="w-full flex items-center justify-center"
+              title="Sidebarni ochish"
+            >
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform hover:scale-105" style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
+                <span className="text-white font-bold text-sm">M</span>
+              </div>
+            </button>
           )}
-          
-          {/* Mobile close */}
-          <button
-            className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <FontAwesomeIcon icon={faChevronLeft} className="w-4 h-4" />
-          </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="p-3 space-y-0.5 flex-1 overflow-y-auto">
+        {/* Navigation - scrollable */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-0.5" style={{ scrollbarWidth: 'thin' }}>
           {navigation.filter(item => {
             if (item.section) return true;
             if (!item.roles) return true;
@@ -143,86 +180,78 @@ export default function MainLayout() {
           }).map((item, idx) =>
             item.section ? (
               !sidebarCollapsed ? (
-                <div key={item.section} className={`px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider ${idx === 0 ? '' : ''}`} style={{ color: 'var(--text-muted)' }}>
+                <div key={item.section + idx} className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
                   {item.section}
                 </div>
               ) : (
-                <div key={item.section} className="border-t my-2 mx-3" style={{ borderColor: 'var(--border-color)' }} />
+                <div key={item.section + idx} className="border-t my-2 mx-2" style={{ borderColor: 'var(--border-color)' }} />
               )
             ) : (
               <NavLink
-                key={item.name}
+                key={item.href}
                 to={item.href}
+                end={item.href === '/app'}
                 onClick={() => setSidebarOpen(false)}
                 title={sidebarCollapsed ? item.name : ''}
                 className={({ isActive }) =>
-                  `sidebar-item flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200
-                  ${sidebarCollapsed ? 'justify-center' : ''}
+                  `sidebar-item flex items-center rounded-lg transition-all duration-200
+                  ${sidebarCollapsed ? 'flex-col gap-0.5 justify-center px-1 py-2 mx-auto' : 'gap-3 px-3 py-2'}
                   ${isActive ? 'active' : ''}`
                 }
               >
-                <FontAwesomeIcon icon={item.icon} className={`w-5 h-5 ${sidebarCollapsed ? '' : 'min-w-[20px]'}`} />
-                {!sidebarCollapsed && <span className="truncate text-sm">{item.name}</span>}
+                <FontAwesomeIcon icon={item.icon} className={`${sidebarCollapsed ? 'w-4 h-4' : 'w-[18px] h-[18px] min-w-[18px]'}`} />
+                {sidebarCollapsed ? (
+                  <span className="text-[9px] leading-tight text-center w-full truncate">{item.name.split(' ')[0]}</span>
+                ) : (
+                  <span className="truncate text-[13px]">{item.name}</span>
+                )}
               </NavLink>
             )
           )}
         </nav>
 
-        {/* Collapse Button - Desktop only */}
-        <div className="hidden lg:block p-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
-          <button
-            onClick={toggleCollapse}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            <FontAwesomeIcon 
-              icon={sidebarCollapsed ? faChevronRight : faChevronLeft} 
-              className="w-4 h-4" 
-            />
-            {!sidebarCollapsed && <span>Yopish</span>}
-          </button>
-        </div>
-
         {/* User Section */}
-        <div className="p-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
+        <div className="flex-shrink-0 p-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
           {!sidebarCollapsed ? (
-            <>
-              <div className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                <Avatar className="h-9 w-9">
-                  <AvatarFallback className="bg-primary-600 text-white text-sm">
-                    {getInitials(user?.full_name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
-                    {user?.full_name || 'User'}
-                  </p>
-                  <p className="text-xs truncate capitalize" style={{ color: 'var(--text-muted)' }}>
-                    {user?.role || 'Admin'}
-                  </p>
-                </div>
+            <div className="flex items-center gap-2 px-2 py-2 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+              <Avatar className="h-8 w-8 flex-shrink-0">
+                <AvatarFallback className="text-white text-xs" style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
+                  {getInitials(user?.full_name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                  {user?.full_name || 'User'}
+                </p>
+                <p className="text-[10px] truncate capitalize" style={{ color: 'var(--text-muted)' }}>
+                  {user?.role || 'Admin'}
+                </p>
               </div>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-3 w-full px-3 py-2.5 mt-2 rounded-lg text-danger-500 hover:bg-danger-50 dark:hover:bg-danger-500/10 transition-colors"
+                title="Chiqish"
+                className="w-7 h-7 rounded-md flex items-center justify-center text-red-400 transition-colors"
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
-                <FontAwesomeIcon icon={faSignOutAlt} className="w-5 h-5" />
-                <span>Chiqish</span>
+                <FontAwesomeIcon icon={faSignOutAlt} className="w-3.5 h-3.5" />
               </button>
-            </>
+            </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
-              <Avatar className="h-9 w-9">
-                <AvatarFallback className="bg-primary-600 text-white text-sm">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="text-white text-xs" style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
                   {getInitials(user?.full_name)}
                 </AvatarFallback>
               </Avatar>
               <button
                 onClick={handleLogout}
                 title="Chiqish"
-                className="p-2 rounded-lg text-danger-500 hover:bg-danger-50 dark:hover:bg-danger-500/10 transition-colors"
+                className="w-8 h-8 rounded-md flex items-center justify-center text-red-400 transition-colors"
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
-                <FontAwesomeIcon icon={faSignOutAlt} className="w-5 h-5" />
+                <FontAwesomeIcon icon={faSignOutAlt} className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
@@ -230,7 +259,7 @@ export default function MainLayout() {
       </aside>
 
       {/* Main Content */}
-      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-[72px]' : 'lg:pl-64'}`}>
         {/* Top Header */}
         <header
           className="h-16 flex items-center justify-between px-4 lg:px-6 border-b sticky top-0 z-30"

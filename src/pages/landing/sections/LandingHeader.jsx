@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Send } from 'lucide-react';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import Logo from '@/assets/logo.png';
 
 export default function LandingHeader({ onOpenDemo }) {
   const { t } = useTranslation();
@@ -23,9 +24,9 @@ export default function LandingHeader({ onOpenDemo }) {
   };
 
   const navLinks = [
-    { label: t('landing.featuresTitle'), id: 'features' },
-    { label: t('landing.pricingTitle'), id: 'pricing' },
-    { label: t('landing.faqTitle'), id: 'faq' },
+    { label: t('landing.featuresTitle') || 'Imkoniyatlar', id: 'features' },
+    { label: t('landing.pricingTitle') || 'Narxlar', id: 'pricing' },
+    { label: t('landing.faqTitle') || 'FAQ', id: 'faq' },
   ];
 
   return (
@@ -33,22 +34,20 @@ export default function LandingHeader({ onOpenDemo }) {
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: 'easeOut' }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? 'bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl shadow-lg border-b border-gray-200/50 dark:border-gray-800/50'
+          ? 'bg-white/90 backdrop-blur-xl shadow-sm border-b border-gray-200'
           : 'bg-transparent'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-xl">M</span>
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+              <span className="text-white font-bold text-lg">M</span>
             </div>
-            <span className={`text-xl font-bold transition-colors ${scrolled ? 'text-gray-900 dark:text-white' : 'text-white'}`}>
-              MarkazEdu
-            </span>
+            <span className="text-xl font-bold text-gray-900">MarkazEdu</span>
           </div>
 
           {/* Desktop Nav */}
@@ -57,9 +56,7 @@ export default function LandingHeader({ onOpenDemo }) {
               <button
                 key={link.id}
                 onClick={() => scrollTo(link.id)}
-                className={`text-sm font-medium transition-colors hover:text-secondary-500 ${
-                  scrolled ? 'text-gray-600 dark:text-gray-300' : 'text-white/80 hover:text-white'
-                }`}
+                className="text-sm font-medium text-gray-700 hover:text-orange-600 transition-colors"
               >
                 {link.label}
               </button>
@@ -68,15 +65,21 @@ export default function LandingHeader({ onOpenDemo }) {
 
           {/* Right */}
           <div className="flex items-center gap-3">
-            <LanguageSwitcher variant={scrolled ? 'default' : 'landing'} />
+            <LanguageSwitcher />
 
-            {/* Demo button - orange */}
+            <button
+              onClick={() => navigate('/login')}
+              className="hidden sm:inline-flex px-4 py-2 rounded-xl text-sm font-medium text-gray-700 hover:text-orange-600 transition-colors"
+            >
+              Kirish
+            </button>
+
             <button
               onClick={onOpenDemo}
-              className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 bg-gradient-to-r from-secondary-500 to-secondary-600 text-white shadow-lg shadow-secondary-500/25 hover:shadow-secondary-500/50 hover:scale-105"
+              className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-orange-600 text-white hover:bg-orange-700 shadow-sm transition-all duration-300"
             >
               <Send className="w-4 h-4" />
-              {t('landing.watchDemo')}
+              Demo so'rovi
             </button>
 
             {/* Mobile menu */}
@@ -85,9 +88,9 @@ export default function LandingHeader({ onOpenDemo }) {
               onClick={() => setMenuOpen(!menuOpen)}
             >
               {menuOpen ? (
-                <X className={`w-6 h-6 ${scrolled ? 'text-gray-900 dark:text-white' : 'text-white'}`} />
+                <X className="w-6 h-6 text-gray-700" />
               ) : (
-                <Menu className={`w-6 h-6 ${scrolled ? 'text-gray-900 dark:text-white' : 'text-white'}`} />
+                <Menu className="w-6 h-6 text-gray-700" />
               )}
             </button>
           </div>
@@ -100,28 +103,30 @@ export default function LandingHeader({ onOpenDemo }) {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden pb-4 border-t border-white/10 bg-[#0B1D3A]/95 backdrop-blur-xl rounded-b-2xl"
+              className="md:hidden pb-4 border-t border-gray-200 bg-white/95 backdrop-blur-xl rounded-b-2xl"
             >
-              <div className="flex flex-col gap-2 pt-4">
+              <div className="flex flex-col gap-1 pt-3">
                 {navLinks.map((link) => (
                   <button
                     key={link.id}
                     onClick={() => scrollTo(link.id)}
-                    className={`text-left px-4 py-3 rounded-lg text-sm font-medium ${
-                      scrolled
-                        ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                        : 'text-white/80 hover:bg-white/10'
-                    }`}
+                    className="text-left px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-orange-50 hover:text-orange-600"
                   >
                     {link.label}
                   </button>
                 ))}
                 <button
+                  onClick={() => { setMenuOpen(false); navigate('/login'); }}
+                  className="text-left px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Kirish
+                </button>
+                <button
                   onClick={onOpenDemo}
-                  className="mx-4 mt-2 px-5 py-3 rounded-xl text-sm font-semibold bg-gradient-to-r from-secondary-500 to-secondary-600 text-white flex items-center justify-center gap-2"
+                  className="mx-4 mt-2 px-5 py-3 rounded-xl text-sm font-semibold bg-orange-600 text-white flex items-center justify-center gap-2"
                 >
                   <Send className="w-4 h-4" />
-                  {t('landing.watchDemo')}
+                  Demo so'rovi
                 </button>
               </div>
             </motion.div>

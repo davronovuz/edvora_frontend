@@ -10,16 +10,16 @@ export default function LandingFooter() {
   };
 
   return (
-    <footer className="bg-gray-950 text-white pt-16 pb-8">
+    <footer className="bg-gray-900 text-gray-300 pt-16 pb-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
           {/* Brand */}
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center">
-                <span className="text-white font-bold text-xl">M</span>
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+                <span className="text-white font-bold text-lg">M</span>
               </div>
-              <span className="text-xl font-bold">MarkazEdu</span>
+              <span className="text-xl font-bold text-white">MarkazEdu</span>
             </div>
             <p className="text-gray-400 text-sm leading-relaxed mb-6">
               {t('landing.footerDesc')}
@@ -34,7 +34,7 @@ export default function LandingFooter() {
                 <a
                   key={i}
                   href={social.href}
-                  className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+                  className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-orange-600 border border-gray-700 hover:border-orange-500 flex items-center justify-center transition-colors"
                 >
                   <FontAwesomeIcon icon={social.icon} className="w-5 h-5 text-gray-400 hover:text-white" />
                 </a>
@@ -44,7 +44,7 @@ export default function LandingFooter() {
 
           {/* Product */}
           <div>
-            <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-400 mb-4">
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">
               {t('landing.featuresTitle')}
             </h4>
             <ul className="space-y-3">
@@ -52,7 +52,7 @@ export default function LandingFooter() {
                 <li key={key}>
                   <button
                     onClick={() => scrollTo('features')}
-                    className="text-sm text-gray-500 hover:text-white transition-colors"
+                    className="text-sm text-gray-400 hover:text-orange-400 transition-colors"
                   >
                     {t(`landing.features.${key}.title`)}
                   </button>
@@ -63,7 +63,7 @@ export default function LandingFooter() {
 
           {/* Company */}
           <div>
-            <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-400 mb-4">
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">
               MarkazEdu
             </h4>
             <ul className="space-y-3">
@@ -76,7 +76,7 @@ export default function LandingFooter() {
                 <li key={i}>
                   <button
                     onClick={() => item.id && scrollTo(item.id)}
-                    className="text-sm text-gray-500 hover:text-white transition-colors"
+                    className="text-sm text-gray-400 hover:text-orange-400 transition-colors"
                   >
                     {item.label}
                   </button>
@@ -87,13 +87,13 @@ export default function LandingFooter() {
 
           {/* Contact */}
           <div>
-            <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-400 mb-4">
-              Aloqa
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">
+              {t('landing.footerContact')}
             </h4>
             <ul className="space-y-3">
-              <li className="text-sm text-gray-500">+998 94 477 62 62</li>
-              <li className="text-sm text-gray-500">davronovtatu@gmail.com</li>
-              <li className="text-sm text-gray-500">Samarqand, O'zbekiston</li>
+              <li className="text-sm text-gray-400">+998 94 477 62 62</li>
+              <li className="text-sm text-gray-400">davronovtatu@gmail.com</li>
+              <li className="text-sm text-gray-400">Samarqand, O'zbekiston</li>
             </ul>
           </div>
         </div>
@@ -102,14 +102,14 @@ export default function LandingFooter() {
         <div className="border-t border-gray-800 pt-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-gray-500">
-              &copy; {new Date().getFullYear()} MarkazEdu. Barcha huquqlar himoyalangan.
+              &copy; {new Date().getFullYear()} MarkazEdu. {t('landing.footerRights')}
             </p>
             <div className="flex gap-6">
-              <a href="#" className="text-sm text-gray-500 hover:text-white transition-colors">
-                Maxfiylik siyosati
+              <a href="#" className="text-sm text-gray-500 hover:text-orange-400 transition-colors">
+                {t('landing.footerPrivacy')}
               </a>
-              <a href="#" className="text-sm text-gray-500 hover:text-white transition-colors">
-                Foydalanish shartlari
+              <a href="#" className="text-sm text-gray-500 hover:text-orange-400 transition-colors">
+                {t('landing.footerTerms')}
               </a>
             </div>
           </div>
