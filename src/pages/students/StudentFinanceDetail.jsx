@@ -147,35 +147,45 @@ export default function StudentFinanceDetail() {
   // ============================================
   // FETCH DATA
   // ============================================
+  const [attendanceStatsFromBackend, setAttendanceStatsFromBackend] = useState(null);
+
   const loadAll = async () => {
     setLoading(true);
     try {
       const [stRes, grpRes, payRes, invRes, discRes, attRes] = await Promise.all([
         studentsService.getById(id).catch(() => null),
         studentsService.getGroups(id).catch(() => null),
-        paymentsService.byStudent(id).catch(() => paymentsService.getAll({ student: id })).catch(() => null),
+        // Use filterset endpoint (returns paginated {data: [...], meta}) — not byStudent (nested)
+        paymentsService.getAll({ student: id, page_size: 200 }).catch(() => null),
         invoicesService.getAll({ student: id, page_size: 100 }).catch(() => null),
         discountsService.getAll({ student: id, page_size: 100 }).catch(() => null),
         attendanceService.byStudent({ student_id: id }).catch(() => null),
       ]);
 
-      const st = stRes?.data?.data || stRes?.data || null;
+      // Student: retrieve returns raw serialized object (no wrapping)
+      const st = stRes?.data || null;
       setStudent(st);
 
-      const grps = grpRes?.data?.data || grpRes?.data?.results || grpRes?.data || [];
+      // Groups custom action: {success: true, data: [...]}
+      const grps = grpRes?.data?.data || [];
       setStudentGroups(Array.isArray(grps) ? grps : []);
 
-      const pays = payRes?.data?.data || payRes?.data?.results || payRes?.data || [];
+      // Payments paginated: {success: true, data: [...], meta: {...}}
+      const pays = payRes?.data?.data || [];
       setPayments(Array.isArray(pays) ? pays : []);
 
-      const invs = invRes?.data?.data || invRes?.data?.results || invRes?.data || [];
+      // Invoices paginated
+      const invs = invRes?.data?.data || [];
       setInvoices(Array.isArray(invs) ? invs : []);
 
-      const discs = discRes?.data?.data || discRes?.data?.results || discRes?.data || [];
+      // Discounts paginated
+      const discs = discRes?.data?.data || [];
       setDiscounts(Array.isArray(discs) ? discs : []);
 
-      const atts = attRes?.data?.data || attRes?.data?.results || attRes?.data || [];
-      setAttendance(Array.isArray(atts) ? atts : []);
+      // Attendance by_student: {data: {student, statistics, attendances: [...]}}
+      const attData = attRes?.data?.data || {};
+      setAttendance(Array.isArray(attData.attendances) ? attData.attendances : []);
+      setAttendanceStatsFromBackend(attData.statistics || null);
     } catch (e) {
       toast.error("Ma'lumotlarni yuklashda xato");
     }
@@ -188,7 +198,7 @@ export default function StudentFinanceDetail() {
   // COMPUTED
   // ============================================
   const monthlyPrice = useMemo(() => {
-    return studentGroups.reduce((sum, g) => sum + Number(g.price || g.group_price || 0), 0);
+    return studentGroups.reduce((sum, g) => sum + Number(g.monthly_price || g.price || 0), 0);
   }, [studentGroups]);
 
   const activeDiscounts = useMemo(() => {
@@ -220,24 +230,33 @@ export default function StudentFinanceDetail() {
     const totalRefunded = refunded.reduce((s, p) => s + Number(p.amount || 0), 0);
     const totalPending = pending.reduce((s, p) => s + Number(p.amount || 0), 0);
 
-    // debt calculation: count months from enrollment to current month and compare to paid
+    // debt calculation: prefer backend student.balance (negative = debt) if available
+    // fallback: count months from joined_date to current month and compare to paid
     let totalExpected = 0;
     let firstEnroll = null;
     for (const g of studentGroups) {
-      const start = g.enrolled_at || g.start_date || g.created_at;
+      const start = g.joined_date || g.enrolled_at || g.start_date;
       if (start && (!firstEnroll || new Date(start) < new Date(firstEnroll))) firstEnroll = start;
     }
-    if (firstEnroll && monthlyPrice > 0) {
+    if (firstEnroll && effectiveMonthlyPrice > 0) {
       const start = new Date(firstEnroll);
       const now = new Date();
       const months = Math.max(1, (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth()) + 1);
       totalExpected = months * effectiveMonthlyPrice;
     }
-    const balance = totalPaid - totalExpected; // negative = debt
-    const debt = Math.max(0, -balance);
+
+    // Prefer backend balance field if present (negative = debt)
+    let balance, debt;
+    if (student && student.balance !== undefined && student.balance !== null) {
+      balance = Number(student.balance);
+      debt = balance < 0 ? Math.abs(balance) : 0;
+    } else {
+      balance = totalPaid - totalExpected;
+      debt = Math.max(0, -balance);
+    }
 
     return { totalPaid, totalRefunded, totalPending, totalExpected, balance, debt, paymentsCount: payments.length };
-  }, [payments, studentGroups, monthlyPrice, effectiveMonthlyPrice]);
+  }, [payments, studentGroups, monthlyPrice, effectiveMonthlyPrice, student]);
 
   // Next upcoming invoice & overdue
   const upcomingInvoices = useMemo(() => {
@@ -284,15 +303,24 @@ export default function StudentFinanceDetail() {
     return grid;
   }, [payments, year, effectiveMonthlyPrice]);
 
-  // Attendance stats
+  // Attendance stats — prefer backend stats if provided
   const attendanceStats = useMemo(() => {
+    if (attendanceStatsFromBackend) {
+      return {
+        total: attendanceStatsFromBackend.total || 0,
+        present: attendanceStatsFromBackend.present || 0,
+        absent: attendanceStatsFromBackend.absent || 0,
+        late: attendanceStatsFromBackend.late || 0,
+        percent: Math.round(attendanceStatsFromBackend.rate || 0),
+      };
+    }
     const total = attendance.length;
-    const present = attendance.filter(a => a.status === 'present' || a.is_present).length;
-    const absent = attendance.filter(a => a.status === 'absent' || a.is_present === false).length;
+    const present = attendance.filter(a => a.status === 'present').length;
+    const absent = attendance.filter(a => a.status === 'absent').length;
     const late = attendance.filter(a => a.status === 'late').length;
-    const percent = total > 0 ? Math.round((present / total) * 100) : 0;
+    const percent = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
     return { total, present, absent, late, percent };
-  }, [attendance]);
+  }, [attendance, attendanceStatsFromBackend]);
 
   // ============================================
   // HANDLERS
@@ -449,7 +477,7 @@ export default function StudentFinanceDetail() {
               <FontAwesomeIcon icon={faPercent} className="w-3.5 h-3.5" /> Chegirma
             </button>
             <button onClick={() => {
-              setPayForm({ ...payForm, amount: String(Math.max(0, stats.debt || effectiveMonthlyPrice)), group: studentGroups[0]?.id || studentGroups[0]?.group_id || '' });
+              setPayForm({ ...payForm, amount: String(Math.max(0, stats.debt || effectiveMonthlyPrice)), group: studentGroups[0]?.id || '' });
               setShowPayModal(true);
             }} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-semibold text-sm shadow-lg shadow-orange-500/25 transition-all"
               style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
@@ -528,13 +556,14 @@ export default function StudentFinanceDetail() {
                       <FontAwesomeIcon icon={faBookOpen} className="w-4 h-4" style={{ color: '#3B82F6' }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{g.name || g.group_name}</div>
-                      <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {g.course_name || g.teacher_name || ''}
+                      <div className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{g.name}</div>
+                      <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+                        {[g.course, g.teacher].filter(Boolean).join(' • ')}
+                        {g.time && ` • ${g.time}`}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{formatMoney(g.price || g.group_price)}</div>
+                      <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{formatMoney(g.monthly_price)}</div>
                       <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>oyiga</div>
                     </div>
                   </div>
@@ -643,7 +672,7 @@ export default function StudentFinanceDetail() {
       </SectionCard>
 
       {/* ATTENDANCE vs PAYMENT */}
-      {attendance.length > 0 && (
+      {(attendance.length > 0 || attendanceStats.total > 0) && (
         <SectionCard title="Davomat ↔ To'lov taqqoslash" icon={faChartLine} iconColor="#8B5CF6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="text-center p-3 rounded-xl" style={{ backgroundColor: 'rgba(34,197,94,0.08)' }}>
