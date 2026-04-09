@@ -1,83 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faPlus,
-  faSearch,
-  faEye,
-  faEdit,
-  faTrash,
-  faPhone,
-  faEnvelope,
-  faUser,
-  faUsers,
-  faMapMarkerAlt,
-  faDownload,
-  faChevronLeft,
-  faChevronRight,
-  faChevronDown,
-  faChevronUp,
-  faTimes,
-  faCamera,
-  faCheck,
-  faInfoCircle,
-  faMale,
-  faFemale,
-  faChalkboardTeacher,
-  faGraduationCap,
-  faStar,
-  faMoneyBillWave,
-  faClock,
-  faCalendarAlt,
-  faBook,
+  faPlus, faSearch, faEye, faEdit, faTrash, faPhone, faEnvelope,
+  faUser, faUsers, faMapMarkerAlt,
+  faChevronLeft, faChevronRight, faChevronDown, faChevronUp,
+  faTimes, faCheck, faInfoCircle, faChalkboardTeacher,
+  faGraduationCap, faMoneyBillWave, faCalendarAlt, faBook,
+  faSort, faSortUp, faSortDown, faEllipsisV, faFileExcel,
+  faWallet, faClock, faPause, faPlay, faBriefcase,
 } from '@fortawesome/free-solid-svg-icons';
-import { faTelegram, faInstagram } from '@fortawesome/free-brands-svg-icons';
+import { faTelegram } from '@fortawesome/free-brands-svg-icons';
 import { teachersService } from '@/services/teachers';
+import { useAuthStore } from '@/stores/authStore';
 
 // ============================================
 // CONFIG
 // ============================================
 const statusConfig = {
-  active: { label: 'Faol', color: '#22C55E', bg: 'rgba(34, 197, 94, 0.15)' },
-  inactive: { label: 'Nofaol', color: '#94A3B8', bg: 'rgba(148, 163, 184, 0.15)' },
-  on_leave: { label: "Ta'tilda", color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.15)' },
+  active: { label: 'Faol', color: '#22C55E', bg: 'rgba(34, 197, 94, 0.12)', icon: faUser },
+  inactive: { label: 'Nofaol', color: '#94A3B8', bg: 'rgba(148, 163, 184, 0.12)', icon: faPause },
+  on_leave: { label: "Ta'tilda", color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)', icon: faClock },
 };
 
-const paymentTypeOptions = [
+const salaryTypeConfig = {
+  fixed: { label: 'Belgilangan oylik', icon: faWallet, color: '#22C55E' },
+  hourly: { label: 'Soatlik', icon: faClock, color: '#3B82F6' },
+  percent: { label: 'Foizli', icon: faMoneyBillWave, color: '#8B5CF6' },
+};
+
+const salaryTypeOptions = [
   { value: 'fixed', label: 'Belgilangan oylik' },
-  { value: 'percent', label: 'Foizda (har bir guruhdan)' },
-  { value: 'hourly', label: 'Soatbay' },
-];
-
-const subjectOptions = [
-  { value: 'english', label: 'Ingliz tili' },
-  { value: 'russian', label: 'Rus tili' },
-  { value: 'math', label: 'Matematika' },
-  { value: 'physics', label: 'Fizika' },
-  { value: 'chemistry', label: 'Kimyo' },
-  { value: 'biology', label: 'Biologiya' },
-  { value: 'programming', label: 'Dasturlash' },
-  { value: 'korean', label: 'Koreys tili' },
-  { value: 'arabic', label: 'Arab tili' },
-  { value: 'german', label: 'Nemis tili' },
-];
-
-// Demo data
-const demoTeachers = [
-  { id: '1', first_name: 'Xamidov', last_name: 'Jaxongir', phone: '+998901977395', email: 'jaxongir@gmail.com', status: 'active', gender: 'male', birth_date: '1990-05-15', address: 'Toshkent, Chilonzor', subjects: ['english', 'german'], groups_count: 7, students_count: 45, rating: 4.8, payment_type: 'percent', payment_amount: 40, experience_years: 8, telegram_username: '@jaxongir', bio: "IELTS 8.0, Cambridge sertifikati" },
-  { id: '2', first_name: 'Abduraxmonov', last_name: 'Toshtemir', phone: '+998945450212', email: 'toshtemir@gmail.com', status: 'active', gender: 'male', birth_date: '1985-11-20', address: 'Toshkent, Yunusobod', subjects: ['math', 'physics'], groups_count: 6, students_count: 38, rating: 4.9, payment_type: 'fixed', payment_amount: 5500000, experience_years: 12, telegram_username: '@toshtemir', bio: "Matematika bo'yicha PhD" },
-  { id: '3', first_name: 'Moxinur', last_name: 'Shodmonova', phone: '+998973950602', email: 'moxinur@gmail.com', status: 'active', gender: 'female', birth_date: '1995-03-08', address: 'Toshkent, Mirzo Ulugbek', subjects: ['korean'], groups_count: 1, students_count: 12, rating: 4.7, payment_type: 'hourly', payment_amount: 80000, experience_years: 3, telegram_username: '@moxinur', bio: "TOPIK 6 daraja" },
-  { id: '4', first_name: "G'ulomov", last_name: "Og'abek", phone: '+998941908212', email: 'ogabek@gmail.com', status: 'active', gender: 'male', birth_date: '1992-07-14', address: 'Toshkent, Sergeli', subjects: ['programming'], groups_count: 3, students_count: 24, rating: 4.6, payment_type: 'percent', payment_amount: 35, experience_years: 5, telegram_username: '@ogabek_dev', bio: "Full-stack developer, 5 yillik tajriba" },
-  { id: '5', first_name: 'Shaxzod', last_name: 'Muradov', phone: '+998906020440', email: 'shaxzod@gmail.com', status: 'inactive', gender: 'male', birth_date: '1988-12-01', address: 'Toshkent, Olmazor', subjects: ['russian', 'english'], groups_count: 0, students_count: 0, rating: 4.5, payment_type: 'fixed', payment_amount: 4000000, experience_years: 10, telegram_username: '@shaxzod', bio: "" },
+  { value: 'hourly', label: 'Soatlik' },
+  { value: 'percent', label: 'Foizli (guruhdan %)' },
 ];
 
 // ============================================
-// CUSTOM COMPONENTS
+// REUSABLE COMPONENTS
 // ============================================
-
-// Custom Drawer
-function Drawer({ isOpen, onClose, title, children }) {
+function Drawer({ isOpen, onClose, title, children, width = '560px' }) {
   useEffect(() => {
     const handleEscape = (e) => e.key === 'Escape' && onClose();
     if (isOpen) {
@@ -92,22 +54,17 @@ function Drawer({ isOpen, onClose, title, children }) {
 
   return (
     <>
+      <div onClick={onClose} className={`fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} />
       <div
-        onClick={onClose}
-        className={`fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${
-          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-      />
-      <div
-        className={`fixed top-0 right-0 z-50 h-full w-full max-w-[560px] transform transition-transform duration-300 ease-out ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
-        style={{ backgroundColor: 'var(--bg-secondary)' }}
+        className={`fixed top-0 right-0 z-50 h-full w-full transform transition-transform duration-300 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        style={{ backgroundColor: 'var(--bg-secondary)', maxWidth: width }}
       >
         <div className="flex items-center justify-between px-6 h-16 border-b" style={{ borderColor: 'var(--border-color)' }}>
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-          <button onClick={onClose} className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            <FontAwesomeIcon icon={faTimes} className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+          <button onClick={onClose} className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors" style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+            <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
           </button>
         </div>
         <div className="h-[calc(100%-64px)] overflow-y-auto">{children}</div>
@@ -116,19 +73,20 @@ function Drawer({ isOpen, onClose, title, children }) {
   );
 }
 
-// Collapsible Section
 function Section({ title, icon, iconColor, defaultOpen = true, children }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   return (
     <div className="border-b" style={{ borderColor: 'var(--border-color)' }}>
-      <button onClick={() => setIsOpen(!isOpen)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+      <button onClick={() => setIsOpen(!isOpen)} className="w-full flex items-center justify-between px-6 py-4 transition-colors"
+        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
         <div className="flex items-center gap-3">
           <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${iconColor}`}>
             <FontAwesomeIcon icon={icon} className="w-4 h-4" />
           </div>
           <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{title}</span>
         </div>
-        <FontAwesomeIcon icon={isOpen ? faChevronUp : faChevronDown} className="w-4 h-4 transition-transform" style={{ color: 'var(--text-muted)' }} />
+        <FontAwesomeIcon icon={isOpen ? faChevronUp : faChevronDown} className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
       </button>
       <div className={`overflow-hidden transition-all duration-300 ${isOpen ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="px-6 pb-6 space-y-4">{children}</div>
@@ -137,8 +95,7 @@ function Section({ title, icon, iconColor, defaultOpen = true, children }) {
   );
 }
 
-// Custom Input
-function Input({ label, required, error, icon, prefix, className = '', ...props }) {
+function Input({ label, required, error, icon, prefix, suffix, className = '', ...props }) {
   return (
     <div className={className}>
       {label && (
@@ -148,7 +105,7 @@ function Input({ label, required, error, icon, prefix, className = '', ...props 
       )}
       <div className="relative flex">
         {prefix && (
-          <div className="flex items-center justify-center px-4 rounded-l-xl border border-r-0 bg-gray-50 dark:bg-gray-800/50" style={{ borderColor: 'var(--border-color)' }}>
+          <div className="flex items-center justify-center px-4 rounded-l-xl border border-r-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}>
             <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{prefix}</span>
           </div>
         )}
@@ -158,18 +115,22 @@ function Input({ label, required, error, icon, prefix, className = '', ...props 
           </span>
         )}
         <input
-          className={`w-full h-12 px-4 rounded-xl border bg-transparent transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${prefix ? 'rounded-l-none' : ''} ${icon ? 'pl-11' : ''} ${error ? 'border-red-500' : ''}`}
+          className={`w-full h-12 px-4 rounded-xl border bg-transparent transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${prefix ? 'rounded-l-none' : ''} ${suffix ? 'rounded-r-none' : ''} ${icon ? 'pl-11' : ''} ${error ? 'border-red-500' : ''}`}
           style={{ borderColor: error ? '#EF4444' : 'var(--border-color)', color: 'var(--text-primary)' }}
           {...props}
         />
+        {suffix && (
+          <div className="flex items-center justify-center px-4 rounded-r-xl border border-l-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}>
+            <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{suffix}</span>
+          </div>
+        )}
       </div>
       {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
     </div>
   );
 }
 
-// Custom Select
-function Select({ label, required, options, value, onChange, className = '' }) {
+function SelectInput({ label, required, options, value, onChange, className = '' }) {
   return (
     <div className={className}>
       {label && (
@@ -177,56 +138,16 @@ function Select({ label, required, options, value, onChange, className = '' }) {
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+      <select value={value} onChange={(e) => onChange(e.target.value)}
         className="w-full h-12 px-4 rounded-xl border bg-transparent transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
-        style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)' }}
-      >
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
+        style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+        {options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
       </select>
     </div>
   );
 }
 
-// Multi Select (for subjects)
-function MultiSelect({ label, options, value = [], onChange }) {
-  const toggleOption = (optValue) => {
-    if (value.includes(optValue)) {
-      onChange(value.filter(v => v !== optValue));
-    } else {
-      onChange([...value, optValue]);
-    }
-  };
-
-  return (
-    <div>
-      {label && <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>{label}</label>}
-      <div className="flex flex-wrap gap-2">
-        {options.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => toggleOption(opt.value)}
-            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-              value.includes(opt.value)
-                ? 'bg-primary-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
-            }`}
-            style={!value.includes(opt.value) ? { color: 'var(--text-secondary)' } : {}}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Delete Modal
-function DeleteModal({ isOpen, onClose, onConfirm, name }) {
+function DeleteModal({ isOpen, onClose, onConfirm, name, loading }) {
   if (!isOpen) return null;
   return (
     <>
@@ -237,16 +158,17 @@ function DeleteModal({ isOpen, onClose, onConfirm, name }) {
             <FontAwesomeIcon icon={faTrash} className="w-7 h-7 text-red-500" />
           </div>
           <h3 className="text-xl font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>O'chirishni tasdiqlang</h3>
-          <p style={{ color: 'var(--text-secondary)' }}>
-            <strong>{name}</strong> ni o'chirmoqchimisiz?
-          </p>
+          <p style={{ color: 'var(--text-secondary)' }}><strong>{name}</strong> ni o'chirmoqchimisiz? Bu amalni ortga qaytarib bo'lmaydi.</p>
         </div>
         <div className="flex gap-3 mt-6">
-          <button onClick={onClose} className="flex-1 h-12 rounded-xl border font-medium transition-colors hover:bg-gray-50 dark:hover:bg-gray-800" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+          <button onClick={onClose} disabled={loading} className="flex-1 h-12 rounded-xl border font-medium transition-colors"
+            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
             Bekor qilish
           </button>
-          <button onClick={onConfirm} className="flex-1 h-12 rounded-xl bg-red-500 hover:bg-red-600 text-white font-medium transition-colors">
-            O'chirish
+          <button onClick={onConfirm} disabled={loading} className="flex-1 h-12 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-medium transition-colors flex items-center justify-center gap-2">
+            {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "O'chirish"}
           </button>
         </div>
       </div>
@@ -254,108 +176,269 @@ function DeleteModal({ isOpen, onClose, onConfirm, name }) {
   );
 }
 
+function StatCard({ label, value, icon, color, bg, onClick, active }) {
+  return (
+    <button onClick={onClick}
+      className={`flex-1 min-w-[140px] p-4 rounded-xl border-2 transition-all duration-200 text-left ${active ? 'shadow-sm scale-[1.02]' : ''}`}
+      style={{ borderColor: active ? color : 'var(--border-color)', backgroundColor: active ? bg : 'var(--bg-secondary)' }}
+      onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor = color; e.currentTarget.style.backgroundColor = bg; } }}
+      onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; } }}>
+      <div className="flex items-center justify-between mb-2">
+        <FontAwesomeIcon icon={icon} className="w-5 h-5" style={{ color }} />
+        <span className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{value}</span>
+      </div>
+      <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</p>
+    </button>
+  );
+}
+
+// ============================================
+// HELPERS
+// ============================================
+const formatPhone = (p) => {
+  if (!p) return '—';
+  const c = p.replace(/\D/g, '');
+  return c.length === 12 ? `+${c.slice(0, 3)} ${c.slice(3, 5)} ${c.slice(5, 8)} ${c.slice(8, 10)} ${c.slice(10)}` : p;
+};
+const formatMoney = (v) => new Intl.NumberFormat('uz-UZ').format(v || 0) + " so'm";
+const getInitials = (f, l) => `${f?.[0] || ''}${l?.[0] || ''}`.toUpperCase();
+const formatSalary = (type, amount, percent) => {
+  if (type === 'percent') return `${percent || 0}%`;
+  if (type === 'hourly') return `${formatMoney(amount)} / soat`;
+  return formatMoney(amount);
+};
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
 export default function Teachers() {
   const { t } = useTranslation();
+  const { user } = useAuthStore();
+
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
 
+  // Server-side
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-
+  const [searchInput, setSearchInput] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [sortField, setSortField] = useState('');
+  const [sortDir, setSortDir] = useState('asc');
   const [currentPage, setCurrentPage] = useState(1);
-  const perPage = 10;
+  const [meta, setMeta] = useState({ total: 0, total_pages: 1, per_page: 20 });
 
-  const [selectedIds, setSelectedIds] = useState([]);
+  // Stats (computed from meta or separate)
+  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, on_leave: 0 });
 
+  // UI states
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState(null);
+  const [teacherGroups, setTeacherGroups] = useState([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
   const [formMode, setFormMode] = useState('create');
   const [formLoading, setFormLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [actionDropdownId, setActionDropdownId] = useState(null);
+  const actionRef = useRef(null);
 
   const initialForm = {
-    first_name: '', last_name: '', phone: '', email: '',
-    gender: 'male', birth_date: '', address: '',
-    subjects: [], payment_type: 'fixed', payment_amount: '',
-    experience_years: '', telegram_username: '', instagram_username: '',
-    bio: '',
+    first_name: '', last_name: '', phone: '', phone_secondary: '', email: '',
+    birth_date: '', address: '', bio: '',
+    salary_type: 'fixed', salary_amount: '', salary_percent: '',
+    hired_date: '', telegram_username: '', status: 'active',
   };
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
 
-  useEffect(() => { fetchTeachers(); }, []);
+  const canCreate = user?.role === 'owner';
+  const canEdit = user?.role === 'owner';
+  const canDelete = user?.role === 'owner';
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (actionRef.current && !actionRef.current.contains(e.target)) setActionDropdownId(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => { setSearch(searchInput); setCurrentPage(1); }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Fetch
+  useEffect(() => { fetchTeachers(); }, [currentPage, search, statusFilter, sortField, sortDir]);
+  useEffect(() => { fetchStats(); }, []);
 
   const fetchTeachers = async () => {
     setLoading(true);
     try {
-      const res = await teachersService.getAll();
-      let data = [];
-      if (Array.isArray(res)) data = res;
-      else if (res?.data?.data && Array.isArray(res.data.data)) data = res.data.data;
-      else if (Array.isArray(res?.data)) data = res.data;
-      
-      setTeachers(data);
-      calcStats(data);
-    } catch (error) {
-      console.log('Fetch error:', error);
-      setTeachers(demoTeachers);
-      calcStats(demoTeachers);
+      const params = { page: currentPage, per_page: 20 };
+      if (search) params.search = search;
+      if (statusFilter) params.status = statusFilter;
+      if (sortField) params.ordering = (sortDir === 'desc' ? '-' : '') + sortField;
+
+      const res = await teachersService.getAll(params);
+      const responseData = res.data;
+
+      if (responseData?.data && Array.isArray(responseData.data)) {
+        setTeachers(responseData.data);
+        if (responseData.meta) setMeta(responseData.meta);
+      } else if (Array.isArray(responseData?.results)) {
+        setTeachers(responseData.results);
+        setMeta({ total: responseData.count || 0, total_pages: Math.ceil((responseData.count || 0) / 20), per_page: 20 });
+      } else if (Array.isArray(responseData)) {
+        setTeachers(responseData);
+        setMeta({ total: responseData.length, total_pages: 1, per_page: 20 });
+      } else {
+        setTeachers([]);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error?.message || "O'qituvchilarni yuklashda xatolik");
+      setTeachers([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const calcStats = (data) => {
-    if (!Array.isArray(data)) data = [];
-    setStats({
-      total: data.length,
-      active: data.filter(t => t.status === 'active').length,
-      inactive: data.filter(t => t.status === 'inactive' || t.status === 'on_leave').length,
-    });
+  const fetchStats = async () => {
+    try {
+      // Har bir status uchun count olish (backend filterset_fields = ['status'])
+      const [allRes, activeRes, onLeaveRes] = await Promise.allSettled([
+        teachersService.getAll({ per_page: 1 }),
+        teachersService.getAll({ per_page: 1, status: 'active' }),
+        teachersService.getAll({ per_page: 1, status: 'on_leave' }),
+      ]);
+
+      const getCount = (r) => {
+        if (r.status !== 'fulfilled') return 0;
+        const d = r.value.data;
+        return d?.meta?.total || d?.count || (Array.isArray(d?.data) ? d.data.length : Array.isArray(d) ? d.length : 0);
+      };
+
+      const total = getCount(allRes);
+      const active = getCount(activeRes);
+      const on_leave = getCount(onLeaveRes);
+      setStats({ total, active, inactive: total - active - on_leave, on_leave });
+    } catch {
+      // Not critical
+    }
   };
 
-  const filtered = teachers.filter(t => {
-    const matchSearch = `${t.first_name} ${t.last_name} ${t.phone}`.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === 'all' || t.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
+  // Sort
+  const handleSort = (field) => {
+    if (sortField === field) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else { setSortField(''); setSortDir('asc'); }
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+    setCurrentPage(1);
+  };
 
-  const totalPages = Math.ceil(filtered.length / perPage);
-  const paginated = filtered.slice((currentPage - 1) * perPage, currentPage * perPage);
+  const getSortIcon = (field) => {
+    if (sortField !== field) return faSort;
+    return sortDir === 'asc' ? faSortUp : faSortDown;
+  };
 
-  const toggleSelectAll = () => setSelectedIds(selectedIds.length === paginated.length ? [] : paginated.map(t => t.id));
-  const toggleSelect = (id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  // Export
+  const handleExport = async () => {
+    try {
+      const res = await teachersService.getAll({ per_page: 10000 });
+      const data = res.data?.data || res.data?.results || res.data || [];
+      if (!Array.isArray(data) || data.length === 0) {
+        toast.error("Eksport uchun ma'lumot topilmadi");
+        return;
+      }
+      const headers = ['Ism', 'Familiya', 'Telefon', 'Email', 'Fanlar', 'Guruhlar', 'Status'];
+      const rows = data.map(t => [
+        t.first_name, t.last_name, t.phone || '', t.email || '',
+        (t.subjects_list || []).join(', '),
+        t.groups_count || 0,
+        statusConfig[t.status]?.label || t.status,
+      ]);
+      const csv = '\uFEFF' + [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `oqituvchilar_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Eksport tayyor!');
+    } catch {
+      toast.error('Eksport xatolik');
+    }
+  };
 
-  const openCreate = () => { setForm(initialForm); setErrors({}); setFormMode('create'); setIsFormOpen(true); };
-  const openEdit = (teacher) => {
-    setSelectedTeacher(teacher);
+  // Form handlers
+  const openCreate = () => {
+    setForm(initialForm);
+    setErrors({});
+    setFormMode('create');
+    setIsFormOpen(true);
+  };
+
+  const openEdit = async (teacher) => {
+    // Detail dan to'liq ma'lumot olish
+    let full = teacher;
+    try {
+      const res = await teachersService.getById(teacher.id);
+      full = res.data?.data || res.data;
+    } catch { /* list data bilan davom */ }
+
+    setSelectedTeacher(full);
     setForm({
-      first_name: teacher.first_name || '',
-      last_name: teacher.last_name || '',
-      phone: teacher.phone?.replace('+998', '') || '',
-      email: teacher.email || '',
-      gender: teacher.gender || 'male',
-      birth_date: teacher.birth_date || '',
-      address: teacher.address || '',
-      subjects: teacher.subjects || [],
-      payment_type: teacher.payment_type || 'fixed',
-      payment_amount: teacher.payment_amount || '',
-      experience_years: teacher.experience_years || '',
-      telegram_username: teacher.telegram_username || '',
-      instagram_username: teacher.instagram_username || '',
-      bio: teacher.bio || '',
+      first_name: full.first_name || '',
+      last_name: full.last_name || '',
+      phone: full.phone?.replace('+998', '') || '',
+      phone_secondary: full.phone_secondary?.replace('+998', '') || '',
+      email: full.email || '',
+      birth_date: full.birth_date || '',
+      address: full.address || '',
+      bio: full.bio || '',
+      salary_type: full.salary_type || 'fixed',
+      salary_amount: full.salary_amount || '',
+      salary_percent: full.salary_percent || '',
+      hired_date: full.hired_date || '',
+      telegram_username: full.telegram_username || '',
+      status: full.status || 'active',
     });
     setErrors({});
     setFormMode('edit');
     setIsFormOpen(true);
   };
-  const openView = (teacher) => { setSelectedTeacher(teacher); setIsViewOpen(true); };
-  const openDelete = (teacher) => { setSelectedTeacher(teacher); setIsDeleteOpen(true); };
+
+  const openView = async (teacher) => {
+    // Detail + groups
+    try {
+      const res = await teachersService.getById(teacher.id);
+      setSelectedTeacher(res.data?.data || res.data);
+    } catch {
+      setSelectedTeacher(teacher);
+    }
+    setIsViewOpen(true);
+
+    // Guruhlarni yuklash
+    setGroupsLoading(true);
+    setTeacherGroups([]);
+    try {
+      const gRes = await teachersService.getGroups(teacher.id);
+      setTeacherGroups(gRes.data?.data || gRes.data || []);
+    } catch { /* Guruhlar yo'q */ }
+    setGroupsLoading(false);
+  };
+
+  const openDelete = (teacher) => {
+    setSelectedTeacher(teacher);
+    setIsDeleteOpen(true);
+  };
 
   const validateForm = () => {
     const errs = {};
@@ -363,6 +446,9 @@ export default function Teachers() {
     if (!form.last_name.trim()) errs.last_name = 'Familiya kiritilmagan';
     if (!form.phone.trim()) errs.phone = 'Telefon kiritilmagan';
     else if (form.phone.replace(/\D/g, '').length !== 9) errs.phone = "Telefon 9 ta raqam bo'lishi kerak";
+    if (form.phone_secondary && form.phone_secondary.replace(/\D/g, '').length > 0 && form.phone_secondary.replace(/\D/g, '').length !== 9) {
+      errs.phone_secondary = "Telefon 9 ta raqam bo'lishi kerak";
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -374,19 +460,28 @@ export default function Teachers() {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
       phone: '+998' + form.phone.replace(/\D/g, ''),
-      gender: form.gender,
+      salary_type: form.salary_type,
+      status: form.status,
     };
 
+    if (form.phone_secondary?.trim() && form.phone_secondary.replace(/\D/g, '').length === 9) {
+      data.phone_secondary = '+998' + form.phone_secondary.replace(/\D/g, '');
+    }
     if (form.email?.trim()) data.email = form.email.trim();
     if (form.birth_date) data.birth_date = form.birth_date;
     if (form.address?.trim()) data.address = form.address.trim();
-    if (form.subjects?.length > 0) data.subjects = form.subjects;
-    if (form.payment_type) data.payment_type = form.payment_type;
-    if (form.payment_amount) data.payment_amount = Number(form.payment_amount);
-    if (form.experience_years) data.experience_years = Number(form.experience_years);
-    if (form.telegram_username?.trim()) data.telegram_username = form.telegram_username.trim();
-    if (form.instagram_username?.trim()) data.instagram_username = form.instagram_username.trim();
     if (form.bio?.trim()) data.bio = form.bio.trim();
+    if (form.hired_date) data.hired_date = form.hired_date;
+    if (form.telegram_username?.trim()) data.telegram_username = form.telegram_username.trim();
+
+    // Salary
+    if (form.salary_type === 'percent') {
+      data.salary_percent = Number(form.salary_percent) || 0;
+      data.salary_amount = 0;
+    } else {
+      data.salary_amount = Number(form.salary_amount) || 0;
+      data.salary_percent = 0;
+    }
 
     setFormLoading(true);
     try {
@@ -399,100 +494,148 @@ export default function Teachers() {
       }
       setIsFormOpen(false);
       fetchTeachers();
-    } catch {
-      toast.error("Xatolik yuz berdi!");
+      fetchStats();
+    } catch (err) {
+      const errData = err.response?.data;
+      const msg = errData?.error?.message || errData?.detail || "Xatolik yuz berdi";
+      if (errData?.error?.details) {
+        const fieldErrors = {};
+        errData.error.details.forEach(d => { if (d.field) fieldErrors[d.field] = d.message; });
+        if (Object.keys(fieldErrors).length > 0) { setErrors(fieldErrors); return; }
+      }
+      if (errData?.phone) {
+        setErrors({ phone: Array.isArray(errData.phone) ? errData.phone[0] : errData.phone });
+        return;
+      }
+      toast.error(msg);
     } finally {
       setFormLoading(false);
     }
   };
 
   const handleDelete = async () => {
+    setDeleteLoading(true);
     try {
       await teachersService.delete(selectedTeacher.id);
       toast.success("O'qituvchi o'chirildi!");
       setIsDeleteOpen(false);
       fetchTeachers();
-    } catch {
-      toast.error("Xatolik yuz berdi!");
+      fetchStats();
+    } catch (err) {
+      toast.error(err.response?.data?.error?.message || "Xatolik yuz berdi");
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
-  const formatPhone = (p) => {
-    if (!p) return '-';
-    const c = p.replace(/\D/g, '');
-    return c.length === 12 ? `+${c.slice(0,3)} ${c.slice(3,5)} ${c.slice(5,8)} ${c.slice(8,10)} ${c.slice(10)}` : p;
+  // Stat filter toggle
+  const toggleStatFilter = (status) => {
+    setStatusFilter(statusFilter === status ? '' : status);
+    setCurrentPage(1);
   };
-
-  const formatMoney = (v) => new Intl.NumberFormat('uz-UZ').format(v) + " so'm";
-
-  const getSubjectLabels = (subjects = []) => {
-    return subjects.map(s => subjectOptions.find(o => o.value === s)?.label || s);
-  };
-
-  const getInitials = (f, l) => `${f?.[0] || ''}${l?.[0] || ''}`.toUpperCase();
 
   // ============================================
   // RENDER
   // ============================================
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{t('teachers.title')}</h1>
-          <div className="flex items-center gap-4 mt-1">
-            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{stats.total}</span> ta o'qituvchi
-            </span>
-            <span className="text-sm flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-green-500"></span>
-              <span style={{ color: 'var(--text-muted)' }}>{stats.active} faol</span>
-            </span>
-          </div>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>O'qituvchilarni boshqarish va monitoring</p>
         </div>
         <div className="flex gap-2">
-          <button className="h-10 px-4 rounded-xl border font-medium flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
-            <FontAwesomeIcon icon={faDownload} className="w-4 h-4" />
-            <span className="hidden sm:inline">Export</span>
+          <button onClick={handleExport}
+            className="h-10 px-4 rounded-xl border font-medium flex items-center gap-2 transition-all duration-200"
+            style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#22C55E'; e.currentTarget.style.color = '#22C55E'; e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.08)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.backgroundColor = 'transparent'; }}>
+            <FontAwesomeIcon icon={faFileExcel} className="w-4 h-4" />
+            <span className="hidden sm:inline">Eksport</span>
           </button>
-          <button onClick={openCreate} className="h-10 px-5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-medium flex items-center gap-2 transition-colors">
-            <FontAwesomeIcon icon={faPlus} className="w-4 h-4" />
-            {t('teachers.addTeacher')}
-          </button>
+          {canCreate && (
+            <button onClick={openCreate} className="h-10 px-5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-medium flex items-center gap-2 transition-colors">
+              <FontAwesomeIcon icon={faPlus} className="w-4 h-4" />
+              {t('teachers.addTeacher')}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* FILTERS */}
+      {/* STATS CARDS */}
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        <StatCard label="Jami o'qituvchilar" value={stats.total} icon={faChalkboardTeacher} color="#6366F1" bg="rgba(99, 102, 241, 0.08)"
+          onClick={() => { setStatusFilter(''); setCurrentPage(1); }} active={!statusFilter} />
+        <StatCard label="Faol" value={stats.active} icon={faUser} color="#22C55E" bg="rgba(34, 197, 94, 0.08)"
+          onClick={() => toggleStatFilter('active')} active={statusFilter === 'active'} />
+        <StatCard label="Nofaol" value={stats.inactive} icon={faPause} color="#94A3B8" bg="rgba(148, 163, 184, 0.08)"
+          onClick={() => toggleStatFilter('inactive')} active={statusFilter === 'inactive'} />
+        <StatCard label="Ta'tilda" value={stats.on_leave} icon={faClock} color="#F59E0B" bg="rgba(245, 158, 11, 0.08)"
+          onClick={() => toggleStatFilter('on_leave')} active={statusFilter === 'on_leave'} />
+      </div>
+
+      {/* SEARCH & FILTERS */}
       <div className="card p-4">
         <div className="flex flex-col lg:flex-row gap-3">
           <div className="flex-1 relative">
             <FontAwesomeIcon icon={faSearch} className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-            <input
-              type="text"
-              placeholder="Ism yoki telefon bo'yicha qidirish..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-              className="w-full h-11 pl-11 pr-4 rounded-xl border bg-transparent transition-all focus:outline-none focus:ring-2 focus:ring-primary-500"
-              style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-            />
+            <input type="text" placeholder="Ism, familiya yoki telefon bo'yicha qidirish..."
+              value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
+              className="w-full h-11 pl-11 pr-10 rounded-xl border bg-transparent transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+            {searchInput && (
+              <button onClick={() => setSearchInput('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                style={{ color: 'var(--text-muted)' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                <FontAwesomeIcon icon={faTimes} className="w-3 h-3" />
+              </button>
+            )}
           </div>
-          <select
-            value={statusFilter}
+          <select value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
             className="h-11 px-4 rounded-xl border bg-transparent cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500"
-            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)' }}
-          >
-            <option value="all">Barcha holat</option>
+            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+            <option value="">Barcha status</option>
             <option value="active">Faol</option>
             <option value="inactive">Nofaol</option>
             <option value="on_leave">Ta'tilda</option>
           </select>
-          {(search || statusFilter !== 'all') && (
-            <button onClick={() => { setSearch(''); setStatusFilter('all'); }} className="h-11 px-4 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium transition-colors">
+          {(searchInput || statusFilter) && (
+            <button onClick={() => { setSearchInput(''); setStatusFilter(''); setCurrentPage(1); }}
+              className="h-11 px-4 rounded-xl font-medium transition-colors text-red-500"
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
               Tozalash
             </button>
           )}
         </div>
+
+        {/* Active filters */}
+        {(statusFilter || search) && (
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Filtrlar:</span>
+            {statusFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: statusConfig[statusFilter]?.bg, color: statusConfig[statusFilter]?.color }}>
+                {statusConfig[statusFilter]?.label}
+                <button onClick={() => { setStatusFilter(''); setCurrentPage(1); }} className="ml-1 opacity-60 hover:opacity-100">
+                  <FontAwesomeIcon icon={faTimes} className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            )}
+            {search && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(99, 102, 241, 0.12)', color: '#6366F1' }}>
+                "{search}"
+                <button onClick={() => { setSearchInput(''); setCurrentPage(1); }} className="ml-1 opacity-60 hover:opacity-100">
+                  <FontAwesomeIcon icon={faTimes} className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            )}
+            <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>{meta.total} ta natija</span>
+          </div>
+        )}
       </div>
 
       {/* TABLE */}
@@ -501,92 +644,133 @@ export default function Teachers() {
           <div className="flex items-center justify-center py-20">
             <div className="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
           </div>
-        ) : paginated.length === 0 ? (
+        ) : teachers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
-              <FontAwesomeIcon icon={faChalkboardTeacher} className="w-10 h-10 text-gray-300" />
+            <div className="w-20 h-20 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+              <FontAwesomeIcon icon={faChalkboardTeacher} className="w-10 h-10" style={{ color: 'var(--text-muted)' }} />
             </div>
-            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>O'qituvchilar topilmadi</h3>
-            <p className="mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>Yangi o'qituvchi qo'shing</p>
-            <button onClick={openCreate} className="h-11 px-6 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-medium flex items-center gap-2 transition-colors">
-              <FontAwesomeIcon icon={faPlus} className="w-4 h-4" />
-              Yangi o'qituvchi
-            </button>
+            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {search || statusFilter ? "Natija topilmadi" : "O'qituvchilar yo'q"}
+            </h3>
+            <p className="mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>
+              {search || statusFilter ? "Filterni o'zgartirib ko'ring" : "Yangi o'qituvchi qo'shing"}
+            </p>
+            {canCreate && !search && !statusFilter && (
+              <button onClick={openCreate} className="h-11 px-6 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-medium flex items-center gap-2 transition-colors">
+                <FontAwesomeIcon icon={faPlus} className="w-4 h-4" />
+                {t('teachers.addTeacher')}
+              </button>
+            )}
           </div>
         ) : (
           <>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b" style={{ borderColor: 'var(--border-color)' }}>
-                    <th className="p-4 w-12">
-                      <input type="checkbox" checked={selectedIds.length === paginated.length && paginated.length > 0} onChange={toggleSelectAll} className="w-5 h-5 rounded border-gray-300 cursor-pointer" />
+                  <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <th className="p-4 text-left">
+                      <button onClick={() => handleSort('first_name')} className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider"
+                        style={{ color: sortField === 'first_name' ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                        O'qituvchi <FontAwesomeIcon icon={getSortIcon('first_name')} className="w-3 h-3" />
+                      </button>
                     </th>
-                    <th className="p-4 text-left text-sm font-medium" style={{ color: 'var(--text-muted)' }}>O'qituvchi</th>
-                    <th className="p-4 text-left text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Telefon</th>
-                    <th className="p-4 text-left text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Fanlar</th>
-                    <th className="p-4 text-left text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Guruhlar</th>
-                    <th className="p-4 text-left text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Holat</th>
-                    <th className="p-4 w-32"></th>
+                    <th className="p-4 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Telefon</th>
+                    <th className="p-4 text-left text-xs font-semibold uppercase tracking-wider hidden lg:table-cell" style={{ color: 'var(--text-muted)' }}>Fanlar</th>
+                    <th className="p-4 text-left text-xs font-semibold uppercase tracking-wider hidden md:table-cell" style={{ color: 'var(--text-muted)' }}>Guruhlar</th>
+                    <th className="p-4 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Status</th>
+                    <th className="p-4 w-16" />
                   </tr>
                 </thead>
                 <tbody>
-                  {paginated.map((t) => (
-                    <tr key={t.id} className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" style={{ borderColor: 'var(--border-color)' }}>
-                      <td className="p-4">
-                        <input type="checkbox" checked={selectedIds.includes(t.id)} onChange={() => toggleSelect(t.id)} className="w-5 h-5 rounded border-gray-300 cursor-pointer" />
-                      </td>
+                  {teachers.map((tc) => (
+                    <tr key={tc.id} className="border-b last:border-0 transition-colors duration-150 cursor-pointer"
+                      style={{ borderColor: 'var(--border-color)' }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                      onClick={(e) => {
+                        if (e.target.closest('.actions-cell')) return;
+                        openView(tc);
+                      }}>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style={{ backgroundColor: t.gender === 'female' ? '#EC4899' : '#1B365D' }}>
-                            {getInitials(t.first_name, t.last_name)}
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style={{ backgroundColor: '#1B365D' }}>
+                            {getInitials(tc.first_name, tc.last_name)}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-medium truncate" style={{ color: 'var(--text-primary)' }}>{t.first_name} {t.last_name}</p>
-                            {t.rating && (
-                              <p className="text-sm flex items-center gap-1">
-                                <FontAwesomeIcon icon={faStar} className="w-3 h-3 text-yellow-500" />
-                                <span style={{ color: 'var(--text-muted)' }}>{t.rating}</span>
-                              </p>
-                            )}
+                            <p className="font-medium truncate" style={{ color: 'var(--text-primary)' }}>{tc.first_name} {tc.last_name}</p>
+                            <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+                              {tc.full_name !== `${tc.first_name} ${tc.last_name}` ? tc.full_name : ''}
+                            </p>
                           </div>
                         </div>
                       </td>
                       <td className="p-4">
-                        <a href={`tel:${t.phone}`} className="text-primary-600 hover:underline font-medium">{formatPhone(t.phone)}</a>
+                        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{formatPhone(tc.phone)}</span>
                       </td>
-                      <td className="p-4">
+                      <td className="p-4 hidden lg:table-cell">
                         <div className="flex flex-wrap gap-1">
-                          {getSubjectLabels(t.subjects).slice(0, 2).map((s, i) => (
-                            <span key={i} className="px-2 py-1 rounded-lg text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">{s}</span>
+                          {(tc.subjects_list || []).slice(0, 2).map((s, i) => (
+                            <span key={i} className="px-2 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(139, 92, 246, 0.1)', color: '#8B5CF6' }}>{s}</span>
                           ))}
-                          {t.subjects?.length > 2 && (
-                            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-800" style={{ color: 'var(--text-muted)' }}>+{t.subjects.length - 2}</span>
+                          {(tc.subjects_list || []).length > 2 && (
+                            <span className="px-2 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>+{tc.subjects_list.length - 2}</span>
                           )}
+                          {(!tc.subjects_list || tc.subjects_list.length === 0) && <span style={{ color: 'var(--text-muted)' }}>—</span>}
                         </div>
                       </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <FontAwesomeIcon icon={faUsers} className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-                          <span style={{ color: 'var(--text-primary)' }}>{t.groups_count || 0} guruh</span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <span className="px-3 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: statusConfig[t.status]?.bg, color: statusConfig[t.status]?.color }}>
-                          {statusConfig[t.status]?.label}
+                      <td className="p-4 hidden md:table-cell">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+                          <FontAwesomeIcon icon={faUsers} className="w-3 h-3" />
+                          {tc.groups_count || 0} ta
                         </span>
                       </td>
                       <td className="p-4">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => openView(t)} className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Ko'rish">
-                            <FontAwesomeIcon icon={faEye} className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: statusConfig[tc.status]?.bg, color: statusConfig[tc.status]?.color }}>
+                          <FontAwesomeIcon icon={statusConfig[tc.status]?.icon || faUser} className="w-3 h-3" />
+                          {statusConfig[tc.status]?.label || tc.status}
+                        </span>
+                      </td>
+                      <td className="p-4 actions-cell" onClick={e => e.stopPropagation()}>
+                        <div className="relative" ref={actionDropdownId === tc.id ? actionRef : null}>
+                          <button onClick={() => setActionDropdownId(actionDropdownId === tc.id ? null : tc.id)}
+                            className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
+                            style={{ color: 'var(--text-muted)' }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                            onMouseLeave={e => { if (actionDropdownId !== tc.id) e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                            <FontAwesomeIcon icon={faEllipsisV} className="w-4 h-4" />
                           </button>
-                          <button onClick={() => openEdit(t)} className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Tahrirlash">
-                            <FontAwesomeIcon icon={faEdit} className="w-4 h-4 text-primary-600" />
-                          </button>
-                          <button onClick={() => openDelete(t)} className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="O'chirish">
-                            <FontAwesomeIcon icon={faTrash} className="w-4 h-4 text-red-500" />
-                          </button>
+                          {actionDropdownId === tc.id && (
+                            <div className="absolute right-0 top-full mt-1 w-48 rounded-xl shadow-lg border z-30 py-1 overflow-hidden"
+                              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
+                              <button onClick={() => { openView(tc); setActionDropdownId(null); }}
+                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
+                                style={{ color: 'var(--text-primary)' }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                                <FontAwesomeIcon icon={faEye} className="w-4 h-4" style={{ color: 'var(--text-muted)' }} /> Ko'rish
+                              </button>
+                              {canEdit && (
+                                <button onClick={() => { openEdit(tc); setActionDropdownId(null); }}
+                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
+                                  style={{ color: 'var(--text-primary)' }}
+                                  onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                                  <FontAwesomeIcon icon={faEdit} className="w-4 h-4 text-primary-600" /> Tahrirlash
+                                </button>
+                              )}
+                              {canDelete && (
+                                <>
+                                  <div className="my-1 border-t" style={{ borderColor: 'var(--border-color)' }} />
+                                  <button onClick={() => { openDelete(tc); setActionDropdownId(null); }}
+                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-red-500"
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.06)'}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                                    <FontAwesomeIcon icon={faTrash} className="w-4 h-4" /> O'chirish
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -595,20 +779,41 @@ export default function Teachers() {
               </table>
             </div>
 
-            {totalPages > 1 && (
+            {/* PAGINATION */}
+            {meta.total_pages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{(currentPage - 1) * perPage + 1}-{Math.min(currentPage * perPage, filtered.length)} / {filtered.length}</p>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                  {(currentPage - 1) * meta.per_page + 1}–{Math.min(currentPage * meta.per_page, meta.total)} / {meta.total}
+                </p>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">
+                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                    className="w-9 h-9 rounded-lg flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    style={{ color: 'var(--text-secondary)' }}
+                    onMouseEnter={e => { if (currentPage > 1) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                     <FontAwesomeIcon icon={faChevronLeft} className="w-4 h-4" />
                   </button>
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let page = totalPages <= 5 ? i + 1 : currentPage <= 3 ? i + 1 : currentPage >= totalPages - 2 ? totalPages - 4 + i : currentPage - 2 + i;
+                  {Array.from({ length: Math.min(5, meta.total_pages) }, (_, i) => {
+                    let page;
+                    if (meta.total_pages <= 5) page = i + 1;
+                    else if (currentPage <= 3) page = i + 1;
+                    else if (currentPage >= meta.total_pages - 2) page = meta.total_pages - 4 + i;
+                    else page = currentPage - 2 + i;
                     return (
-                      <button key={page} onClick={() => setCurrentPage(page)} className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${currentPage === page ? 'bg-primary-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>{page}</button>
+                      <button key={page} onClick={() => setCurrentPage(page)}
+                        className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${currentPage === page ? 'bg-primary-600 text-white' : ''}`}
+                        style={currentPage !== page ? { color: 'var(--text-secondary)' } : {}}
+                        onMouseEnter={e => { if (currentPage !== page) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
+                        onMouseLeave={e => { if (currentPage !== page) e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                        {page}
+                      </button>
                     );
                   })}
-                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">
+                  <button onClick={() => setCurrentPage(p => Math.min(meta.total_pages, p + 1))} disabled={currentPage === meta.total_pages}
+                    className="w-9 h-9 rounded-lg flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    style={{ color: 'var(--text-secondary)' }}
+                    onMouseEnter={e => { if (currentPage < meta.total_pages) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                     <FontAwesomeIcon icon={faChevronRight} className="w-4 h-4" />
                   </button>
                 </div>
@@ -621,190 +826,259 @@ export default function Teachers() {
       {/* CREATE/EDIT DRAWER */}
       <Drawer isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} title={formMode === 'create' ? "Yangi o'qituvchi" : "O'qituvchini tahrirlash"}>
         <div>
-          {/* Avatar */}
           <div className="flex justify-center py-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
-            <div className="relative">
-              <div className="w-24 h-24 rounded-full flex items-center justify-center text-white text-2xl font-bold" style={{ backgroundColor: form.gender === 'female' ? '#EC4899' : '#1B365D' }}>
-                {getInitials(form.first_name, form.last_name) || <FontAwesomeIcon icon={faUser} className="w-10 h-10 opacity-50" />}
-              </div>
-              <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary-600 text-white flex items-center justify-center shadow-lg hover:bg-primary-700 transition-colors">
-                <FontAwesomeIcon icon={faCamera} className="w-4 h-4" />
-              </button>
+            <div className="w-24 h-24 rounded-full flex items-center justify-center text-white text-2xl font-bold" style={{ backgroundColor: '#1B365D' }}>
+              {getInitials(form.first_name, form.last_name) || <FontAwesomeIcon icon={faUser} className="w-10 h-10 opacity-50" />}
             </div>
           </div>
 
-          {/* Shaxsiy ma'lumotlar */}
           <Section title="Shaxsiy ma'lumotlar" icon={faUser} iconColor="bg-primary-100 dark:bg-primary-900/30 text-primary-600" defaultOpen={true}>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Ism" required placeholder="Ism" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} error={errors.first_name} />
-              <Input label="Familiya" required placeholder="Familiya" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} error={errors.last_name} />
+              <Input label="Ism" required placeholder="Ism kiriting" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} error={errors.first_name} />
+              <Input label="Familiya" required placeholder="Familiya kiriting" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} error={errors.last_name} />
             </div>
             <Input label="Telefon" required prefix="+998" placeholder="90 123 45 67" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, '').slice(0, 9) })} error={errors.phone} />
+            <Input label="Qo'shimcha telefon" prefix="+998" placeholder="90 123 45 67" value={form.phone_secondary} onChange={(e) => setForm({ ...form, phone_secondary: e.target.value.replace(/\D/g, '').slice(0, 9) })} error={errors.phone_secondary} />
             <Input label="Email" type="email" icon={faEnvelope} placeholder="email@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             <div className="grid grid-cols-2 gap-4">
               <Input label="Tug'ilgan sana" type="date" value={form.birth_date} onChange={(e) => setForm({ ...form, birth_date: e.target.value })} />
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Jinsi</label>
-                <div className="flex h-12 rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
-                  <button type="button" onClick={() => setForm({ ...form, gender: 'male' })} className={`flex-1 flex items-center justify-center gap-2 font-medium transition-colors ${form.gender === 'male' ? 'bg-primary-600 text-white' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`} style={form.gender !== 'male' ? { color: 'var(--text-secondary)' } : {}}>
-                    <FontAwesomeIcon icon={faMale} className="w-4 h-4" /> Erkak
-                  </button>
-                  <button type="button" onClick={() => setForm({ ...form, gender: 'female' })} className={`flex-1 flex items-center justify-center gap-2 font-medium transition-colors ${form.gender === 'female' ? 'bg-pink-500 text-white' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`} style={form.gender !== 'female' ? { color: 'var(--text-secondary)' } : {}}>
-                    <FontAwesomeIcon icon={faFemale} className="w-4 h-4" /> Ayol
-                  </button>
-                </div>
-              </div>
+              <Input label="Ishga kirgan sana" type="date" value={form.hired_date} onChange={(e) => setForm({ ...form, hired_date: e.target.value })} />
             </div>
-            <Input label="Manzil" icon={faMapMarkerAlt} placeholder="Shahar, tuman" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+            <Input label="Manzil" icon={faMapMarkerAlt} placeholder="Shahar, tuman, ko'cha" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           </Section>
 
-          {/* Kasbiy ma'lumotlar */}
-          <Section title="Kasbiy ma'lumotlar" icon={faGraduationCap} iconColor="bg-purple-100 dark:bg-purple-900/30 text-purple-600" defaultOpen={true}>
-            <MultiSelect label="O'qitadigan fanlar" options={subjectOptions} value={form.subjects} onChange={(v) => setForm({ ...form, subjects: v })} />
-            <Input label="Tajriba (yil)" type="number" placeholder="5" value={form.experience_years} onChange={(e) => setForm({ ...form, experience_years: e.target.value })} />
+          <Section title="Ish haqi" icon={faMoneyBillWave} iconColor="bg-green-100 dark:bg-green-900/30 text-green-600" defaultOpen={true}>
+            <SelectInput label="Ish haqi turi" options={salaryTypeOptions} value={form.salary_type} onChange={(v) => setForm({ ...form, salary_type: v })} />
+            {form.salary_type === 'percent' ? (
+              <Input label="Foiz (%)" type="number" placeholder="40" suffix="%" value={form.salary_percent}
+                onChange={(e) => setForm({ ...form, salary_percent: e.target.value })} />
+            ) : (
+              <Input label={form.salary_type === 'hourly' ? "Soatiga (so'm)" : "Oylik (so'm)"} type="number"
+                placeholder={form.salary_type === 'hourly' ? '80000' : '5000000'} suffix="so'm"
+                value={form.salary_amount} onChange={(e) => setForm({ ...form, salary_amount: e.target.value })} />
+            )}
+            <SelectInput label="Status" options={[
+              { value: 'active', label: 'Faol' },
+              { value: 'inactive', label: 'Nofaol' },
+              { value: 'on_leave', label: "Ta'tilda" },
+            ]} value={form.status} onChange={(v) => setForm({ ...form, status: v })} />
+          </Section>
+
+          <Section title="Qo'shimcha" icon={faInfoCircle} iconColor="bg-gray-100 dark:bg-gray-800 text-gray-500" defaultOpen={false}>
+            <Input label="Telegram username" icon={faTelegram} placeholder="@username" value={form.telegram_username} onChange={(e) => setForm({ ...form, telegram_username: e.target.value })} />
             <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Bio / Qo'shimcha</label>
-              <textarea rows={3} placeholder="Sertifikatlar, yutuqlar..." value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} className="w-full px-4 py-3 rounded-xl border bg-transparent resize-none focus:outline-none focus:ring-2 focus:ring-primary-500" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Bio / Izoh</label>
+              <textarea rows={3} placeholder="Sertifikatlar, yutuqlar, tajriba..." value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl border bg-transparent resize-none focus:outline-none focus:ring-2 focus:ring-primary-500"
+                style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
             </div>
           </Section>
 
-          {/* To'lov */}
-          <Section title="To'lov shartlari" icon={faMoneyBillWave} iconColor="bg-green-100 dark:bg-green-900/30 text-green-600" defaultOpen={false}>
-            <Select label="To'lov turi" options={paymentTypeOptions} value={form.payment_type} onChange={(v) => setForm({ ...form, payment_type: v })} />
-            <Input
-              label={form.payment_type === 'percent' ? 'Foiz (%)' : form.payment_type === 'hourly' ? 'Soatiga (so\'m)' : 'Oylik (so\'m)'}
-              type="number"
-              placeholder={form.payment_type === 'percent' ? '40' : '5000000'}
-              value={form.payment_amount}
-              onChange={(e) => setForm({ ...form, payment_amount: e.target.value })}
-            />
-          </Section>
-
-          {/* Ijtimoiy tarmoqlar */}
-          <Section title="Ijtimoiy tarmoqlar" icon={faTelegram} iconColor="bg-sky-100 dark:bg-sky-900/30 text-sky-500" defaultOpen={false}>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Telegram" icon={faTelegram} placeholder="@username" value={form.telegram_username} onChange={(e) => setForm({ ...form, telegram_username: e.target.value })} />
-              <Input label="Instagram" icon={faInstagram} placeholder="@username" value={form.instagram_username} onChange={(e) => setForm({ ...form, instagram_username: e.target.value })} />
-            </div>
-          </Section>
-
-          {/* Footer */}
           <div className="sticky bottom-0 flex gap-3 p-6 border-t" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-            <button onClick={() => setIsFormOpen(false)} className="flex-1 h-12 rounded-xl border font-medium transition-colors hover:bg-gray-50 dark:hover:bg-gray-800" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+            <button onClick={() => setIsFormOpen(false)} className="flex-1 h-12 rounded-xl border font-medium transition-colors"
+              style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
               Bekor qilish
             </button>
             <button onClick={handleSubmit} disabled={formLoading} className="flex-1 h-12 rounded-xl bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-medium flex items-center justify-center gap-2 transition-colors">
-              {formLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><FontAwesomeIcon icon={faCheck} className="w-4 h-4" />{formMode === 'create' ? "Qo'shish" : 'Saqlash'}</>}
+              {formLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : (
+                <><FontAwesomeIcon icon={faCheck} className="w-4 h-4" /> {formMode === 'create' ? "Qo'shish" : 'Saqlash'}</>
+              )}
             </button>
           </div>
         </div>
       </Drawer>
 
       {/* VIEW DRAWER */}
-      <Drawer isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} title="O'qituvchi ma'lumotlari">
+      <Drawer isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} title="O'qituvchi ma'lumotlari" width="580px">
         {selectedTeacher && (
-          <div className="p-6 space-y-6">
-            <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold flex-shrink-0" style={{ backgroundColor: selectedTeacher.gender === 'female' ? '#EC4899' : '#1B365D' }}>
-                {getInitials(selectedTeacher.first_name, selectedTeacher.last_name)}
-              </div>
-              <div>
-                <h3 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{selectedTeacher.first_name} {selectedTeacher.last_name}</h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="px-3 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: statusConfig[selectedTeacher.status]?.bg, color: statusConfig[selectedTeacher.status]?.color }}>
-                    {statusConfig[selectedTeacher.status]?.label}
-                  </span>
-                  {selectedTeacher.rating && (
-                    <span className="flex items-center gap-1 text-sm">
-                      <FontAwesomeIcon icon={faStar} className="w-4 h-4 text-yellow-500" />
-                      <span style={{ color: 'var(--text-primary)' }}>{selectedTeacher.rating}</span>
+          <div>
+            {/* Header */}
+            <div className="p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold flex-shrink-0" style={{ backgroundColor: '#1B365D' }}>
+                  {getInitials(selectedTeacher.first_name, selectedTeacher.last_name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-xl font-bold truncate" style={{ color: 'var(--text-primary)' }}>{selectedTeacher.first_name} {selectedTeacher.last_name}</h3>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: statusConfig[selectedTeacher.status]?.bg, color: statusConfig[selectedTeacher.status]?.color }}>
+                      <FontAwesomeIcon icon={statusConfig[selectedTeacher.status]?.icon || faUser} className="w-3 h-3" />
+                      {statusConfig[selectedTeacher.status]?.label}
                     </span>
+                  </div>
+                  {selectedTeacher.hired_date && (
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                      <FontAwesomeIcon icon={faBriefcase} className="w-3 h-3 mr-1" />
+                      Ishga kirgan: {new Date(selectedTeacher.hired_date).toLocaleDateString('uz-UZ')}
+                    </p>
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="p-3 rounded-xl text-center" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                <p className="text-2xl font-bold text-primary-600">{selectedTeacher.groups_count || 0}</p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Guruh</p>
-              </div>
-              <div className="p-3 rounded-xl text-center" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                <p className="text-2xl font-bold text-green-600">{selectedTeacher.students_count || 0}</p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>O'quvchi</p>
-              </div>
-              <div className="p-3 rounded-xl text-center" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                <p className="text-2xl font-bold text-purple-600">{selectedTeacher.experience_years || 0}</p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Yil tajriba</p>
-              </div>
-            </div>
-
-            {/* Contact */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                <FontAwesomeIcon icon={faPhone} className="w-5 h-5 text-primary-600" />
-                <div>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Telefon</p>
-                  <a href={`tel:${selectedTeacher.phone}`} className="font-medium text-primary-600">{formatPhone(selectedTeacher.phone)}</a>
+              {/* Salary card */}
+              <div className="mt-4 p-4 rounded-xl" style={{ backgroundColor: 'rgba(34, 197, 94, 0.08)' }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                      <FontAwesomeIcon icon={salaryTypeConfig[selectedTeacher.salary_type]?.icon || faWallet} className="w-3 h-3 mr-1" />
+                      {salaryTypeConfig[selectedTeacher.salary_type]?.label || 'Ish haqi'}
+                    </p>
+                    <p className="text-2xl font-bold mt-0.5" style={{ color: salaryTypeConfig[selectedTeacher.salary_type]?.color || '#22C55E' }}>
+                      {formatSalary(selectedTeacher.salary_type, selectedTeacher.salary_amount, selectedTeacher.salary_percent)}
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)' }}>
+                    <FontAwesomeIcon icon={faMoneyBillWave} className="w-5 h-5" style={{ color: '#22C55E' }} />
+                  </div>
                 </div>
               </div>
+            </div>
+
+            {/* Stats row */}
+            <div className="p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl text-center" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  <p className="text-2xl font-bold text-primary-600">{selectedTeacher.groups_count || teacherGroups.length || 0}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Faol guruhlar</p>
+                </div>
+                <div className="p-3 rounded-xl text-center" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  <p className="text-2xl font-bold" style={{ color: '#8B5CF6' }}>{(selectedTeacher.subjects_data || []).length}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Fan</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Contact info */}
+            <div className="p-6 space-y-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-primary-100 dark:bg-primary-900/30">
+                  <FontAwesomeIcon icon={faPhone} className="w-4 h-4 text-primary-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Telefon</p>
+                  <a href={`tel:${selectedTeacher.phone}`} className="font-medium text-primary-600 text-sm">{formatPhone(selectedTeacher.phone)}</a>
+                </div>
+              </div>
+              {selectedTeacher.phone_secondary && (
+                <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-primary-100 dark:bg-primary-900/30">
+                    <FontAwesomeIcon icon={faPhone} className="w-4 h-4 text-primary-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Qo'shimcha telefon</p>
+                    <a href={`tel:${selectedTeacher.phone_secondary}`} className="font-medium text-primary-600 text-sm">{formatPhone(selectedTeacher.phone_secondary)}</a>
+                  </div>
+                </div>
+              )}
               {selectedTeacher.email && (
                 <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                  <FontAwesomeIcon icon={faEnvelope} className="w-5 h-5 text-primary-600" />
-                  <div>
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-blue-100 dark:bg-blue-900/30">
+                    <FontAwesomeIcon icon={faEnvelope} className="w-4 h-4 text-blue-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
                     <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Email</p>
-                    <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{selectedTeacher.email}</p>
+                    <p className="font-medium text-sm truncate" style={{ color: 'var(--text-primary)' }}>{selectedTeacher.email}</p>
+                  </div>
+                </div>
+              )}
+              {selectedTeacher.telegram_username && (
+                <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-sky-100 dark:bg-sky-900/30">
+                    <FontAwesomeIcon icon={faTelegram} className="w-4 h-4 text-sky-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Telegram</p>
+                    <p className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{selectedTeacher.telegram_username}</p>
+                  </div>
+                </div>
+              )}
+              {selectedTeacher.address && (
+                <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-purple-100 dark:bg-purple-900/30">
+                    <FontAwesomeIcon icon={faMapMarkerAlt} className="w-4 h-4 text-purple-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Manzil</p>
+                    <p className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{selectedTeacher.address}</p>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Subjects */}
-            {selectedTeacher.subjects?.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>O'qitadigan fanlar</h4>
+            {(selectedTeacher.subjects_data || []).length > 0 && (
+              <div className="p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>O'qitadigan fanlar</h4>
                 <div className="flex flex-wrap gap-2">
-                  {getSubjectLabels(selectedTeacher.subjects).map((s, i) => (
-                    <span key={i} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">{s}</span>
+                  {selectedTeacher.subjects_data.map((s) => (
+                    <span key={s.id} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: 'rgba(139, 92, 246, 0.1)', color: '#8B5CF6' }}>
+                      <FontAwesomeIcon icon={faBook} className="w-3 h-3 mr-1.5" />{s.name}
+                    </span>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Payment */}
-            <div className="p-4 rounded-xl bg-green-50 dark:bg-green-900/20">
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {paymentTypeOptions.find(p => p.value === selectedTeacher.payment_type)?.label || 'Oylik'}
-              </p>
-              <p className="text-2xl font-bold text-green-600">
-                {selectedTeacher.payment_type === 'percent' ? `${selectedTeacher.payment_amount}%` : formatMoney(selectedTeacher.payment_amount || 0)}
-              </p>
+            {/* Groups */}
+            <div className="p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>Faol guruhlar</h4>
+              {groupsLoading ? (
+                <div className="flex justify-center py-4">
+                  <div className="w-6 h-6 border-3 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
+                </div>
+              ) : teacherGroups.length > 0 ? (
+                <div className="space-y-2">
+                  {teacherGroups.map((g) => (
+                    <div key={g.id} className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-indigo-100 dark:bg-indigo-900/30">
+                          <FontAwesomeIcon icon={faUsers} className="w-4 h-4 text-indigo-500" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{g.name}</p>
+                          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{g.course} • {g.students_count || 0} o'quvchi</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{g.days}</p>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{g.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-center py-3" style={{ color: 'var(--text-muted)' }}>Faol guruhlar yo'q</p>
+              )}
             </div>
 
             {/* Bio */}
             {selectedTeacher.bio && (
-              <div className="p-4 rounded-xl border" style={{ borderColor: 'var(--border-color)' }}>
-                <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Bio</h4>
-                <p style={{ color: 'var(--text-secondary)' }}>{selectedTeacher.bio}</p>
+              <div className="p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>Bio</h4>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{selectedTeacher.bio}</p>
               </div>
             )}
 
             {/* Actions */}
-            <div className="flex gap-3">
-              <button onClick={() => { setIsViewOpen(false); openEdit(selectedTeacher); }} className="flex-1 h-12 rounded-xl border font-medium flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
-                <FontAwesomeIcon icon={faEdit} className="w-4 h-4" /> Tahrirlash
-              </button>
-              <button className="flex-1 h-12 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-medium transition-colors">
-                Guruhlarni ko'rish
-              </button>
+            <div className="p-6">
+              <div className="flex gap-3">
+                {canEdit && (
+                  <button onClick={() => { setIsViewOpen(false); openEdit(selectedTeacher); }}
+                    className="flex-1 h-12 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-medium flex items-center justify-center gap-2 transition-colors">
+                    <FontAwesomeIcon icon={faEdit} className="w-4 h-4" /> Tahrirlash
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
       </Drawer>
 
       {/* DELETE MODAL */}
-      <DeleteModal isOpen={isDeleteOpen} onClose={() => setIsDeleteOpen(false)} onConfirm={handleDelete} name={`${selectedTeacher?.first_name} ${selectedTeacher?.last_name}`} />
+      <DeleteModal isOpen={isDeleteOpen} onClose={() => setIsDeleteOpen(false)} onConfirm={handleDelete}
+        name={`${selectedTeacher?.first_name} ${selectedTeacher?.last_name}`} loading={deleteLoading} />
     </div>
   );
 }
