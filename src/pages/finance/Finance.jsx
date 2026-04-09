@@ -11,8 +11,9 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import {
   expenseCategoriesService, expensesService, transactionsService,
-  salariesService, financeDashboardService, paymentStatsService
+  salariesService, financeDashboardService,
 } from '@/services/finance';
+import { paymentsService } from '@/services/payments';
 
 // ============================================
 // CONFIG
@@ -157,10 +158,10 @@ export default function Finance() {
   const fetchDashboard = async () => {
     try {
       const [dashRes, monthRes, debtRes, statsRes] = await Promise.all([
-        financeDashboardService.get().catch(() => null),
+        financeDashboardService.summary().catch(() => null),
         financeDashboardService.monthlyReport().catch(() => null),
-        paymentStatsService.debtors().catch(() => null),
-        paymentStatsService.statistics().catch(() => null),
+        paymentsService.debtors().catch(() => null),
+        paymentsService.statistics().catch(() => null),
       ]);
       setDashboard(dashRes?.data?.data || dashRes?.data || {});
       const mData = monthRes?.data?.data || monthRes?.data?.monthly_data || monthRes?.data || [];
