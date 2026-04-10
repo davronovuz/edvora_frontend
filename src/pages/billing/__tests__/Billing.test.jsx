@@ -34,6 +34,14 @@ vi.mock('@/services/billing', () => ({
   },
 }));
 
+// Mock groups service
+vi.mock('@/services/groups', () => ({
+  groupsService: {
+    getAll: vi.fn(() => Promise.resolve({ data: { data: [] } })),
+    getStudents: vi.fn(() => Promise.resolve({ data: { data: [] } })),
+  },
+}));
+
 // Mock sonner
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -155,7 +163,8 @@ describe('Billing Page', () => {
     renderBilling();
     await waitFor(() => screen.getByText('INV-202604-00001'));
     fireEvent.click(screen.getByText('Yaratish'));
-    expect(screen.getByText('Invoice yaratish')).toBeInTheDocument();
+    const matches = screen.getAllByText('Invoice yaratish');
+    expect(matches.length).toBeGreaterThanOrEqual(1);
   });
 
   it('status filter mavjud', async () => {

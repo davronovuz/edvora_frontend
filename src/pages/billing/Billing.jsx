@@ -12,6 +12,7 @@ import {
   billingProfilesService, billingInvoicesService,
   billingLeavesService, billingDiscountsService,
 } from '@/services/billing';
+import { groupsService } from '@/services/groups';
 
 // ============================================
 // CONFIG
@@ -145,6 +146,13 @@ function InvoicesTab() {
   const [detail, setDetail] = useState(null);
   const [generateModal, setGenerateModal] = useState(false);
   const [genForm, setGenForm] = useState({ group_student_id: '', year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
+  const [genMode, setGenMode] = useState('single'); // 'single' | 'group'
+  const [genGroupId, setGenGroupId] = useState('');
+  const [groups, setGroups] = useState([]);
+  const [groupStudents, setGroupStudents] = useState([]);
+  const [groupSearch, setGroupSearch] = useState('');
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [loadingStudents, setLoadingStudents] = useState(false);
 
   const now = new Date();
 
@@ -180,14 +188,49 @@ function InvoicesTab() {
     } catch (e) { toast.error(e.response?.data?.detail || 'Xato'); }
   };
 
+  const fetchGroups = async (q = '') => {
+    setLoadingGroups(true);
+    try {
+      const res = await groupsService.getAll({ search: q, page_size: 50 });
+      setGroups(res.data.data || res.data.results || []);
+    } catch { setGroups([]); }
+    setLoadingGroups(false);
+  };
+
+  const fetchGroupStudents = async (groupId) => {
+    if (!groupId) { setGroupStudents([]); return; }
+    setLoadingStudents(true);
+    try {
+      const res = await groupsService.getStudents(groupId);
+      setGroupStudents(res.data.data || res.data || []);
+    } catch { setGroupStudents([]); }
+    setLoadingStudents(false);
+  };
+
+  const openGenerateModal = () => {
+    setGenMode('single');
+    setGenGroupId('');
+    setGenForm({ group_student_id: '', year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
+    setGroupStudents([]);
+    setGenerateModal(true);
+    fetchGroups();
+  };
+
   const handleGenerate = async () => {
     try {
-      await billingInvoicesService.generate(genForm);
-      toast.success('Invoice yaratildi');
+      if (genMode === 'group') {
+        if (!genGroupId) { toast.error('Guruhni tanlang'); return; }
+        await billingInvoicesService.generateGroup({ group_id: genGroupId, year: genForm.year, month: genForm.month });
+        toast.success('Guruh uchun invoicelar yaratildi');
+      } else {
+        if (!genForm.group_student_id) { toast.error("O'quvchini tanlang"); return; }
+        await billingInvoicesService.generate(genForm);
+        toast.success('Invoice yaratildi');
+      }
       setGenerateModal(false);
       fetchInvoices();
       fetchSummary();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Xato'); }
+    } catch (e) { toast.error(e.response?.data?.detail || e.response?.data?.error || 'Xato'); }
   };
 
   const viewDetail = async (id) => {
@@ -220,7 +263,7 @@ function InvoicesTab() {
           <option value="">Barchasi</option>
           {Object.entries(invoiceStatusConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <button onClick={() => setGenerateModal(true)} className="btn btn-primary gap-2">
+        <button onClick={openGenerateModal} className="btn btn-primary gap-2">
           <FontAwesomeIcon icon={faPlus} /> Yaratish
         </button>
       </div>
@@ -274,10 +317,103 @@ function InvoicesTab() {
       {/* Generate Modal */}
       <Modal isOpen={generateModal} onClose={() => setGenerateModal(false)} title="Invoice yaratish">
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>GroupStudent ID</label>
-            <input value={genForm.group_student_id} onChange={e => setGenForm(p => ({ ...p, group_student_id: e.target.value }))} className="input w-full" placeholder="UUID" />
+          {/* Mode switch */}
+          <div className="flex rounded-xl overflow-hidden border" style={{ borderColor: 'var(--border-color)' }}>
+            <button onClick={() => { setGenMode('single'); setGenGroupId(''); setGenForm(p => ({ ...p, group_student_id: '' })); setGroupStudents([]); }}
+              className="flex-1 py-2.5 text-sm font-semibold transition-colors"
+              style={{ backgroundColor: genMode === 'single' ? '#F97316' : 'transparent', color: genMode === 'single' ? '#fff' : 'var(--text-secondary)' }}>
+              <FontAwesomeIcon icon={faUserGraduate} className="mr-2" />Bitta o'quvchi
+            </button>
+            <button onClick={() => { setGenMode('group'); setGenForm(p => ({ ...p, group_student_id: '' })); }}
+              className="flex-1 py-2.5 text-sm font-semibold transition-colors"
+              style={{ backgroundColor: genMode === 'group' ? '#F97316' : 'transparent', color: genMode === 'group' ? '#fff' : 'var(--text-secondary)' }}>
+              <FontAwesomeIcon icon={faLayerGroup} className="mr-2" />Butun guruh
+            </button>
           </div>
+
+          {/* Group selector */}
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Guruh</label>
+            <div className="relative">
+              <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+              <input value={groupSearch} onChange={e => { setGroupSearch(e.target.value); fetchGroups(e.target.value); }}
+                placeholder="Guruh qidirish..." className="input pl-9 w-full" />
+            </div>
+            {loadingGroups ? (
+              <div className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Yuklanmoqda...</div>
+            ) : groups.length > 0 ? (
+              <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border space-y-0.5 p-1" style={{ borderColor: 'var(--border-color)' }}>
+                {groups.map(g => (
+                  <button key={g.id} onClick={() => {
+                    if (genMode === 'group') {
+                      setGenGroupId(g.id);
+                    }
+                    fetchGroupStudents(g.id);
+                    setGroupSearch(g.name);
+                    setGroups([]);
+                  }}
+                    className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-[var(--bg-tertiary)]"
+                    style={{ color: 'var(--text-primary)' }}>
+                    <div className="font-medium">{g.name}</div>
+                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {g.course_name || g.course || ''} {g.teacher_name ? `• ${g.teacher_name}` : ''}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {/* Student selector (only for single mode) */}
+          {genMode === 'single' && (
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>O'quvchi</label>
+              {loadingStudents ? (
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Yuklanmoqda...</div>
+              ) : groupStudents.length === 0 ? (
+                <div className="text-xs p-3 rounded-xl text-center" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}>
+                  Avval guruhni tanlang
+                </div>
+              ) : (
+                <div className="max-h-48 overflow-y-auto rounded-xl border space-y-0.5 p-1" style={{ borderColor: 'var(--border-color)' }}>
+                  {groupStudents.map(gs => (
+                    <button key={gs.id} onClick={() => setGenForm(p => ({ ...p, group_student_id: gs.id }))}
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
+                      style={{
+                        backgroundColor: genForm.group_student_id === gs.id ? 'rgba(249,115,22,0.12)' : 'transparent',
+                        borderLeft: genForm.group_student_id === gs.id ? '3px solid #F97316' : '3px solid transparent',
+                      }}>
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ backgroundColor: '#F97316' }}>
+                        {(gs.student_name || gs.full_name || gs.first_name || '?')[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="font-medium" style={{ color: genForm.group_student_id === gs.id ? '#F97316' : 'var(--text-primary)' }}>
+                          {gs.student_name || gs.full_name || `${gs.first_name || ''} ${gs.last_name || ''}`.trim()}
+                        </div>
+                        {gs.phone && <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{gs.phone}</div>}
+                      </div>
+                      {genForm.group_student_id === gs.id && (
+                        <FontAwesomeIcon icon={faCheck} className="ml-auto w-4 h-4" style={{ color: '#F97316' }} />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Group info for group mode */}
+          {genMode === 'group' && genGroupId && (
+            <div className="p-3 rounded-xl flex items-center gap-2" style={{ backgroundColor: 'rgba(249,115,22,0.08)' }}>
+              <FontAwesomeIcon icon={faLayerGroup} className="w-4 h-4" style={{ color: '#F97316' }} />
+              <span className="text-sm" style={{ color: 'var(--text-primary)' }}>
+                Guruhdagi barcha o'quvchilar uchun invoice yaratiladi
+                {groupStudents.length > 0 && <b> ({groupStudents.length} ta)</b>}
+              </span>
+            </div>
+          )}
+
+          {/* Year / Month */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Yil</label>
@@ -285,10 +421,18 @@ function InvoicesTab() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Oy</label>
-              <input type="number" min={1} max={12} value={genForm.month} onChange={e => setGenForm(p => ({ ...p, month: +e.target.value }))} className="input w-full" />
+              <select value={genForm.month} onChange={e => setGenForm(p => ({ ...p, month: +e.target.value }))} className="input w-full">
+                {['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'].map((m, i) => (
+                  <option key={i} value={i + 1}>{m}</option>
+                ))}
+              </select>
             </div>
           </div>
-          <button onClick={handleGenerate} className="btn btn-primary w-full">Yaratish</button>
+
+          <button onClick={handleGenerate} className="btn btn-primary w-full gap-2">
+            <FontAwesomeIcon icon={faPlus} />
+            {genMode === 'group' ? 'Guruh uchun yaratish' : 'Invoice yaratish'}
+          </button>
         </div>
       </Modal>
 
