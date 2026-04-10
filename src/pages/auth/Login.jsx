@@ -298,7 +298,7 @@ export default function Login() {
                 transition={{ type: 'spring', stiffness: 200, delay: 0.2 }}
                 src={Logo}
                 alt={centerName}
-                className="h-20 w-auto mx-auto mb-4 object-contain"
+                className="h-28 w-auto mx-auto mb-4 object-contain"
               />
             )}
             <motion.h1

@@ -44,7 +44,7 @@ export default function LandingHeader({ onOpenDemo }) {
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <img src={Logo} alt="MarkazEdu" className="h-10 w-auto object-contain" />
+            <img src={Logo} alt="MarkazEdu" className="h-12 w-auto object-contain" />
           </div>
 
           {/* Desktop Nav */}
