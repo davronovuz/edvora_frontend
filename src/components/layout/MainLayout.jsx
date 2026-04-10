@@ -43,6 +43,7 @@ import {
 import Logo from '@/assets/logo.png';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useTranslation } from 'react-i18next';
+import api from '@/services/api';
 
 // Navigation items grouped by sections with role access
 // Names are i18n keys, resolved in render via t()
@@ -83,6 +84,8 @@ export default function MainLayout() {
   const navigation = getNavigation(t);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Desktop collapse
+  const [tenantLogo, setTenantLogo] = useState(null);
+  const [tenantName, setTenantName] = useState(null);
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme, initTheme } = useThemeStore();
   const navigate = useNavigate();
@@ -93,6 +96,11 @@ export default function MainLayout() {
     // LocalStorage'dan collapse holatini olish
     const saved = localStorage.getItem('sidebar-collapsed');
     if (saved) setSidebarCollapsed(JSON.parse(saved));
+    // Tenant logosini yuklash
+    api.get('/tenant-info/').then(res => {
+      if (res.data?.logo) setTenantLogo(res.data.logo);
+      if (res.data?.name && !res.data?.is_main) setTenantName(res.data.name);
+    }).catch(() => {});
   }, []);
 
   const toggleCollapse = () => {
@@ -135,7 +143,8 @@ export default function MainLayout() {
           {!sidebarCollapsed ? (
             <>
               <div className="flex-1 flex items-center gap-2 min-w-0">
-                <img src={Logo} alt="MarkazEdu" className="h-8 w-auto object-contain flex-shrink-0" />
+                <img src={tenantLogo || Logo} alt={tenantName || 'MarkazEdu'} className="h-8 w-auto object-contain flex-shrink-0" />
+                {tenantName && <span className="font-bold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{tenantName}</span>}
               </div>
               {/* Desktop collapse */}
               <button
@@ -163,7 +172,7 @@ export default function MainLayout() {
               className="w-full flex items-center justify-center"
               title="Sidebarni ochish"
             >
-              <img src={Logo} alt="M" className="h-9 w-auto object-contain transition-transform hover:scale-105" />
+              <img src={tenantLogo || Logo} alt="M" className="h-9 w-auto object-contain transition-transform hover:scale-105" />
             </button>
           )}
         </div>

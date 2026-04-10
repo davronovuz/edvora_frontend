@@ -24,23 +24,13 @@ const isMainDomain = () => {
   return host === 'markazedu.uz' || host === 'www.markazedu.uz' || host === 'localhost' || host === '127.0.0.1';
 };
 
-// Telefon raqamdan faqat raqamlar — formatlash inputda emas, ko'rsatishda
+// Telefon raqamdan faqat raqamlar
 const cleanPhone = (value) => {
   let digits = value.replace(/\D/g, '');
   if (digits.startsWith('998') && digits.length > 9) {
     digits = digits.slice(3);
   }
   return digits.slice(0, 9);
-};
-
-// Ko'rsatish uchun formatlash
-const displayPhone = (digits) => {
-  let f = '';
-  if (digits.length > 0) f += digits.slice(0, 2);
-  if (digits.length > 2) f += ' ' + digits.slice(2, 5);
-  if (digits.length > 5) f += ' ' + digits.slice(5, 7);
-  if (digits.length > 7) f += ' ' + digits.slice(7, 9);
-  return f;
 };
 
 // Raw digits dan serverga yuboriladigan formatga: +998901234567
@@ -201,12 +191,12 @@ export default function Login() {
             type="tel"
             inputMode="numeric"
             autoComplete="tel"
-            value={displayPhone(phone)}
+            value={phone}
             onChange={handlePhoneChange}
             onKeyDown={handlePhoneKeyDown}
-            placeholder="90 123 45 67"
-            maxLength={12}
-            className={`w-full h-12 pl-16 pr-4 rounded-xl border ${
+            placeholder="901234567"
+            maxLength={9}
+            className={`w-full h-12 pl-16 pr-4 rounded-xl border text-lg tracking-widest ${
               phoneError ? 'border-red-300 bg-red-50/50' : 'border-gray-200 bg-gray-50'
             } text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 transition-all duration-200 outline-none`}
           />
