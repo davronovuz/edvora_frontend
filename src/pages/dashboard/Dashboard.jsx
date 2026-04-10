@@ -413,6 +413,38 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* BILLING KPI (yangi invoice tizimi) */}
+      {isOwnerOrAdmin && stats?.billing && (
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Billing (shu oy)</h3>
+            <button onClick={() => navigate('/app/billing')} className="text-xs text-primary-600 hover:underline">Batafsil</button>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="rounded-xl p-3" style={{ backgroundColor: '#3B82F610' }}>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Kutilayotgan</p>
+              <p className="text-lg font-bold" style={{ color: '#3B82F6' }}>{formatCurrency(stats.billing.expected)} so'm</p>
+            </div>
+            <div className="rounded-xl p-3" style={{ backgroundColor: '#22C55E10' }}>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Yig'ilgan</p>
+              <p className="text-lg font-bold" style={{ color: '#22C55E' }}>{formatCurrency(stats.billing.collected)} so'm</p>
+            </div>
+            <div className="rounded-xl p-3" style={{ backgroundColor: '#EF444410' }}>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Qarz</p>
+              <p className="text-lg font-bold" style={{ color: '#EF4444' }}>{formatCurrency(stats.billing.debt)} so'm</p>
+            </div>
+            <div className="rounded-xl p-3" style={{ backgroundColor: '#F9731610' }}>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Muddati o'tgan</p>
+              <p className="text-lg font-bold" style={{ color: '#F97316' }}>{stats.billing.overdue_count}</p>
+            </div>
+            <div className="rounded-xl p-3" style={{ backgroundColor: '#8B5CF610' }}>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Yig'ish darajasi</p>
+              <p className="text-lg font-bold" style={{ color: '#8B5CF6' }}>{stats.billing.collection_rate}%</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TABS: Timetable / Charts */}
       <div className="card overflow-hidden">
         <div className="flex items-center border-b" style={{ borderColor: 'var(--border-color)' }}>

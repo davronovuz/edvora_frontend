@@ -11,6 +11,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { studentsService } from '@/services/students';
 import { paymentsService, invoicesService, discountsService } from '@/services/payments';
+import { billingInvoicesService } from '@/services/billing';
 import { attendanceService } from '@/services/attendance';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -124,6 +125,7 @@ export default function StudentFinanceDetail() {
   const [studentGroups, setStudentGroups] = useState([]);
   const [payments, setPayments] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [billingInvoices, setBillingInvoices] = useState([]);
   const [discounts, setDiscounts] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -152,14 +154,14 @@ export default function StudentFinanceDetail() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [stRes, grpRes, payRes, invRes, discRes, attRes] = await Promise.all([
+      const [stRes, grpRes, payRes, invRes, discRes, attRes, billRes] = await Promise.all([
         studentsService.getById(id).catch(() => null),
         studentsService.getGroups(id).catch(() => null),
-        // Use filterset endpoint (returns paginated {data: [...], meta}) — not byStudent (nested)
         paymentsService.getAll({ student: id, page_size: 200 }).catch(() => null),
         invoicesService.getAll({ student: id, page_size: 100 }).catch(() => null),
         discountsService.getAll({ student: id, page_size: 100 }).catch(() => null),
         attendanceService.byStudent({ student_id: id }).catch(() => null),
+        billingInvoicesService.getAll({ student: id, page_size: 100 }).catch(() => null),
       ]);
 
       // Student: retrieve returns raw serialized object (no wrapping)
@@ -186,6 +188,10 @@ export default function StudentFinanceDetail() {
       const attData = attRes?.data?.data || {};
       setAttendance(Array.isArray(attData.attendances) ? attData.attendances : []);
       setAttendanceStatsFromBackend(attData.statistics || null);
+
+      // Billing invoices
+      const bills = billRes?.data?.data || [];
+      setBillingInvoices(Array.isArray(bills) ? bills : []);
     } catch (e) {
       toast.error("Ma'lumotlarni yuklashda xato");
     }
@@ -731,6 +737,45 @@ export default function StudentFinanceDetail() {
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{formatMoney(inv.total || inv.amount)}</div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ color: cfg.color, backgroundColor: cfg.bg }}>
+                      {cfg.label}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </SectionCard>
+      )}
+
+      {/* BILLING INVOICES */}
+      {billingInvoices.length > 0 && (
+        <SectionCard title={`Billing hisob-fakturalar (${billingInvoices.length})`} icon={faFileInvoice} iconColor="#6366F1">
+          <div className="space-y-2">
+            {billingInvoices.map(inv => {
+              const statusMap = {
+                paid: { label: "To'langan", color: '#22C55E', bg: 'rgba(34,197,94,0.12)' },
+                partial: { label: 'Qisman', color: '#EAB308', bg: 'rgba(234,179,8,0.12)' },
+                unpaid: { label: "To'lanmagan", color: '#EF4444', bg: 'rgba(239,68,68,0.08)' },
+                overdue: { label: "Muddati o'tgan", color: '#DC2626', bg: 'rgba(220,38,38,0.1)' },
+                cancelled: { label: 'Bekor', color: '#94A3B8', bg: 'rgba(148,163,184,0.12)' },
+              };
+              const cfg = statusMap[inv.status] || statusMap.unpaid;
+              return (
+                <div key={inv.id} className="flex items-center gap-3 p-3 rounded-xl border" style={{ borderColor: 'var(--border-color)' }}>
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: cfg.bg }}>
+                    <FontAwesomeIcon icon={faFileInvoice} className="w-4 h-4" style={{ color: cfg.color }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                      {inv.number || `#${inv.id}`}
+                    </div>
+                    <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {inv.group_name} • Muddat: {formatDate(inv.due_date)}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{formatMoney(inv.total_amount)}</div>
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ color: cfg.color, backgroundColor: cfg.bg }}>
                       {cfg.label}
                     </span>
