@@ -38,6 +38,7 @@ import {
   faCalendarCheck,
   faChartPie,
   faTimes,
+  faFileInvoiceDollar,
 } from '@fortawesome/free-solid-svg-icons';
 import Logo from '@/assets/logo.png';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
@@ -66,6 +67,7 @@ const getNavigation = (t) => [
 
   { section: t('nav.finance') },
   { name: t('nav.payments'), href: '/app/payments', icon: faMoneyBill, roles: ['owner', 'admin', 'accountant', 'registrar'] },
+  { name: 'Billing', href: '/app/billing', icon: faFileInvoiceDollar, roles: ['owner', 'admin', 'accountant'] },
   { name: t('nav.finance'), href: '/app/finance', icon: faWallet, roles: ['owner', 'accountant'] },
 
   { section: t('nav.settings') },

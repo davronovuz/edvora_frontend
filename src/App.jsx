@@ -31,6 +31,7 @@ import Rating from './pages/rating/Rating';
 import TeacherAttendance from './pages/teacher-attendance/TeacherAttendance';
 import AttendanceReports from './pages/attendance-reports/AttendanceReports';
 import Reminders from './pages/reminders/Reminders';
+import Billing from './pages/billing/Billing';
 
 // Subdomen tekshirish — markazedu.uz yoki www.markazedu.uz bo'lmasa = tenant (o'quv markaz)
 const isMainDomain = () => {
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="groups" element={<ProtectedRoute allowedRoles={['owner', 'admin', 'teacher', 'registrar']}><Groups /></ProtectedRoute>} />
           <Route path="groups/:id" element={<ProtectedRoute allowedRoles={['owner', 'admin', 'teacher', 'registrar']}><GroupDetail /></ProtectedRoute>} />
           <Route path="payments" element={<ProtectedRoute allowedRoles={['owner', 'admin', 'accountant', 'registrar']}><Payments /></ProtectedRoute>} />
+          <Route path="billing" element={<ProtectedRoute allowedRoles={['owner', 'admin', 'accountant']}><Billing /></ProtectedRoute>} />
           <Route path="attendance" element={<ProtectedRoute allowedRoles={['owner', 'admin', 'teacher']}><Attendance /></ProtectedRoute>} />
           <Route path="leads" element={<ProtectedRoute allowedRoles={['owner', 'registrar']}><Leads /></ProtectedRoute>} />
           <Route path="finance" element={<ProtectedRoute allowedRoles={['owner', 'accountant']}><Finance /></ProtectedRoute>} />
