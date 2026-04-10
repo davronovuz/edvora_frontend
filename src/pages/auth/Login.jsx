@@ -17,39 +17,34 @@ import {
   Sparkles,
   AlertCircle
 } from 'lucide-react';
+import Logo from '@/assets/logo.png';
 
 const isMainDomain = () => {
   const host = window.location.hostname;
   return host === 'markazedu.uz' || host === 'www.markazedu.uz' || host === 'localhost' || host === '127.0.0.1';
 };
 
-// Telefon raqamni formatlash: 901234567 -> +998 90 123 45 67
-const formatPhone = (value) => {
-  // Faqat raqamlarni olish
+// Telefon raqamdan faqat raqamlar — formatlash inputda emas, ko'rsatishda
+const cleanPhone = (value) => {
   let digits = value.replace(/\D/g, '');
-
-  // 998 bilan boshlansa olib tashlash (foydalanuvchi +998 yozgan bo'lsa)
   if (digits.startsWith('998') && digits.length > 9) {
     digits = digits.slice(3);
   }
-
-  // 9 ta raqamdan oshmasin
-  digits = digits.slice(0, 9);
-
-  // Format: XX XXX XX XX
-  let formatted = '';
-  if (digits.length > 0) formatted += digits.slice(0, 2);
-  if (digits.length > 2) formatted += ' ' + digits.slice(2, 5);
-  if (digits.length > 5) formatted += ' ' + digits.slice(5, 7);
-  if (digits.length > 7) formatted += ' ' + digits.slice(7, 9);
-
-  return formatted;
+  return digits.slice(0, 9);
 };
 
-// Formatlangan raqamdan serverga yuboriladigan formatga: +998901234567
-const toServerPhone = (formatted) => {
-  const digits = formatted.replace(/\D/g, '');
-  if (digits.length === 9) return '+998' + digits;
+// Ko'rsatish uchun formatlash
+const displayPhone = (digits) => {
+  let f = '';
+  if (digits.length > 0) f += digits.slice(0, 2);
+  if (digits.length > 2) f += ' ' + digits.slice(2, 5);
+  if (digits.length > 5) f += ' ' + digits.slice(5, 7);
+  if (digits.length > 7) f += ' ' + digits.slice(7, 9);
+  return f;
+};
+
+// Raw digits dan serverga yuboriladigan formatga: +998901234567
+const toServerPhone = (digits) => {
   return '+998' + digits;
 };
 
@@ -99,10 +94,10 @@ export default function Login() {
     }
   }, []);
 
-  // Telefon o'zgarsa — xatoni tozalash
+  // Telefon o'zgarsa — faqat raqamlar saqlash
   const handlePhoneChange = (e) => {
-    const formatted = formatPhone(e.target.value);
-    setPhone(formatted);
+    const digits = cleanPhone(e.target.value);
+    setPhone(digits);
     setPhoneError('');
     if (error) clearError();
   };
@@ -112,9 +107,9 @@ export default function Login() {
     if (error) clearError();
   };
 
-  // Telefon validatsiyasi
+  // Telefon validatsiyasi (phone endi raw digits)
   const validatePhone = () => {
-    const digits = phone.replace(/\D/g, '');
+    const digits = phone;
     if (digits.length === 0) {
       setPhoneError(t('auth.phoneRequired') || 'Telefon raqamni kiriting');
       return false;
@@ -206,10 +201,11 @@ export default function Login() {
             type="tel"
             inputMode="numeric"
             autoComplete="tel"
-            value={phone}
+            value={displayPhone(phone)}
             onChange={handlePhoneChange}
             onKeyDown={handlePhoneKeyDown}
             placeholder="90 123 45 67"
+            maxLength={12}
             className={`w-full h-12 pl-16 pr-4 rounded-xl border ${
               phoneError ? 'border-red-300 bg-red-50/50' : 'border-gray-200 bg-gray-50'
             } text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 transition-all duration-200 outline-none`}
@@ -296,14 +292,14 @@ export default function Login() {
                 className="h-20 w-auto mx-auto mb-4 object-contain"
               />
             ) : (
-              <motion.div
-                initial={{ scale: 0, rotate: -180 }}
-                animate={{ scale: 1, rotate: 0 }}
+              <motion.img
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
                 transition={{ type: 'spring', stiffness: 200, delay: 0.2 }}
-                className="w-20 h-20 rounded-3xl mx-auto mb-4 flex items-center justify-center bg-gradient-to-br from-orange-500 to-rose-500 shadow-xl shadow-orange-500/25"
-              >
-                <GraduationCap className="w-10 h-10 text-white" />
-              </motion.div>
+                src={Logo}
+                alt={centerName}
+                className="h-20 w-auto mx-auto mb-4 object-contain"
+              />
             )}
             <motion.h1
               initial={{ opacity: 0, y: 10 }}
@@ -371,10 +367,7 @@ export default function Login() {
 
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-            <span className="text-white font-bold text-lg">M</span>
-          </div>
-          <span className="text-2xl font-bold tracking-tight">MarkazEdu</span>
+          <img src={Logo} alt="MarkazEdu" className="h-12 w-auto object-contain brightness-0 invert" />
         </div>
 
         {/* Hero text */}
@@ -440,9 +433,7 @@ export default function Login() {
         >
           {/* Mobile logo */}
           <div className="lg:hidden flex justify-center mb-8">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-rose-500 flex items-center justify-center">
-              <span className="text-white font-bold text-xl">M</span>
-            </div>
+            <img src={Logo} alt="MarkazEdu" className="h-14 w-auto object-contain" />
           </div>
 
           <div className="text-center mb-8">

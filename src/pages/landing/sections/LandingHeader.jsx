@@ -44,10 +44,7 @@ export default function LandingHeader({ onOpenDemo }) {
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
-              <span className="text-white font-bold text-lg">M</span>
-            </div>
-            <span className="text-xl font-bold text-gray-900">MarkazEdu</span>
+            <img src={Logo} alt="MarkazEdu" className="h-10 w-auto object-contain" />
           </div>
 
           {/* Desktop Nav */}
@@ -66,13 +63,6 @@ export default function LandingHeader({ onOpenDemo }) {
           {/* Right */}
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
-
-            <button
-              onClick={() => navigate('/login')}
-              className="hidden sm:inline-flex px-4 py-2 rounded-xl text-sm font-medium text-gray-700 hover:text-orange-600 transition-colors"
-            >
-              Kirish
-            </button>
 
             <button
               onClick={onOpenDemo}
@@ -115,12 +105,6 @@ export default function LandingHeader({ onOpenDemo }) {
                     {link.label}
                   </button>
                 ))}
-                <button
-                  onClick={() => { setMenuOpen(false); navigate('/login'); }}
-                  className="text-left px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Kirish
-                </button>
                 <button
                   onClick={onOpenDemo}
                   className="mx-4 mt-2 px-5 py-3 rounded-xl text-sm font-semibold bg-orange-600 text-white flex items-center justify-center gap-2"

@@ -135,10 +135,7 @@ export default function MainLayout() {
           {!sidebarCollapsed ? (
             <>
               <div className="flex-1 flex items-center gap-2 min-w-0">
-                <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
-                  <span className="text-white font-bold text-sm">M</span>
-                </div>
-                <span className="font-bold text-base truncate" style={{ color: 'var(--text-primary)' }}>MarkazEdu</span>
+                <img src={Logo} alt="MarkazEdu" className="h-8 w-auto object-contain flex-shrink-0" />
               </div>
               {/* Desktop collapse */}
               <button
@@ -166,9 +163,7 @@ export default function MainLayout() {
               className="w-full flex items-center justify-center"
               title="Sidebarni ochish"
             >
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform hover:scale-105" style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
-                <span className="text-white font-bold text-sm">M</span>
-              </div>
+              <img src={Logo} alt="M" className="h-9 w-auto object-contain transition-transform hover:scale-105" />
             </button>
           )}
         </div>
