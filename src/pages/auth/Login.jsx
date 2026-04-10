@@ -158,26 +158,16 @@ export default function Login() {
   const centerName = tenantInfo?.name || 'MarkazEdu';
   const centerLogo = tenantInfo?.logo;
 
-  // Xato xabar komponenti
-  const ErrorMessage = () => {
-    if (!error && !phoneError) return null;
-    const msg = phoneError || error;
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm"
-      >
-        <AlertCircle className="w-4 h-4 shrink-0" />
-        <span>{msg}</span>
-      </motion.div>
-    );
-  };
+  const errorMsg = phoneError || error;
 
-  // Umumiy form (tenant va main domen uchun bir xil)
-  const LoginForm = ({ className = '' }) => (
-    <form onSubmit={handleSubmit} className={`space-y-4 ${className}`}>
-      <ErrorMessage />
+  const formJSX = (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {errorMsg && (
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <label className="text-sm font-semibold text-gray-700 ml-1">
@@ -228,9 +218,7 @@ export default function Login() {
         </div>
       </div>
 
-      <motion.button
-        whileHover={{ scale: 1.01 }}
-        whileTap={{ scale: 0.99 }}
+      <button
         type="submit"
         disabled={isLoading}
         className="w-full h-12 mt-2 bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 disabled:opacity-70 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-orange-500/20 transition-all duration-200 flex items-center justify-center gap-2"
@@ -243,7 +231,7 @@ export default function Login() {
         ) : (
           t('auth.login') || 'Kirish'
         )}
-      </motion.button>
+      </button>
     </form>
   );
 
@@ -316,7 +304,7 @@ export default function Login() {
             transition={{ delay: 0.3, duration: 0.5 }}
             className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl shadow-xl shadow-orange-900/5 border border-white/60"
           >
-            <LoginForm />
+            {formJSX}
 
             <div className="mt-6 text-center">
               <p className="text-xs text-gray-400">
@@ -433,7 +421,7 @@ export default function Login() {
             </p>
           </div>
 
-          <LoginForm />
+          {formJSX}
         </motion.div>
       </div>
     </div>
