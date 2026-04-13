@@ -343,8 +343,8 @@ export default function Groups() {
     try {
       const payload = {
         name: form.name.trim(),
-        course: Number(form.course),
-        teacher: Number(form.teacher),
+        course: form.course,
+        teacher: form.teacher,
         days: form.days.map(Number),
         start_time: form.start_time,
         end_time: form.end_time,
@@ -352,7 +352,7 @@ export default function Groups() {
         max_students: Number(form.max_students),
         status: form.status,
       };
-      if (form.room) payload.room = Number(form.room);
+      if (form.room) payload.room = form.room;
       if (form.end_date) payload.end_date = form.end_date;
       if (form.price) payload.price = Number(form.price);
 

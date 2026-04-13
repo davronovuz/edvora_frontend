@@ -11,3 +11,12 @@ export const attendanceService = {
   byStudent: (params) => api.get('/attendance/by_student/', { params }),
   report: (params) => api.get('/attendance/report/', { params }),
 };
+
+export const holidayService = {
+  getAll: (params = {}) => api.get('/holidays/', { params }),
+  create: (data) => api.post('/holidays/', data),
+  update: (id, data) => api.patch(`/holidays/${id}/`, data),
+  delete: (id) => api.delete(`/holidays/${id}/`),
+  checkDate: (date) => api.get('/holidays/check-date/', { params: { date } }),
+  upcoming: () => api.get('/holidays/upcoming/'),
+};

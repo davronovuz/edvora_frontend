@@ -17,8 +17,6 @@ import {
   faUserGraduate,
   faChalkboardTeacher,
   faUsers,
-  faMoneyBill,
-  faClipboardCheck,
   faChartLine,
   faCog,
   faSignOutAlt,
@@ -28,17 +26,9 @@ import {
   faBell,
   faBars,
   faChevronLeft,
-  faChevronRight,
-  faDoorOpen,
-  faFileAlt,
   faWallet,
-  faHistory,
-  faBuilding,
-  faStar,
-  faCalendarCheck,
   faChartPie,
   faTimes,
-  faFileInvoiceDollar,
 } from '@fortawesome/free-solid-svg-icons';
 import Logo from '@/assets/logo.png';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
@@ -51,42 +41,29 @@ import api from '@/services/api';
 const getNavigation = (t) => [
   { name: t('nav.dashboard'), href: '/app', icon: faHouse },
 
-  { section: t('nav.groups') },
-  { name: t('nav.students'), href: '/app/students', icon: faUserGraduate, roles: ['owner', 'admin', 'teacher', 'registrar'] },
-  { name: t('nav.teachers'), href: '/app/teachers', icon: faChalkboardTeacher, roles: ['owner'] },
-  { name: t('nav.courses'), href: '/app/courses', icon: faBook, roles: ['owner', 'admin', 'teacher'] },
-  { name: t('nav.groups'), href: '/app/groups', icon: faUsers, roles: ['owner', 'admin', 'teacher', 'registrar'] },
-  { name: t('nav.rooms'), href: '/app/rooms', icon: faDoorOpen, roles: ['owner'] },
-  { name: t('nav.attendance'), href: '/app/attendance', icon: faClipboardCheck, roles: ['owner', 'admin', 'teacher'] },
-  { name: t('nav.exams'), href: '/app/exams', icon: faFileAlt, roles: ['owner', 'admin', 'teacher'] },
-  { name: 'Reyting', href: '/app/rating', icon: faStar, roles: ['owner', 'admin', 'teacher'] },
-  { name: 'Eslatmalar', href: '/app/reminders', icon: faBell, roles: ['owner', 'admin', 'teacher', 'registrar'] },
+  { section: t('nav.groups') || "O'quv jarayoni" },
+  { name: t('nav.students'), href: '/app/students', icon: faUserGraduate, permission: 'students.view' },
+  { name: t('nav.teachers'), href: '/app/teachers', icon: faChalkboardTeacher, permission: 'teachers.view' },
+  { name: t('nav.groups'), href: '/app/groups', icon: faUsers, permission: 'groups.view' },
+  { name: t('nav.courses'), href: '/app/courses', icon: faBook, permission: 'courses.view' },
 
-  { section: 'Hisobotlar' },
-  { name: 'Davomat hisobotlari', href: '/app/attendance-reports', icon: faChartPie, roles: ['owner', 'admin', 'teacher'] },
-  { name: 'Ustozlar davomati', href: '/app/teacher-attendance', icon: faCalendarCheck, roles: ['owner'] },
+  { section: t('nav.finance') || 'Moliya' },
+  { name: 'Moliya', href: '/app/moliya', icon: faWallet, permission: 'payments.view', matchPrefix: true },
+  { name: t('nav.leads'), href: '/app/leads', icon: faChartLine, permission: 'leads.view' },
 
-  { section: t('nav.finance') },
-  { name: t('nav.payments'), href: '/app/payments', icon: faMoneyBill, roles: ['owner', 'admin', 'accountant', 'registrar'] },
-  { name: 'Billing', href: '/app/billing', icon: faFileInvoiceDollar, roles: ['owner', 'admin', 'accountant'] },
-  { name: t('nav.finance'), href: '/app/finance', icon: faWallet, roles: ['owner', 'accountant'] },
-
-  { section: t('nav.settings') },
-  { name: t('nav.leads'), href: '/app/leads', icon: faChartLine, roles: ['owner', 'registrar'] },
-  { name: t('nav.branches'), href: '/app/branches', icon: faBuilding, roles: ['owner'] },
-  { name: t('nav.notifications'), href: '/app/notifications', icon: faBell, roles: ['owner', 'admin'] },
-  { name: t('nav.audit'), href: '/app/audit', icon: faHistory, roles: ['owner'] },
-  { name: t('nav.settings'), href: '/app/settings', icon: faCog, roles: ['owner', 'admin'] },
+  { section: 'Tizim' },
+  { name: 'Hisobotlar', href: '/app/hisobotlar', icon: faChartPie, permission: 'attendance.view', matchPrefix: true },
+  { name: t('nav.settings'), href: '/app/settings', icon: faCog },
 ];
 
 export default function MainLayout() {
   const { t } = useTranslation();
+  const { user, logout, hasPermission, refreshUser } = useAuthStore();
   const navigation = getNavigation(t);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Desktop collapse
   const [tenantLogo, setTenantLogo] = useState(null);
   const [tenantName, setTenantName] = useState(null);
-  const { user, logout } = useAuthStore();
   const { theme, toggleTheme, initTheme } = useThemeStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -102,6 +79,16 @@ export default function MainLayout() {
       if (res.data?.name && !res.data?.is_main) setTenantName(res.data.name);
     }).catch(() => {});
   }, []);
+
+  // Sahifa o'zgarganda permissionlarni yangilash (30s throttle)
+  useEffect(() => {
+    const lastRefresh = parseInt(sessionStorage.getItem('last-perm-refresh') || '0', 10);
+    const now = Date.now();
+    if (now - lastRefresh > 30000) {
+      sessionStorage.setItem('last-perm-refresh', String(now));
+      refreshUser();
+    }
+  }, [location.pathname]);
 
   const toggleCollapse = () => {
     const newState = !sidebarCollapsed;
@@ -179,41 +166,59 @@ export default function MainLayout() {
 
         {/* Navigation - scrollable */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-0.5" style={{ scrollbarWidth: 'thin' }}>
-          {navigation.filter(item => {
-            if (item.section) return true;
-            if (!item.roles) return true;
-            return item.roles.includes(user?.role);
-          }).map((item, idx) =>
-            item.section ? (
-              !sidebarCollapsed ? (
-                <div key={item.section + idx} className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                  {item.section}
-                </div>
-              ) : (
-                <div key={item.section + idx} className="border-t my-2 mx-2" style={{ borderColor: 'var(--border-color)' }} />
-              )
-            ) : (
-              <NavLink
-                key={item.href}
-                to={item.href}
-                end={item.href === '/app'}
-                onClick={() => setSidebarOpen(false)}
-                title={sidebarCollapsed ? item.name : ''}
-                className={({ isActive }) =>
-                  `sidebar-item flex items-center rounded-lg transition-all duration-200
-                  ${sidebarCollapsed ? 'flex-col gap-0.5 justify-center px-1 py-2 mx-auto' : 'gap-3 px-3 py-2'}
-                  ${isActive ? 'active' : ''}`
-                }
-              >
-                <FontAwesomeIcon icon={item.icon} className={`${sidebarCollapsed ? 'w-4 h-4' : 'w-[18px] h-[18px] min-w-[18px]'}`} />
-                {sidebarCollapsed ? (
-                  <span className="text-[9px] leading-tight text-center w-full truncate">{item.name.split(' ')[0]}</span>
+          {(() => {
+            // Avval filterdan o'tkazamiz
+            const filtered = navigation.filter(item => {
+              if (item.section) return true;
+              if (user?.role === 'owner') return true;
+              if (item.permission) return hasPermission(item.permission);
+              if (item.roles) return item.roles.includes(user?.role);
+              return true;
+            });
+
+            // Bo'sh section'larni olib tashlash
+            // Section dan keyin yana section yoki hech narsa kelmasa — bo'sh
+            const visible = filtered.filter((item, idx) => {
+              if (!item.section) return true;
+              // Keyingi element link bo'lishi kerak (section emas)
+              const next = filtered[idx + 1];
+              return next && !next.section;
+            });
+
+            return visible.map((item, idx) =>
+              item.section ? (
+                !sidebarCollapsed ? (
+                  <div key={item.section + idx} className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                    {item.section}
+                  </div>
                 ) : (
-                  <span className="truncate text-[13px]">{item.name}</span>
-                )}
-              </NavLink>
-            )
-          )}
+                  <div key={item.section + idx} className="border-t my-2 mx-2" style={{ borderColor: 'var(--border-color)' }} />
+                )
+              ) : (
+                <NavLink
+                  key={item.href}
+                  to={item.href}
+                  end={item.href === '/app' || !item.matchPrefix}
+                  onClick={() => setSidebarOpen(false)}
+                  title={sidebarCollapsed ? item.name : ''}
+                  className={({ isActive }) => {
+                    // matchPrefix: /app/moliya/* da ham active
+                    const prefixActive = item.matchPrefix && location.pathname.startsWith(item.href);
+                    return `sidebar-item flex items-center rounded-lg transition-all duration-200
+                    ${sidebarCollapsed ? 'flex-col gap-0.5 justify-center px-1 py-2 mx-auto' : 'gap-3 px-3 py-2'}
+                    ${isActive || prefixActive ? 'active' : ''}`;
+                  }}
+                >
+                  <FontAwesomeIcon icon={item.icon} className={`${sidebarCollapsed ? 'w-4 h-4' : 'w-[18px] h-[18px] min-w-[18px]'}`} />
+                  {sidebarCollapsed ? (
+                    <span className="text-[9px] leading-tight text-center w-full truncate">{item.name.split(' ')[0]}</span>
+                  ) : (
+                    <span className="truncate text-[13px]">{item.name}</span>
+                  )}
+                </NavLink>
+              )
+            );
+          })()}
         </nav>
 
         {/* User Section */}
@@ -286,7 +291,7 @@ export default function MainLayout() {
           {/* Page Title - Desktop */}
           <div className="hidden lg:block">
             <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {navigation.find(n => n.href && n.href === location.pathname)?.name || 'Dashboard'}
+              {navigation.find(n => n.href && (n.href === location.pathname || (n.matchPrefix && location.pathname.startsWith(n.href))))?.name || 'Dashboard'}
             </h1>
           </div>
 

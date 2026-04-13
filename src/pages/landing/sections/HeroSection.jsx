@@ -124,47 +124,19 @@ export default function HeroSection({ onOpenDemo }) {
                   </div>
                 </div>
 
-                {/* Dashboard cards */}
-                <div className="p-4 sm:p-6 bg-gray-50">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4">
-                    {[
-                      { label: "Talabalar", value: '1,247', color: 'from-orange-500 to-orange-600', icon: '👨‍🎓' },
-                      { label: "Guruhlar", value: '64', color: 'from-emerald-500 to-emerald-600', icon: '👥' },
-                      { label: "O'qituvchilar", value: '38', color: 'from-violet-500 to-violet-600', icon: '👨‍🏫' },
-                      { label: "Daromad", value: '47.2M', color: 'from-blue-500 to-blue-600', icon: '💰' },
-                    ].map((stat, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 1.3 + i * 0.1 }}
-                        className="bg-white rounded-xl p-3 sm:p-4 border border-gray-200 shadow-sm"
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-lg">{stat.icon}</span>
-                          <p className="text-xs text-gray-500 truncate">{stat.label}</p>
-                        </div>
-                        <p className={`text-lg sm:text-2xl font-bold bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`}>{stat.value}</p>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  {/* Chart bars */}
-                  <div className="bg-white rounded-xl p-4 h-32 sm:h-44 flex items-end gap-1.5 sm:gap-2 border border-gray-200">
-                    {[40, 65, 45, 80, 55, 90, 70, 85, 60, 95, 75, 88].map((h, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ height: 0 }}
-                        animate={{ height: `${h}%` }}
-                        transition={{ delay: 1.8 + i * 0.05, duration: 0.5, ease: 'easeOut' }}
-                        className="flex-1 rounded-t-md"
-                        style={{
-                          background: `linear-gradient(to top, ${i % 2 === 0 ? '#ea580c' : '#f97316'}, ${i % 2 === 0 ? '#f97316' : '#fb923c'})`,
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
+                {/* Real Dashboard Screenshot */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1.3, duration: 0.8 }}
+                >
+                  <img
+                    src="/crm-dashboard.png"
+                    alt="MarkazEdu CRM Dashboard"
+                    className="w-full h-auto"
+                    loading="eager"
+                  />
+                </motion.div>
               </div>
             </div>
           </motion.div>

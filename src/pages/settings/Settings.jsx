@@ -1,85 +1,64 @@
-import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { toast } from 'sonner';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faUser, faLock, faUsers, faEdit, faTrash, faPlus, faTimes,
   faShieldAlt, faPhone, faSave, faEye, faEyeSlash, faCheck,
   faEnvelope, faToggleOn, faToggleOff, faSearch, faUserPlus,
-  faKey, faBuilding, faBell, faPalette, faGlobe, faChevronDown,
-  faChevronRight, faCircle, faCog, faUserShield, faExclamationTriangle,
+  faKey, faBuilding, faChevronDown, faChevronRight, faCircle,
+  faCog, faUserShield, faExclamationTriangle, faUndo,
+  faMapMarkerAlt, faGlobe, faPalette, faClock, faCalendarAlt,
+  faDoorOpen, faBell, faHistory,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuthStore } from '@/stores/authStore';
 import { usersService } from '@/services/users';
+import { holidayService } from '@/services/attendance';
 import api from '@/services/api';
+
+// Lazy load embedded pages
+const RoomsPage = lazy(() => import('@/pages/rooms/Rooms'));
+const BranchesPage = lazy(() => import('@/pages/branches/Branches'));
+const NotificationsPage = lazy(() => import('@/pages/notifications/Notifications'));
+const AuditPage = lazy(() => import('@/pages/audit/AuditLog'));
+
+function EmbeddedPage({ page }) {
+  const pages = { rooms: RoomsPage, branches: BranchesPage, notifications: NotificationsPage, audit: AuditPage };
+  const Component = pages[page];
+  if (!Component) return null;
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-12">
+        <div className="w-8 h-8 border-3 rounded-full animate-spin" style={{ borderColor: 'rgba(249,115,22,0.2)', borderTopColor: '#F97316' }} />
+      </div>
+    }>
+      <Component />
+    </Suspense>
+  );
+}
 
 // ============================================
 // CONFIG
 // ============================================
 const roleConfig = {
-  owner: { label: 'Egasi (Direktor)', color: '#EF4444', bg: 'rgba(239,68,68,0.1)', icon: faUserShield },
-  admin: { label: 'Administrator', color: '#3B82F6', bg: 'rgba(59,130,246,0.1)', icon: faShieldAlt },
-  teacher: { label: "O'qituvchi", color: '#22C55E', bg: 'rgba(34,197,94,0.1)', icon: faUser },
-  accountant: { label: 'Buxgalter', color: '#F97316', bg: 'rgba(249,115,22,0.1)', icon: faUser },
-  registrar: { label: 'Registrator', color: '#8B5CF6', bg: 'rgba(139,92,246,0.1)', icon: faUser },
+  owner: { label: 'Egasi (Direktor)', color: '#EF4444', bg: 'rgba(239,68,68,0.1)', icon: faUserShield, desc: "Barcha ruxsatlarga ega, tizimni to'liq boshqaradi" },
+  admin: { label: 'Administrator', color: '#3B82F6', bg: 'rgba(59,130,246,0.1)', icon: faShieldAlt, desc: "O'quvchi, guruh, kurs va davomat boshqaruvi" },
+  teacher: { label: "O'qituvchi", color: '#22C55E', bg: 'rgba(34,197,94,0.1)', icon: faUser, desc: "O'z guruhlari, davomat va o'quvchilarni ko'rish" },
+  accountant: { label: 'Buxgalter', color: '#F97316', bg: 'rgba(249,115,22,0.1)', icon: faUser, desc: "To'lovlar, moliya va oylik hisoblari" },
+  registrar: { label: 'Registrator', color: '#8B5CF6', bg: 'rgba(139,92,246,0.1)', icon: faUser, desc: "O'quvchi qabul, leadlar va to'lovlar" },
 };
 
 const permissionGroups = [
-  {
-    name: "O'quvchilar",
-    icon: '👨‍🎓',
-    perms: ['students.view', 'students.create', 'students.update', 'students.delete'],
-  },
-  {
-    name: "O'qituvchilar",
-    icon: '👨‍🏫',
-    perms: ['teachers.view', 'teachers.create', 'teachers.update', 'teachers.delete'],
-  },
-  {
-    name: 'Kurslar',
-    icon: '📚',
-    perms: ['courses.view', 'courses.create', 'courses.update', 'courses.delete'],
-  },
-  {
-    name: 'Guruhlar',
-    icon: '👥',
-    perms: ['groups.view', 'groups.create', 'groups.update', 'groups.delete'],
-  },
-  {
-    name: 'Davomat',
-    icon: '📋',
-    perms: ['attendance.view', 'attendance.mark'],
-  },
-  {
-    name: "To'lovlar",
-    icon: '💰',
-    perms: ['payments.view', 'payments.create', 'payments.refund'],
-  },
-  {
-    name: 'Moliya',
-    icon: '💳',
-    perms: ['finance.view', 'finance.export'],
-  },
-  {
-    name: 'Oyliklar',
-    icon: '💵',
-    perms: ['salaries.view', 'salaries.calculate', 'salaries.approve', 'salaries.pay'],
-  },
-  {
-    name: 'Leadlar',
-    icon: '📊',
-    perms: ['leads.view', 'leads.create', 'leads.update', 'leads.convert'],
-  },
-  {
-    name: 'Sozlamalar',
-    icon: '⚙️',
-    perms: ['settings.view', 'settings.update'],
-  },
-  {
-    name: 'Foydalanuvchilar',
-    icon: '🔐',
-    perms: ['users.view', 'users.create', 'users.update', 'users.delete'],
-  },
+  { name: "O'quvchilar", icon: '👨‍🎓', perms: ['students.view', 'students.create', 'students.update', 'students.delete'] },
+  { name: "O'qituvchilar", icon: '👨‍🏫', perms: ['teachers.view', 'teachers.create', 'teachers.update', 'teachers.delete'] },
+  { name: 'Kurslar', icon: '📚', perms: ['courses.view', 'courses.create', 'courses.update', 'courses.delete'] },
+  { name: 'Guruhlar', icon: '👥', perms: ['groups.view', 'groups.create', 'groups.update', 'groups.delete'] },
+  { name: 'Davomat', icon: '📋', perms: ['attendance.view', 'attendance.mark'] },
+  { name: "To'lovlar", icon: '💰', perms: ['payments.view', 'payments.create', 'payments.refund'] },
+  { name: 'Moliya', icon: '💳', perms: ['finance.view', 'finance.export'] },
+  { name: 'Oyliklar', icon: '💵', perms: ['salaries.view', 'salaries.calculate', 'salaries.approve', 'salaries.pay'] },
+  { name: 'Leadlar', icon: '📊', perms: ['leads.view', 'leads.create', 'leads.update', 'leads.convert'] },
+  { name: 'Sozlamalar', icon: '⚙️', perms: ['settings.view', 'settings.update'] },
+  { name: 'Foydalanuvchilar', icon: '🔐', perms: ['users.view', 'users.create', 'users.update', 'users.delete'] },
 ];
 
 const permLabels = {
@@ -123,7 +102,7 @@ function Toggle({ checked, onChange, disabled }) {
   return (
     <button
       onClick={() => !disabled && onChange(!checked)}
-      className={`relative w-10 h-5.5 rounded-full transition-all duration-200 ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+      className={`relative rounded-full transition-all duration-200 ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
       style={{ backgroundColor: checked ? '#22C55E' : 'var(--bg-tertiary)', border: checked ? 'none' : '1px solid var(--border-color)', width: '40px', height: '22px' }}
     >
       <div
@@ -134,7 +113,7 @@ function Toggle({ checked, onChange, disabled }) {
   );
 }
 
-function InputField({ label, required, icon, type = 'text', value, onChange, placeholder, rightElement, error }) {
+function InputField({ label, required, icon, type = 'text', value, onChange, placeholder, rightElement, error, disabled }) {
   return (
     <div>
       {label && (
@@ -151,7 +130,8 @@ function InputField({ label, required, icon, type = 'text', value, onChange, pla
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          className={`w-full h-11 ${icon ? 'pl-11' : 'pl-4'} ${rightElement ? 'pr-11' : 'pr-4'} rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all ${error ? 'border-red-400' : ''}`}
+          disabled={disabled}
+          className={`w-full h-11 ${icon ? 'pl-11' : 'pl-4'} ${rightElement ? 'pr-11' : 'pr-4'} rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all ${error ? 'border-red-400' : ''} ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
           style={{ borderColor: error ? '#EF4444' : 'var(--border-color)', color: 'var(--text-primary)' }}
         />
         {rightElement && (
@@ -163,11 +143,34 @@ function InputField({ label, required, icon, type = 'text', value, onChange, pla
   );
 }
 
+function OrangeButton({ onClick, disabled, loading, icon, children, fullWidth, variant = 'primary' }) {
+  if (variant === 'secondary') {
+    return (
+      <button onClick={onClick} disabled={disabled}
+        className={`${fullWidth ? 'w-full' : ''} h-11 px-6 rounded-xl border font-medium text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50`}
+        style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+        {children}
+      </button>
+    );
+  }
+  return (
+    <button onClick={onClick} disabled={disabled}
+      className={`${fullWidth ? 'w-full' : ''} h-11 px-6 rounded-xl text-white font-medium text-sm flex items-center justify-center gap-2 transition-opacity disabled:opacity-50`}
+      style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}
+      onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+      onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+      {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : icon && <FontAwesomeIcon icon={icon} className="w-4 h-4" />}
+      {children}
+    </button>
+  );
+}
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
 export default function Settings() {
-  const { t } = useTranslation();
   const { user, setUser } = useAuthStore();
   const isOwner = user?.role === 'owner';
 
@@ -187,6 +190,7 @@ export default function Settings() {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userSearch, setUserSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
   const [showUserForm, setShowUserForm] = useState(false);
   const [userEditId, setUserEditId] = useState(null);
   const [userForm, setUserForm] = useState({ first_name: '', last_name: '', email: '', phone: '', role: 'admin', password: '', password_confirm: '' });
@@ -198,6 +202,17 @@ export default function Settings() {
   const [customPerms, setCustomPerms] = useState({});
   const [permLoading, setPermLoading] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState({});
+
+  // Center settings
+  const [centerForm, setCenterForm] = useState({ name: '', address: '', city: '', primary_color: '#F97316' });
+  const [centerLoading, setCenterLoading] = useState(false);
+
+  // Holidays
+  const [holidays, setHolidays] = useState([]);
+  const [holidaysLoading, setHolidaysLoading] = useState(false);
+  const [showHolidayForm, setShowHolidayForm] = useState(false);
+  const [editHolidayId, setEditHolidayId] = useState(null);
+  const [holidayForm, setHolidayForm] = useState({ name: '', date: '', end_date: '', holiday_type: 'custom' });
 
   // ============================================
   // EFFECTS
@@ -215,6 +230,8 @@ export default function Settings() {
 
   useEffect(() => {
     if (tab === 'users') fetchUsers();
+    if (tab === 'center' && isOwner) fetchCenterInfo();
+    if (tab === 'holidays') fetchHolidays();
   }, [tab]);
 
   // ============================================
@@ -229,6 +246,68 @@ export default function Settings() {
     } catch { toast.error("Foydalanuvchilarni yuklab bo'lmadi"); }
     setUsersLoading(false);
   };
+
+  const fetchCenterInfo = async () => {
+    try {
+      const res = await api.get('/tenant-info/');
+      const d = res.data;
+      setCenterForm({
+        name: d.name || '',
+        address: d.address || '',
+        city: d.city || '',
+        primary_color: d.primary_color || '#F97316',
+      });
+    } catch {}
+  };
+
+  const fetchHolidays = async () => {
+    setHolidaysLoading(true);
+    try {
+      const res = await holidayService.getAll();
+      const data = res.data?.data || res.data?.results || [];
+      setHolidays(Array.isArray(data) ? data : []);
+    } catch { toast.error("Dam olish kunlarini yuklab bo'lmadi"); }
+    setHolidaysLoading(false);
+  };
+
+  const handleSaveHoliday = async () => {
+    if (!holidayForm.name.trim() || !holidayForm.date) {
+      toast.error("Nom va sanani kiriting"); return;
+    }
+    try {
+      const payload = { name: holidayForm.name, date: holidayForm.date, holiday_type: holidayForm.holiday_type };
+      if (holidayForm.end_date) payload.end_date = holidayForm.end_date;
+      if (editHolidayId) {
+        await holidayService.update(editHolidayId, payload);
+        toast.success("Dam olish kuni yangilandi");
+      } else {
+        await holidayService.create(payload);
+        toast.success("Dam olish kuni qo'shildi");
+      }
+      setShowHolidayForm(false);
+      setEditHolidayId(null);
+      setHolidayForm({ name: '', date: '', end_date: '', holiday_type: 'custom' });
+      fetchHolidays();
+    } catch (e) { toast.error(e.response?.data?.error?.message || "Xatolik"); }
+  };
+
+  const handleDeleteHoliday = async (h) => {
+    if (!confirm(`"${h.name}" dam olish kunini o'chirishni tasdiqlaysizmi?`)) return;
+    try {
+      await holidayService.delete(h.id);
+      toast.success("Dam olish kuni o'chirildi");
+      fetchHolidays();
+    } catch { toast.error("O'chirishda xatolik"); }
+  };
+
+  const openEditHoliday = (h) => {
+    setEditHolidayId(h.id);
+    setHolidayForm({ name: h.name, date: h.date, end_date: h.end_date || '', holiday_type: h.holiday_type || 'custom' });
+    setShowHolidayForm(true);
+  };
+
+  const holidayTypeLabels = { national: 'Davlat bayrami', religious: 'Diniy bayram', custom: 'Markaz dam olishi' };
+  const holidayTypeColors = { national: '#3B82F6', religious: '#8B5CF6', custom: '#F97316' };
 
   const handleUpdateProfile = async () => {
     if (!profileForm.first_name.trim() || !profileForm.last_name.trim()) {
@@ -271,21 +350,21 @@ export default function Settings() {
   };
 
   const handleSaveUser = async () => {
-    if (!userForm.first_name.trim() || !userForm.last_name.trim() || !userForm.phone.trim()) {
-      toast.error("Ism, familiya va telefon raqam majburiy"); return;
+    if (!userForm.first_name.trim() || !userForm.last_name.trim()) {
+      toast.error("Ism va familiya majburiy"); return;
     }
-    if (!userEditId && (!userForm.password || userForm.password.length < 8)) {
-      toast.error("Parol kamida 8 ta belgidan iborat bo'lishi kerak"); return;
-    }
-    if (!userEditId && userForm.password !== userForm.password_confirm) {
-      toast.error("Parollar mos kelmaydi"); return;
+    if (!userEditId && (!userForm.password || userForm.password.length < 4)) {
+      toast.error("Parol kamida 4 ta belgidan iborat bo'lishi kerak"); return;
     }
 
     setUserFormLoading(true);
     try {
       const payload = { ...userForm };
-      delete payload.password_confirm;
-      if (userEditId && !payload.password) delete payload.password;
+      if (userEditId) {
+        // Update — password_confirm kerak emas, password bo'sh bo'lsa o'chirish
+        delete payload.password_confirm;
+        if (!payload.password) delete payload.password;
+      }
 
       if (userEditId) {
         await usersService.update(userEditId, payload);
@@ -322,7 +401,7 @@ export default function Settings() {
     if (u.role === 'owner') return;
     try {
       await usersService.update(u.id, { is_active: !u.is_active });
-      toast.success(u.is_active ? "Foydalanuvchi o'chirildi (nofaol)" : "Foydalanuvchi faollashtirildi");
+      toast.success(u.is_active ? "Foydalanuvchi nofaol qilindi" : "Foydalanuvchi faollashtirildi");
       fetchUsers();
     } catch { toast.error("Xatolik"); }
   };
@@ -363,6 +442,14 @@ export default function Settings() {
     setPermissionsData(newPermsData);
   };
 
+  const resetToDefaults = () => {
+    if (!isOwner || !showPermissions) return;
+    setCustomPerms({});
+    // Re-fetch to get defaults
+    openPermissions(showPermissions);
+    toast.info("Rol bo'yicha standart ruxsatlarga qaytarildi");
+  };
+
   const savePermissions = async () => {
     setPermLoading(true);
     try {
@@ -382,15 +469,32 @@ export default function Settings() {
 
   // Filter users
   const filteredUsers = users.filter(u => {
+    if (roleFilter !== 'all' && u.role !== roleFilter) return false;
     if (!userSearch) return true;
     const s = userSearch.toLowerCase();
     return (u.first_name + ' ' + u.last_name).toLowerCase().includes(s) || u.phone?.includes(s) || u.email?.toLowerCase().includes(s);
   });
 
+  // Stats
+  const userStats = {
+    total: users.length,
+    active: users.filter(u => u.is_active).length,
+    byRole: Object.keys(roleConfig).reduce((acc, role) => {
+      acc[role] = users.filter(u => u.role === role).length;
+      return acc;
+    }, {}),
+  };
+
   const tabs = [
     { key: 'profile', label: 'Profil', icon: faUser },
     { key: 'password', label: 'Parol', icon: faLock },
     ...(isOwner || user?.role === 'admin' ? [{ key: 'users', label: 'Foydalanuvchilar', icon: faUsers }] : []),
+    ...(isOwner || user?.role === 'admin' ? [{ key: 'holidays', label: 'Dam olish kunlari', icon: faCalendarAlt }] : []),
+    ...(isOwner ? [{ key: 'rooms', label: 'Xonalar', icon: faDoorOpen }] : []),
+    ...(isOwner ? [{ key: 'branches', label: 'Filiallar', icon: faBuilding }] : []),
+    ...(isOwner || user?.role === 'admin' ? [{ key: 'notifications', label: 'Bildirishnomalar', icon: faBell }] : []),
+    ...(isOwner ? [{ key: 'audit', label: 'Audit', icon: faHistory }] : []),
+    ...(isOwner ? [{ key: 'center', label: 'Markaz', icon: faCog }] : []),
   ];
 
   // ============================================
@@ -401,21 +505,23 @@ export default function Settings() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Sozlamalar</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Profil, parol va foydalanuvchilarni boshqarish</p>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Profil, parol, foydalanuvchilar va markaz sozlamalari</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-        {tabs.map(tb => (
-          <button key={tb.key} onClick={() => setTab(tb.key)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${tab === tb.key ? 'shadow-sm' : ''}`}
-            style={{
-              backgroundColor: tab === tb.key ? 'var(--bg-secondary)' : 'transparent',
-              color: tab === tb.key ? '#F97316' : 'var(--text-secondary)',
-            }}>
-            <FontAwesomeIcon icon={tb.icon} className="w-4 h-4" /> {tb.label}
-          </button>
-        ))}
+      <div className="overflow-x-auto">
+        <div className="flex gap-1 p-1 rounded-xl min-w-max" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+          {tabs.map(tb => (
+            <button key={tb.key} onClick={() => setTab(tb.key)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${tab === tb.key ? 'shadow-sm' : ''}`}
+              style={{
+                backgroundColor: tab === tb.key ? 'var(--bg-secondary)' : 'transparent',
+                color: tab === tb.key ? '#F97316' : 'var(--text-secondary)',
+              }}>
+              <FontAwesomeIcon icon={tb.icon} className="w-4 h-4" /> {tb.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ============================================ */}
@@ -423,7 +529,6 @@ export default function Settings() {
       {/* ============================================ */}
       {tab === 'profile' && (
         <div className="max-w-2xl space-y-6">
-          {/* Avatar + Info Card */}
           <div className="rounded-2xl border p-6" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
             <div className="flex items-center gap-4 mb-6 pb-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold text-white" style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
@@ -452,14 +557,9 @@ export default function Settings() {
               <InputField label="Telefon raqam" required icon={faPhone} value={profileForm.phone}
                 onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} placeholder="+998 90 123 45 67" />
 
-              <button onClick={handleUpdateProfile} disabled={profileLoading}
-                className="h-11 px-6 rounded-xl text-white font-medium text-sm flex items-center gap-2 transition-opacity disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
-                {profileLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <FontAwesomeIcon icon={faCheck} className="w-4 h-4" />}
+              <OrangeButton onClick={handleUpdateProfile} disabled={profileLoading} loading={profileLoading} icon={faCheck}>
                 Saqlash
-              </button>
+              </OrangeButton>
             </div>
           </div>
         </div>
@@ -506,14 +606,9 @@ export default function Settings() {
                   }
                 />
               ))}
-              <button onClick={handleChangePassword} disabled={passwordLoading}
-                className="h-11 px-6 rounded-xl text-white font-medium text-sm flex items-center gap-2 transition-opacity disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
-                {passwordLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <FontAwesomeIcon icon={faLock} className="w-4 h-4" />}
+              <OrangeButton onClick={handleChangePassword} disabled={passwordLoading} loading={passwordLoading} icon={faLock}>
                 Parolni o'zgartirish
-              </button>
+              </OrangeButton>
             </div>
           </div>
         </div>
@@ -523,7 +618,27 @@ export default function Settings() {
       {/* USERS TAB */}
       {/* ============================================ */}
       {tab === 'users' && (
-        <div className="space-y-4">
+        <div className="space-y-5">
+          {/* Role Stats Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {Object.entries(roleConfig).map(([role, cfg]) => (
+              <button key={role} onClick={() => setRoleFilter(roleFilter === role ? 'all' : role)}
+                className="rounded-xl border p-3 text-left transition-all"
+                style={{
+                  borderColor: roleFilter === role ? cfg.color : 'var(--border-color)',
+                  backgroundColor: roleFilter === role ? cfg.bg : 'var(--bg-secondary)',
+                }}>
+                <div className="flex items-center justify-between mb-1">
+                  <FontAwesomeIcon icon={cfg.icon} className="w-4 h-4" style={{ color: cfg.color }} />
+                  <span className="text-lg font-bold" style={{ color: cfg.color }}>{userStats.byRole[role] || 0}</span>
+                </div>
+                <p className="text-[11px] font-medium truncate" style={{ color: roleFilter === role ? cfg.color : 'var(--text-secondary)' }}>
+                  {cfg.label}
+                </p>
+              </button>
+            ))}
+          </div>
+
           {/* Search + Add */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
@@ -532,6 +647,13 @@ export default function Settings() {
                 className="w-full h-11 pl-11 pr-4 rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-orange-400"
                 style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
             </div>
+            {roleFilter !== 'all' && (
+              <button onClick={() => setRoleFilter('all')}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors"
+                style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}>
+                <FontAwesomeIcon icon={faTimes} className="w-3 h-3" /> Filterni tozalash
+              </button>
+            )}
             {isOwner && (
               <button onClick={() => { setUserForm({ first_name: '', last_name: '', email: '', phone: '', role: 'admin', password: '', password_confirm: '' }); setUserEditId(null); setShowUserForm(true); }}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-medium text-sm transition-opacity"
@@ -557,6 +679,7 @@ export default function Settings() {
             ) : filteredUsers.map(u => {
               const rc = roleConfig[u.role] || roleConfig.admin;
               const isSelf = u.id === user?.id;
+              const permCount = u.permissions ? Object.values(u.permissions).filter(Boolean).length : null;
               return (
                 <div key={u.id} className="rounded-xl border p-4 transition-all" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}
                   onMouseEnter={e => e.currentTarget.style.borderColor = rc.color + '40'}
@@ -569,7 +692,7 @@ export default function Settings() {
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
                           {u.first_name} {u.last_name}
                         </span>
@@ -628,6 +751,217 @@ export default function Settings() {
       )}
 
       {/* ============================================ */}
+      {/* CENTER SETTINGS TAB */}
+      {/* ============================================ */}
+      {/* ============================================ */}
+      {/* HOLIDAYS TAB */}
+      {/* ============================================ */}
+      {tab === 'holidays' && (isOwner || user?.role === 'admin') && (
+        <div className="max-w-3xl space-y-6">
+          <div className="rounded-2xl border p-6" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="flex items-center justify-between mb-6 pb-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(249,115,22,0.1)' }}>
+                  <FontAwesomeIcon icon={faCalendarAlt} className="w-4 h-4" style={{ color: '#F97316' }} />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Dam olish kunlari</h3>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Barcha guruhlar davomati uchun amal qiladigan dam olish kunlari</p>
+                </div>
+              </div>
+              <button onClick={() => { setEditHolidayId(null); setHolidayForm({ name: '', date: '', end_date: '', holiday_type: 'custom' }); setShowHolidayForm(true); }}
+                className="px-3 py-2 rounded-lg text-xs font-medium text-white flex items-center gap-1.5"
+                style={{ backgroundColor: 'var(--primary-600)' }}>
+                <FontAwesomeIcon icon={faPlus} className="w-3 h-3" /> Qo'shish
+              </button>
+            </div>
+
+            {/* Holiday form */}
+            {showHolidayForm && (
+              <div className="mb-6 p-4 rounded-xl border space-y-3" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>
+                <h4 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  {editHolidayId ? "Dam olish kunini tahrirlash" : "Yangi dam olish kuni"}
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <InputField label="Nomi" required value={holidayForm.name}
+                    onChange={e => setHolidayForm({ ...holidayForm, name: e.target.value })}
+                    placeholder="Masalan: Navro'z bayrami" />
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Turi <span className="text-red-500">*</span></label>
+                    <select value={holidayForm.holiday_type}
+                      onChange={e => setHolidayForm({ ...holidayForm, holiday_type: e.target.value })}
+                      className="w-full h-11 px-4 rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-orange-400"
+                      style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+                      <option value="national">Davlat bayrami</option>
+                      <option value="religious">Diniy bayram</option>
+                      <option value="custom">Markaz dam olishi</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <InputField label="Boshlanish sanasi" required type="date" value={holidayForm.date}
+                    onChange={e => setHolidayForm({ ...holidayForm, date: e.target.value })} />
+                  <InputField label="Tugash sanasi (ixtiyoriy)" type="date" value={holidayForm.end_date}
+                    onChange={e => setHolidayForm({ ...holidayForm, end_date: e.target.value })} />
+                </div>
+                <div className="flex gap-3 pt-1">
+                  <OrangeButton variant="secondary" onClick={() => { setShowHolidayForm(false); setEditHolidayId(null); }}>
+                    Bekor qilish
+                  </OrangeButton>
+                  <OrangeButton onClick={handleSaveHoliday} icon={faCheck}>
+                    {editHolidayId ? 'Saqlash' : "Qo'shish"}
+                  </OrangeButton>
+                </div>
+              </div>
+            )}
+
+            {/* Holidays list */}
+            {holidaysLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-8 h-8 border-3 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+              </div>
+            ) : holidays.length === 0 ? (
+              <div className="text-center py-12">
+                <FontAwesomeIcon icon={faCalendarAlt} className="w-10 h-10 mb-3" style={{ color: 'var(--text-muted)', opacity: 0.3 }} />
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Hali dam olish kunlari qo'shilmagan</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {holidays.map(h => (
+                  <div key={h.id} className="flex items-center justify-between p-3 rounded-xl border transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
+                    style={{ borderColor: 'var(--border-color)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: `${holidayTypeColors[h.holiday_type] || '#F97316'}15` }}>
+                        <FontAwesomeIcon icon={faCalendarAlt} className="w-4 h-4"
+                          style={{ color: holidayTypeColors[h.holiday_type] || '#F97316' }} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{h.name}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                            style={{ color: holidayTypeColors[h.holiday_type] || '#F97316', backgroundColor: `${holidayTypeColors[h.holiday_type] || '#F97316'}15` }}>
+                            {holidayTypeLabels[h.holiday_type] || h.holiday_type}
+                          </span>
+                        </div>
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                          {h.date}{h.end_date ? ` — ${h.end_date}` : ''}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => openEditHoliday(h)}
+                        className="p-2 rounded-lg transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                        title="Tahrirlash">
+                        <FontAwesomeIcon icon={faEdit} className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+                      </button>
+                      <button onClick={() => handleDeleteHoliday(h)}
+                        className="p-2 rounded-lg transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
+                        title="O'chirish">
+                        <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" style={{ color: '#EF4444' }} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === 'center' && isOwner && (
+        <div className="max-w-2xl space-y-6">
+          <div className="rounded-2xl border p-6" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(249,115,22,0.1)' }}>
+                <FontAwesomeIcon icon={faBuilding} className="w-4 h-4" style={{ color: '#F97316' }} />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Markaz sozlamalari</h3>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>O'quv markazingiz haqidagi asosiy ma'lumotlar</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <InputField label="Markaz nomi" required icon={faBuilding} value={centerForm.name}
+                onChange={e => setCenterForm({ ...centerForm, name: e.target.value })} placeholder="O'quv markaz nomi" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InputField label="Shahar" icon={faGlobe} value={centerForm.city}
+                  onChange={e => setCenterForm({ ...centerForm, city: e.target.value })} placeholder="Toshkent" />
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Asosiy rang</label>
+                  <div className="flex items-center gap-3">
+                    <input type="color" value={centerForm.primary_color}
+                      onChange={e => setCenterForm({ ...centerForm, primary_color: e.target.value })}
+                      className="w-11 h-11 rounded-xl border cursor-pointer" style={{ borderColor: 'var(--border-color)' }} />
+                    <input type="text" value={centerForm.primary_color}
+                      onChange={e => setCenterForm({ ...centerForm, primary_color: e.target.value })}
+                      className="flex-1 h-11 px-4 rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-orange-400"
+                      style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                      placeholder="#F97316" />
+                  </div>
+                </div>
+              </div>
+              <InputField label="Manzil" icon={faMapMarkerAlt} value={centerForm.address}
+                onChange={e => setCenterForm({ ...centerForm, address: e.target.value })} placeholder="To'liq manzil" />
+
+              <div className="p-3 rounded-xl text-xs" style={{ backgroundColor: 'rgba(59,130,246,0.06)', color: '#3B82F6' }}>
+                <FontAwesomeIcon icon={faExclamationTriangle} className="w-3.5 h-3.5 mr-1.5" />
+                Logo va fon rasmi admin panel orqali o'zgartiriladi
+              </div>
+            </div>
+          </div>
+
+          {/* Roles Overview */}
+          <div className="rounded-2xl border p-6" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(139,92,246,0.1)' }}>
+                <FontAwesomeIcon icon={faShieldAlt} className="w-4 h-4" style={{ color: '#8B5CF6' }} />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Rollar va ruxsatlar</h3>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Har bir rol uchun standart ruxsatlar. Foydalanuvchilar tabida maxsus ruxsat belgilash mumkin.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {Object.entries(roleConfig).map(([role, cfg]) => (
+                <div key={role} className="rounded-xl border p-4" style={{ borderColor: 'var(--border-color)' }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: cfg.bg }}>
+                      <FontAwesomeIcon icon={cfg.icon} className="w-4 h-4" style={{ color: cfg.color }} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}>
+                          {userStats.byRole[role] || 0} kishi
+                        </span>
+                      </div>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{cfg.desc}</p>
+                    </div>
+                    {role === 'owner' && (
+                      <span className="text-[10px] px-2 py-1 rounded-lg font-medium" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#22C55E' }}>
+                        To'liq ruxsat
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================ */}
+      {/* EMBEDDED PAGES — Xonalar, Filiallar, Bildirishnomalar, Audit */}
+      {/* ============================================ */}
+      {tab === 'rooms' && isOwner && <EmbeddedPage page="rooms" />}
+      {tab === 'branches' && isOwner && <EmbeddedPage page="branches" />}
+      {tab === 'notifications' && (isOwner || user?.role === 'admin') && <EmbeddedPage page="notifications" />}
+      {tab === 'audit' && isOwner && <EmbeddedPage page="audit" />}
+
+      {/* ============================================ */}
       {/* USER FORM MODAL */}
       {/* ============================================ */}
       <Modal isOpen={showUserForm} onClose={() => { setShowUserForm(false); setUserEditId(null); }}
@@ -651,14 +985,17 @@ export default function Settings() {
             <div className="grid grid-cols-2 gap-2">
               {Object.entries(roleConfig).filter(([k]) => k !== 'owner').map(([key, cfg]) => (
                 <button key={key} onClick={() => setUserForm({ ...userForm, role: key })}
-                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all"
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all text-left"
                   style={{
                     borderColor: userForm.role === key ? cfg.color : 'var(--border-color)',
                     backgroundColor: userForm.role === key ? cfg.bg : 'transparent',
                     color: userForm.role === key ? cfg.color : 'var(--text-secondary)',
                   }}>
                   <FontAwesomeIcon icon={cfg.icon} className="w-3.5 h-3.5" />
-                  {cfg.label}
+                  <div>
+                    <div>{cfg.label}</div>
+                    <div className="text-[10px] font-normal" style={{ color: 'var(--text-muted)' }}>{cfg.desc}</div>
+                  </div>
                 </button>
               ))}
             </div>
@@ -676,21 +1013,12 @@ export default function Settings() {
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button onClick={() => { setShowUserForm(false); setUserEditId(null); }}
-              className="flex-1 h-11 rounded-xl border font-medium text-sm transition-colors"
-              style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+            <OrangeButton variant="secondary" onClick={() => { setShowUserForm(false); setUserEditId(null); }} fullWidth>
               Bekor qilish
-            </button>
-            <button onClick={handleSaveUser} disabled={userFormLoading}
-              className="flex-1 h-11 rounded-xl text-white font-medium text-sm flex items-center justify-center gap-2 transition-opacity disabled:opacity-50"
-              style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}
-              onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
-              onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
-              {userFormLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <FontAwesomeIcon icon={faCheck} className="w-4 h-4" />}
+            </OrangeButton>
+            <OrangeButton onClick={handleSaveUser} disabled={userFormLoading} loading={userFormLoading} icon={faCheck} fullWidth>
               {userEditId ? 'Saqlash' : "Yaratish"}
-            </button>
+            </OrangeButton>
           </div>
         </div>
       </Modal>
@@ -717,6 +1045,22 @@ export default function Settings() {
           </div>
         ) : (
           <div className="space-y-3">
+            {/* Role info banner */}
+            <div className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: roleConfig[showPermissions?.role]?.bg }}>
+              <div className="flex items-center gap-2">
+                <FontAwesomeIcon icon={roleConfig[showPermissions?.role]?.icon} className="w-4 h-4" style={{ color: roleConfig[showPermissions?.role]?.color }} />
+                <span className="text-xs font-medium" style={{ color: roleConfig[showPermissions?.role]?.color }}>
+                  {roleConfig[showPermissions?.role]?.desc}
+                </span>
+              </div>
+              {isOwner && Object.keys(customPerms).length > 0 && (
+                <button onClick={resetToDefaults} className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg transition-colors"
+                  style={{ color: '#F97316', backgroundColor: 'rgba(249,115,22,0.1)' }}>
+                  <FontAwesomeIcon icon={faUndo} className="w-3 h-3" /> Standartga qaytarish
+                </button>
+              )}
+            </div>
+
             {!isOwner && (
               <div className="flex items-center gap-2 p-3 rounded-xl text-xs" style={{ backgroundColor: 'rgba(234,179,8,0.1)', color: '#EAB308' }}>
                 <FontAwesomeIcon icon={faExclamationTriangle} className="w-4 h-4" />
@@ -724,10 +1068,23 @@ export default function Settings() {
               </div>
             )}
 
+            {/* Permission summary */}
+            <div className="flex items-center gap-4 px-1">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Jami: {Object.values(permissionsData).filter(Boolean).length}/{Object.keys(permissionsData).length} ruxsat faol
+              </span>
+              {Object.keys(customPerms).length > 0 && (
+                <span className="flex items-center gap-1 text-xs" style={{ color: '#F97316' }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                  {Object.keys(customPerms).length} ta maxsus o'zgartirish
+                </span>
+              )}
+            </div>
+
             {permissionGroups.map(group => {
               const activeCount = group.perms.filter(p => permissionsData[p]).length;
               const allActive = activeCount === group.perms.length;
-              const isExpanded = expandedGroups[group.name] !== false; // default open
+              const isExpanded = expandedGroups[group.name] !== false;
 
               return (
                 <div key={group.name} className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>

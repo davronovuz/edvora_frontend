@@ -136,6 +136,7 @@ function Pagination({ page, totalPages, onPageChange }) {
 // TAB 1: INVOICES
 // ============================================
 function InvoicesTab() {
+  const now = new Date();
   const [invoices, setInvoices] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -143,9 +144,11 @@ function InvoicesTab() {
   const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [filterYear, setFilterYear] = useState(now.getFullYear());
+  const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1);
   const [detail, setDetail] = useState(null);
   const [generateModal, setGenerateModal] = useState(false);
-  const [genForm, setGenForm] = useState({ group_student_id: '', year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
+  const [genForm, setGenForm] = useState({ group_student_id: '', year: now.getFullYear(), month: now.getMonth() + 1 });
   const [genMode, setGenMode] = useState('single'); // 'single' | 'group'
   const [genGroupId, setGenGroupId] = useState('');
   const [groups, setGroups] = useState([]);
@@ -154,12 +157,22 @@ function InvoicesTab() {
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
 
-  const now = new Date();
+  const monthLabels = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
+
+  const goMonth = (dir) => {
+    let m = filterMonth + dir;
+    let y = filterYear;
+    if (m < 1) { m = 12; y--; }
+    if (m > 12) { m = 1; y++; }
+    setFilterMonth(m);
+    setFilterYear(y);
+    setPage(1);
+  };
 
   const fetchInvoices = async () => {
     setLoading(true);
     try {
-      const params = { page, search };
+      const params = { page, search, period_year: filterYear, period_month: filterMonth };
       if (statusFilter) params.status = statusFilter;
       const res = await billingInvoicesService.getAll(params);
       setInvoices(res.data.data || res.data.results || []);
@@ -170,13 +183,13 @@ function InvoicesTab() {
 
   const fetchSummary = async () => {
     try {
-      const res = await billingInvoicesService.summary({ year: now.getFullYear(), month: now.getMonth() + 1 });
+      const res = await billingInvoicesService.summary({ year: filterYear, month: filterMonth });
       setSummary(res.data);
     } catch {}
   };
 
-  useEffect(() => { fetchInvoices(); }, [page, statusFilter, search]);
-  useEffect(() => { fetchSummary(); }, []);
+  useEffect(() => { fetchInvoices(); }, [page, statusFilter, search, filterYear, filterMonth]);
+  useEffect(() => { fetchSummary(); }, [filterYear, filterMonth]);
 
   const handleCancel = async (id) => {
     if (!confirm('Invoice bekor qilinsinmi?')) return;
@@ -242,6 +255,37 @@ function InvoicesTab() {
 
   return (
     <div className="space-y-6">
+      {/* Month Navigator */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={() => goMonth(-1)}
+            className="w-9 h-9 rounded-xl border flex items-center justify-center transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+            style={{ borderColor: 'var(--border-color)' }}>
+            <FontAwesomeIcon icon={faChevronLeft} className="w-3.5 h-3.5" style={{ color: 'var(--text-secondary)' }} />
+          </button>
+          <div className="min-w-[160px] text-center">
+            <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+              {monthLabels[filterMonth - 1]}
+            </span>
+            <span className="text-lg font-medium ml-2" style={{ color: 'var(--text-muted)' }}>
+              {filterYear}
+            </span>
+          </div>
+          <button onClick={() => goMonth(1)}
+            className="w-9 h-9 rounded-xl border flex items-center justify-center transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+            style={{ borderColor: 'var(--border-color)' }}>
+            <FontAwesomeIcon icon={faChevronRight} className="w-3.5 h-3.5" style={{ color: 'var(--text-secondary)' }} />
+          </button>
+        </div>
+        {(filterYear !== now.getFullYear() || filterMonth !== now.getMonth() + 1) && (
+          <button onClick={() => { setFilterYear(now.getFullYear()); setFilterMonth(now.getMonth() + 1); setPage(1); }}
+            className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+            style={{ color: '#F97316', backgroundColor: 'rgba(249,115,22,0.1)' }}>
+            Bugungi oy
+          </button>
+        )}
+      </div>
+
       {/* Summary Cards */}
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -904,8 +948,8 @@ export default function Billing() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Billing</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Moliya tizimi — invoicelar, profillar, chegirmalar</p>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Hisob-kitob</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Invoicelar, billing profillar, chegirmalar va ta'tillar</p>
         </div>
       </div>
 

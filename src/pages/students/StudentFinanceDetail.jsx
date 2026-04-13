@@ -309,6 +309,85 @@ export default function StudentFinanceDetail() {
     return grid;
   }, [payments, year, effectiveMonthlyPrice]);
 
+  // Per-group monthly breakdown using billing invoices
+  const groupMonthlyBreakdown = useMemo(() => {
+    return studentGroups.map(group => {
+      // Bu guruh uchun billingInvoices
+      const groupInvoices = billingInvoices.filter(inv =>
+        (inv.group === group.id || inv.group_id === group.id)
+      );
+
+      // Qo'shilgan sana
+      const joinedDate = group.joined_date || group.enrolled_at || group.start_date;
+      const startDate = joinedDate ? new Date(joinedDate) : new Date(year, 0, 1);
+      const now = new Date();
+
+      // Boshlanish oyidan hozirgi oygacha oylar ro'yxati
+      const months = [];
+      const startY = startDate.getFullYear();
+      const startM = startDate.getMonth();
+      const endY = now.getFullYear();
+      const endM = now.getMonth();
+
+      for (let y = startY; y <= endY; y++) {
+        const mStart = y === startY ? startM : 0;
+        const mEnd = y === endY ? endM : 11;
+        for (let m = mStart; m <= mEnd; m++) {
+          const invoice = groupInvoices.find(inv =>
+            Number(inv.period_year) === y && Number(inv.period_month) === m + 1
+          );
+          // payments dan ham tekshiramiz
+          const monthPayments = payments.filter(p =>
+            p.status === 'completed' &&
+            Number(p.period_year) === y &&
+            Number(p.period_month) === m + 1 &&
+            (p.group === group.id || p.group_id === group.id || (!p.group && studentGroups.length === 1))
+          );
+          const paidFromPayments = monthPayments.reduce((s, p) => s + Number(p.amount || 0), 0);
+
+          const expected = Number(invoice?.total_amount || group.monthly_price || group.price || 0);
+          const paid = Number(invoice?.paid_amount || 0) || paidFromPayments;
+          const remaining = Math.max(0, expected - paid);
+
+          let status;
+          if (invoice) {
+            status = invoice.status;
+          } else if (paid >= expected && expected > 0) {
+            status = 'paid';
+          } else if (paid > 0) {
+            status = 'partial';
+          } else {
+            status = 'unpaid';
+          }
+
+          months.push({
+            year: y,
+            month: m + 1,
+            expected,
+            paid,
+            remaining,
+            status,
+            invoiceId: invoice?.id,
+            hasInvoice: !!invoice,
+          });
+        }
+      }
+
+      const totalExpected = months.reduce((s, m) => s + m.expected, 0);
+      const totalPaid = months.reduce((s, m) => s + m.paid, 0);
+      const totalRemaining = months.reduce((s, m) => s + m.remaining, 0);
+
+      return {
+        group,
+        months,
+        totalExpected,
+        totalPaid,
+        totalRemaining,
+        joinedDate,
+      };
+    });
+  }, [studentGroups, billingInvoices, payments, year]);
+
   // Attendance stats — prefer backend stats if provided
   const attendanceStats = useMemo(() => {
     if (attendanceStatsFromBackend) {
@@ -460,10 +539,16 @@ export default function StudentFinanceDetail() {
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold truncate" style={{ color: 'var(--text-primary)' }}>{fullName}</h1>
-            <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
+            <div className="flex items-center gap-3 mt-1 text-xs flex-wrap" style={{ color: 'var(--text-secondary)' }}>
               {student.phone && (
                 <a href={`tel:${student.phone}`} className="flex items-center gap-1 hover:underline">
                   <FontAwesomeIcon icon={faPhone} className="w-3 h-3" /> {student.phone}
+                </a>
+              )}
+              {student.parent_phone && (
+                <a href={`tel:${student.parent_phone}`} className="flex items-center gap-1 hover:underline" style={{ color: 'var(--text-muted)' }}>
+                  <FontAwesomeIcon icon={faPhone} className="w-3 h-3" />
+                  {student.parent_name ? `${student.parent_name}: ` : 'Ota-ona: '}{student.parent_phone}
                 </a>
               )}
               {studentGroups.length > 0 && (
@@ -547,39 +632,107 @@ export default function StudentFinanceDetail() {
         />
       </div>
 
-      {/* GROUPS & DISCOUNTS ROW */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Active Groups */}
-        <div className="lg:col-span-2">
-          <SectionCard title="Faol guruhlar" icon={faGraduationCap} iconColor="#3B82F6">
-            {studentGroups.length === 0 ? (
-              <div className="text-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>Guruhlar yo'q</div>
-            ) : (
-              <div className="space-y-3">
-                {studentGroups.map((g, i) => (
-                  <div key={g.id || i} className="flex items-center gap-3 p-3 rounded-xl border" style={{ borderColor: 'var(--border-color)' }}>
-                    <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(59,130,246,0.12)' }}>
-                      <FontAwesomeIcon icon={faBookOpen} className="w-4 h-4" style={{ color: '#3B82F6' }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{g.name}</div>
-                      <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                        {[g.course, g.teacher].filter(Boolean).join(' • ')}
-                        {g.time && ` • ${g.time}`}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{formatMoney(g.monthly_price)}</div>
-                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>oyiga</div>
-                    </div>
+      {/* GURUH BO'YICHA OYLIK MOLIYAVIY JADVAL */}
+      {groupMonthlyBreakdown.length > 0 ? (
+        <div className="space-y-6">
+          {groupMonthlyBreakdown.map(({ group, months, totalExpected, totalPaid, totalRemaining, joinedDate }) => (
+            <SectionCard
+              key={group.id}
+              title={group.name}
+              icon={faGraduationCap}
+              iconColor="#3B82F6"
+              actions={
+                <div className="flex items-center gap-3">
+                  {totalRemaining > 0 && (
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ color: '#EF4444', backgroundColor: 'rgba(239,68,68,0.1)' }}>
+                      Qarz: {formatMoney(totalRemaining)}
+                    </span>
+                  )}
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {formatMoney(group.monthly_price || group.price || 0)}/oy
+                  </span>
+                </div>
+              }
+            >
+              {/* Guruh ma'lumotlari */}
+              <div className="flex flex-wrap items-center gap-3 mb-4 pb-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {[group.course_name || group.course, group.teacher_name || group.teacher].filter(Boolean).join(' • ')}
+                </div>
+                {joinedDate && (
+                  <div className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(59,130,246,0.08)', color: '#3B82F6' }}>
+                    Qo'shilgan: {formatDate(joinedDate)}
                   </div>
-                ))}
+                )}
+                <div className="flex items-center gap-3 ml-auto text-xs">
+                  <span style={{ color: '#22C55E' }}>To'langan: {formatMoney(totalPaid)}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Kutilgan: {formatMoney(totalExpected)}</span>
+                </div>
               </div>
-            )}
-          </SectionCard>
-        </div>
 
-        {/* Discounts */}
+              {/* Oylik jadval */}
+              {months.length === 0 ? (
+                <div className="text-center py-6 text-sm" style={{ color: 'var(--text-muted)' }}>Ma'lumot yo'q</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr>
+                        {['Oy', 'Summa', "To'langan", 'Qarz', 'Holat'].map(h => (
+                          <th key={h} className="text-left px-3 py-2.5 text-xs font-semibold" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {months.map(m => {
+                        const statusCfg = {
+                          paid: { label: "To'langan", color: '#22C55E', bg: 'rgba(34,197,94,0.12)', icon: faCheck },
+                          partial: { label: 'Qisman', color: '#EAB308', bg: 'rgba(234,179,8,0.12)', icon: faHourglassHalf },
+                          unpaid: { label: "To'lanmagan", color: '#EF4444', bg: 'rgba(239,68,68,0.08)', icon: faTimes },
+                          overdue: { label: "Muddati o'tgan", color: '#DC2626', bg: 'rgba(220,38,38,0.1)', icon: faExclamationTriangle },
+                          cancelled: { label: 'Bekor', color: '#94A3B8', bg: 'rgba(148,163,184,0.12)', icon: faTimes },
+                          draft: { label: 'Qoralama', color: '#94A3B8', bg: 'rgba(148,163,184,0.08)', icon: faClock },
+                        };
+                        const sc = statusCfg[m.status] || statusCfg.unpaid;
+                        return (
+                          <tr key={`${m.year}-${m.month}`} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
+                            <td className="px-3 py-2.5 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                              {monthNames[m.month - 1]} {m.year}
+                            </td>
+                            <td className="px-3 py-2.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                              {formatMoney(m.expected)}
+                            </td>
+                            <td className="px-3 py-2.5 text-sm font-medium" style={{ color: m.paid > 0 ? '#22C55E' : 'var(--text-muted)' }}>
+                              {m.paid > 0 ? formatMoney(m.paid) : '—'}
+                            </td>
+                            <td className="px-3 py-2.5 text-sm font-bold" style={{ color: m.remaining > 0 ? '#EF4444' : 'var(--text-muted)' }}>
+                              {m.remaining > 0 ? formatMoney(m.remaining) : '—'}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                                style={{ color: sc.color, backgroundColor: sc.bg }}>
+                                <FontAwesomeIcon icon={sc.icon} className="w-2.5 h-2.5" />
+                                {sc.label}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </SectionCard>
+          ))}
+        </div>
+      ) : (
+        <SectionCard title="Faol guruhlar" icon={faGraduationCap} iconColor="#3B82F6">
+          <div className="text-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>Bu o'quvchi hech qaysi guruhda emas</div>
+        </SectionCard>
+      )}
+
+      {/* CHEGIRMALAR */}
+      {discounts.length > 0 && (
         <SectionCard
           title="Chegirmalar"
           icon={faGift}
@@ -590,40 +743,36 @@ export default function StudentFinanceDetail() {
             </button>
           )}
         >
-          {discounts.length === 0 ? (
-            <div className="text-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>Chegirmalar yo'q</div>
-          ) : (
-            <div className="space-y-2">
-              {discounts.map(d => {
-                const isActive = activeDiscounts.find(a => a.id === d.id);
-                return (
-                  <div key={d.id} className="flex items-center gap-3 p-3 rounded-xl border" style={{
-                    borderColor: isActive ? '#8B5CF660' : 'var(--border-color)',
-                    backgroundColor: isActive ? 'rgba(139,92,246,0.05)' : 'transparent',
-                  }}>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{d.name}</div>
-                      <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                        {d.start_date} → {d.end_date || '∞'}
-                      </div>
+          <div className="space-y-2">
+            {discounts.map(d => {
+              const isActive = activeDiscounts.find(a => a.id === d.id);
+              return (
+                <div key={d.id} className="flex items-center gap-3 p-3 rounded-xl border" style={{
+                  borderColor: isActive ? '#8B5CF660' : 'var(--border-color)',
+                  backgroundColor: isActive ? 'rgba(139,92,246,0.05)' : 'transparent',
+                }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{d.name}</div>
+                    <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {d.start_date} → {d.end_date || '∞'}
                     </div>
-                    <div className="text-sm font-bold whitespace-nowrap" style={{ color: '#8B5CF6' }}>
-                      {d.discount_type === 'percent' ? `-${d.value}%` : `-${formatMoney(d.value)}`}
-                    </div>
-                    {canManage && (
-                      <button onClick={() => handleDeleteDiscount(d.id)} className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)'}
-                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                        <FontAwesomeIcon icon={faTimes} className="w-3 h-3" style={{ color: '#EF4444' }} />
-                      </button>
-                    )}
                   </div>
-                );
-              })}
-            </div>
-          )}
+                  <div className="text-sm font-bold whitespace-nowrap" style={{ color: '#8B5CF6' }}>
+                    {d.discount_type === 'percent' ? `-${d.value}%` : `-${formatMoney(d.value)}`}
+                  </div>
+                  {canManage && (
+                    <button onClick={() => handleDeleteDiscount(d.id)} className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                      <FontAwesomeIcon icon={faTimes} className="w-3 h-3" style={{ color: '#EF4444' }} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </SectionCard>
-      </div>
+      )}
 
       {/* MONTHLY GRID */}
       <SectionCard

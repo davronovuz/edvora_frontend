@@ -10,6 +10,9 @@ export const analyticsService = {
   getRecentActivity: () => api.get('/analytics/dashboard/recent_activity/'),
   getTopGroups: () => api.get('/analytics/dashboard/top_groups/'),
   getDebtorsSummary: () => api.get('/analytics/dashboard/debtors_summary/'),
+  getBillingChart: () => api.get('/analytics/dashboard/billing_chart/'),
+  getBillingDebtors: () => api.get('/analytics/dashboard/billing_debtors/'),
+  getBillingSummary: (params) => api.get('/analytics/dashboard/billing_summary/', { params }),
 
   // Report endpoints
   getStudentsReport: (params) => api.get('/analytics/reports/students_report/', { params }),

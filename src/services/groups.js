@@ -10,5 +10,6 @@ export const groupsService = {
   addStudent: (id, data) => api.post(`/groups/${id}/add_student/`, data),
   removeStudent: (groupId, studentId) => api.post(`/groups/${groupId}/remove-student/${studentId}/`),
   transferStudent: (id, data) => api.post(`/groups/${id}/transfer_student/`, data),
+  getSummary: (id) => api.get(`/groups/${id}/summary/`),
   getScheduleConflicts: () => api.get('/groups/schedule_conflicts/'),
 };
