@@ -306,11 +306,26 @@ export default function Debtors() {
   const fetchDebtors = async () => {
     setLoading(true);
     try {
-      const res = await paymentsService.debtors();
-      const data = res.data?.data || res.data;
-      setDebtors(data.debtors || []);
-      setTotalDebt(data.total_debt || 0);
-      setTotalDebtors(data.total_debtors || 0);
+      // billing/invoices/debtors/ — yagona haqiqat manbai (Invoice.remaining asosida)
+      // Shape: [{student__id, student__first_name, student__last_name, total_debt, invoice_count}]
+      const res = await billingInvoicesService.debtors();
+      const raw = res.data?.data || res.data?.results || res.data || [];
+      const list = (Array.isArray(raw) ? raw : []).map(d => ({
+        student_id: d.student__id ?? d.student_id ?? d.id,
+        student_name: d.student__first_name
+          ? `${d.student__first_name} ${d.student__last_name || ''}`.trim()
+          : (d.student_name || '-'),
+        // Quyidagi maydonlar backend endpointida hozircha yo'q — keyinroq boyitiladi
+        student_phone: d.student_phone || null,
+        parent_phone: d.parent_phone || null,
+        groups: d.groups || [],
+        balance: -Number(d.total_debt ?? 0),   // manfiy = qarz (eski UI bilan moslik uchun)
+        total_debt: Number(d.total_debt ?? 0),
+        invoice_count: d.invoice_count || 0,
+      }));
+      setDebtors(list);
+      setTotalDebt(list.reduce((s, d) => s + d.total_debt, 0));
+      setTotalDebtors(list.length);
     } catch {
       toast.error("Qarzdorlarni yuklashda xato");
     }

@@ -14,7 +14,8 @@ import {
   expenseCategoriesService, expensesService, transactionsService,
   salariesService, financeDashboardService,
 } from '@/services/finance';
-import { paymentsService, invoicesService } from '@/services/payments';
+import { paymentsService } from '@/services/payments';
+import { billingInvoicesService } from '@/services/billing';
 
 // ============================================
 // CONFIG
@@ -163,15 +164,24 @@ export default function Finance() {
       const [dashRes, monthRes, debtRes, statsRes, invRes] = await Promise.all([
         financeDashboardService.summary().catch(() => null),
         financeDashboardService.monthlyReport().catch(() => null),
-        paymentsService.debtors().catch(() => null),
+        billingInvoicesService.debtors().catch(() => null),
         paymentsService.statistics().catch(() => null),
-        invoicesService.getAll({ page_size: 100 }).catch(() => null),
+        billingInvoicesService.getAll({ page_size: 100 }).catch(() => null),
       ]);
       setDashboard(dashRes?.data?.data || dashRes?.data || {});
       const mData = monthRes?.data?.data || monthRes?.data?.monthly_data || monthRes?.data || [];
       setMonthlyData(Array.isArray(mData) ? mData : []);
-      const dData = debtRes?.data?.data || debtRes?.data?.results || debtRes?.data || [];
-      setDebtors(Array.isArray(dData) ? dData : []);
+      // billing/invoices/debtors/ shape: [{student__id, student__first_name, student__last_name, total_debt, invoice_count}]
+      const dRaw = debtRes?.data?.data || debtRes?.data?.results || debtRes?.data || [];
+      const dData = (Array.isArray(dRaw) ? dRaw : []).map(d => ({
+        student_id: d.student__id ?? d.student_id ?? d.id,
+        student_name: d.student__first_name
+          ? `${d.student__first_name} ${d.student__last_name || ''}`.trim()
+          : (d.student_name || d.full_name || '-'),
+        debt: Number(d.total_debt ?? d.balance ?? d.debt ?? 0),
+        invoice_count: d.invoice_count || 0,
+      }));
+      setDebtors(dData);
       setPaymentStats(statsRes?.data?.data || statsRes?.data || null);
 
       // Compute upcoming / overdue invoices
@@ -523,7 +533,7 @@ export default function Finance() {
                     </thead>
                     <tbody>
                       {debtors.slice(0, 10).map((d, i) => {
-                        const sid = d.student_id || d.id || d.student?.id;
+                        const sid = d.student_id;
                         return (
                         <tr key={i} className="border-b last:border-0 transition-colors cursor-pointer" style={{ borderColor: 'var(--border-color)' }}
                           onClick={() => sid && navigate(`/app/students/${sid}/finance`)}
@@ -531,11 +541,11 @@ export default function Finance() {
                           onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                         >
                           <td className="px-3 py-2.5 font-medium" style={{ color: 'var(--text-primary)' }}>
-                            {d.student_name || d.full_name || `${d.first_name || ''} ${d.last_name || ''}`.trim()}
+                            {d.student_name}
                           </td>
-                          <td className="px-3 py-2.5" style={{ color: 'var(--text-secondary)' }}>{d.phone || d.student_phone || '-'}</td>
-                          <td className="px-3 py-2.5" style={{ color: 'var(--text-secondary)' }}>{d.group_name || d.groups?.[0]?.name || '-'}</td>
-                          <td className="px-3 py-2.5 text-right font-bold" style={{ color: '#EF4444' }}>{formatMoney(Math.abs(d.balance || d.debt || d.amount || 0))}</td>
+                          <td className="px-3 py-2.5" style={{ color: 'var(--text-secondary)' }}>—</td>
+                          <td className="px-3 py-2.5" style={{ color: 'var(--text-secondary)' }}>{d.invoice_count ? `${d.invoice_count} invoice` : '—'}</td>
+                          <td className="px-3 py-2.5 text-right font-bold" style={{ color: '#EF4444' }}>{formatMoney(Math.abs(d.debt))}</td>
                         </tr>
                         );
                       })}
