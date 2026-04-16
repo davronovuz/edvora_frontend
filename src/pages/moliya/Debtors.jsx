@@ -3,65 +3,31 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faExclamationTriangle, faSearch, faPhone, faUsers, faMoneyBillWave,
-  faCreditCard, faMobileAlt, faExchangeAlt, faWallet, faUserGraduate,
-  faChevronLeft, faChevronRight, faEye, faCheck, faTimes, faClock,
-  faFileInvoiceDollar, faArrowRight, faMoneyBill,
+  faExclamationTriangle, faSearch, faPhone, faMoneyBillWave,
+  faCreditCard, faMobileAlt, faExchangeAlt, faUserGraduate,
+  faEye, faFileInvoiceDollar,
 } from '@fortawesome/free-solid-svg-icons';
 import { paymentsService } from '@/services/payments';
 import { billingInvoicesService } from '@/services/billing';
-import api from '@/services/api';
+import { unwrapList } from '@/services/api';
+import { formatMoney, formatMonth } from '@/utils/format';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
+import StatCard from '@/components/ui/StatCard';
+import EmptyState from '@/components/ui/EmptyState';
 
-// ============================================
-// CONFIG
-// ============================================
-const monthNames = [
-  'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
-  'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'
-];
-
-const methodConfig = {
-  cash: { label: 'Naqd', icon: faMoneyBillWave, color: '#22C55E' },
-  card: { label: 'Karta', icon: faCreditCard, color: '#3B82F6' },
-  transfer: { label: "O'tkazma", icon: faExchangeAlt, color: '#8B5CF6' },
-  payme: { label: 'Payme', icon: faMobileAlt, color: '#00CCCC' },
-  click: { label: 'Click', icon: faMobileAlt, color: '#F97316' },
+const METHOD_CONFIG = {
+  cash:     { label: 'Naqd',      icon: faMoneyBillWave, color: '#22C55E' },
+  card:     { label: 'Karta',     icon: faCreditCard,    color: '#3B82F6' },
+  transfer: { label: "O'tkazma",  icon: faExchangeAlt,   color: '#8B5CF6' },
+  payme:    { label: 'Payme',     icon: faMobileAlt,     color: '#00CCCC' },
+  click:    { label: 'Click',     icon: faMobileAlt,     color: '#F97316' },
 };
 
-const formatMoney = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
-
-// ============================================
-// MODAL
-// ============================================
-function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }) {
-  useEffect(() => {
-    const h = (e) => e.key === 'Escape' && onClose();
-    if (isOpen) { document.addEventListener('keydown', h); document.body.style.overflow = 'hidden'; }
-    return () => { document.removeEventListener('keydown', h); document.body.style.overflow = 'unset'; };
-  }, [isOpen, onClose]);
-  if (!isOpen) return null;
-  return (
-    <>
-      <div onClick={onClose} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
-      <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full ${maxWidth} max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl`} style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-          <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-            <FontAwesomeIcon icon={faTimes} className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-          </button>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </>
-  );
-}
-
-// ============================================
-// QUICK PAY MODAL
-// ============================================
-function QuickPayModal({ isOpen, onClose, debtor, onSuccess }) {
+// ─── Quick Pay Modal ───────────────────────────────────
+function QuickPayModal({ open, onClose, debtor, onSuccess }) {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('cash');
   const [note, setNote] = useState('');
@@ -71,16 +37,15 @@ function QuickPayModal({ isOpen, onClose, debtor, onSuccess }) {
   const [selectedGroup, setSelectedGroup] = useState(null);
 
   useEffect(() => {
-    if (isOpen && debtor) {
-      setAmount('');
-      setMethod('cash');
-      setNote('');
-      setSelectedGroup(debtor.groups?.[0] || null);
-      fetchInvoices();
-    }
-  }, [isOpen, debtor]);
+    if (!open || !debtor) return;
+    setAmount(String(debtor.total_debt || ''));
+    setMethod('cash');
+    setNote('');
+    setSelectedGroup(debtor.groups?.[0] || null);
+    loadInvoices();
+  }, [open, debtor]);
 
-  const fetchInvoices = async () => {
+  const loadInvoices = async () => {
     if (!debtor) return;
     setLoadingInvoices(true);
     try {
@@ -90,45 +55,41 @@ function QuickPayModal({ isOpen, onClose, debtor, onSuccess }) {
         page_size: 50,
         ordering: 'period_year,period_month',
       });
-      setInvoices(res.data.data || res.data.results || []);
-    } catch { setInvoices([]); }
+      setInvoices(unwrapList(res));
+    } catch {
+      setInvoices([]);
+    }
     setLoadingInvoices(false);
   };
 
   const handleSubmit = async () => {
-    if (!amount || Number(amount) <= 0) { toast.error("Summani kiriting"); return; }
+    const num = parseFloat(amount);
+    if (!num || num <= 0) { toast.error("Summani kiriting"); return; }
     setSaving(true);
     try {
       const now = new Date();
       const payload = {
         student: debtor.student_id,
-        amount: parseFloat(amount),
+        amount: num,
         payment_method: method,
         payment_type: 'tuition',
         period_month: now.getMonth() + 1,
         period_year: now.getFullYear(),
-        note: note || `Qarzdorlar sahifasidan to'lov`,
+        note: note || "Qarzdorlar sahifasidan to'lov",
         status: 'completed',
       };
       if (selectedGroup) payload.group = selectedGroup.id;
 
       await paymentsService.create(payload);
-
-      // Allocate payment to invoices (FIFO)
-      try {
-        await billingInvoicesService.allocatePayment({
-          student_id: debtor.student_id,
-          amount: parseFloat(amount),
-        });
-      } catch {
-        // allocation xatoligi bo'lsa ham to'lov qabul qilingan
-      }
-
       toast.success("To'lov qabul qilindi!");
       onClose();
-      onSuccess();
+      onSuccess?.();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || e.response?.data?.detail || "Xato yuz berdi");
+      const msg = e.response?.data?.error?.message
+        || e.response?.data?.detail
+        || e.response?.data?.non_field_errors?.[0]
+        || "To'lov qabul qilinmadi";
+      toast.error(msg);
     }
     setSaving(false);
   };
@@ -136,7 +97,7 @@ function QuickPayModal({ isOpen, onClose, debtor, onSuccess }) {
   if (!debtor) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`To'lov — ${debtor.student_name}`} maxWidth="max-w-xl">
+    <Modal open={open} onClose={onClose} title={`To'lov — ${debtor.student_name}`} size="md">
       <div className="space-y-5">
         {/* Debtor info */}
         <div className="flex items-center gap-4 p-4 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
@@ -151,7 +112,7 @@ function QuickPayModal({ isOpen, onClose, debtor, onSuccess }) {
             </div>
           </div>
           <div className="text-right flex-shrink-0">
-            <div className="text-lg font-bold" style={{ color: '#EF4444' }}>{formatMoney(Math.abs(debtor.balance))}</div>
+            <div className="text-lg font-bold" style={{ color: '#EF4444' }}>{formatMoney(debtor.total_debt)}</div>
             <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>jami qarz</div>
           </div>
         </div>
@@ -176,7 +137,7 @@ function QuickPayModal({ isOpen, onClose, debtor, onSuccess }) {
                     <div className="flex items-center gap-2">
                       <FontAwesomeIcon icon={faFileInvoiceDollar} className="w-3.5 h-3.5" style={{ color: '#EF4444' }} />
                       <span style={{ color: 'var(--text-primary)' }}>
-                        {inv.group_name || 'Guruh'} — {monthNames[(inv.period_month || 1) - 1]} {inv.period_year}
+                        {inv.group_name || 'Guruh'} — {formatMonth(inv.period_month, inv.period_year)}
                       </span>
                     </div>
                     <span className="font-bold" style={{ color: '#EF4444' }}>{formatMoney(remaining)}</span>
@@ -222,7 +183,6 @@ function QuickPayModal({ isOpen, onClose, debtor, onSuccess }) {
             />
             <span className="absolute right-5 top-1/2 -translate-y-1/2 text-sm font-medium" style={{ color: 'var(--text-muted)' }}>so'm</span>
           </div>
-          {/* Quick amount buttons */}
           <div className="flex gap-2 mt-2">
             {selectedGroup?.monthly_price && (
               <button onClick={() => setAmount(String(selectedGroup.monthly_price))}
@@ -231,13 +191,11 @@ function QuickPayModal({ isOpen, onClose, debtor, onSuccess }) {
                 1 oy: {formatMoney(selectedGroup.monthly_price)}
               </button>
             )}
-            {debtor.balance && (
-              <button onClick={() => setAmount(String(Math.abs(debtor.balance)))}
-                className="text-xs px-3 py-1.5 rounded-lg transition-colors"
-                style={{ color: '#EF4444', backgroundColor: 'rgba(239,68,68,0.1)' }}>
-                Butun qarz: {formatMoney(Math.abs(debtor.balance))}
-              </button>
-            )}
+            <button onClick={() => setAmount(String(debtor.total_debt))}
+              className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+              style={{ color: '#EF4444', backgroundColor: 'rgba(239,68,68,0.1)' }}>
+              Butun qarz: {formatMoney(debtor.total_debt)}
+            </button>
           </div>
         </div>
 
@@ -245,7 +203,7 @@ function QuickPayModal({ isOpen, onClose, debtor, onSuccess }) {
         <div>
           <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>To'lov usuli</label>
           <div className="grid grid-cols-5 gap-2">
-            {Object.entries(methodConfig).map(([key, m]) => (
+            {Object.entries(METHOD_CONFIG).map(([key, m]) => (
               <button key={key} onClick={() => setMethod(key)}
                 className="flex flex-col items-center gap-1.5 py-3 rounded-xl border transition-all"
                 style={{
@@ -270,11 +228,9 @@ function QuickPayModal({ isOpen, onClose, debtor, onSuccess }) {
 
         {/* Submit */}
         <div className="flex gap-3 pt-1">
-          <button onClick={onClose}
-            className="flex-1 h-12 rounded-xl border font-semibold text-sm transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+          <Button variant="secondary" onClick={onClose} className="flex-1 h-12 rounded-xl">
             Bekor qilish
-          </button>
+          </Button>
           <button onClick={handleSubmit} disabled={saving}
             className="flex-1 h-12 rounded-xl text-white font-semibold text-sm shadow-lg shadow-orange-500/25 transition-all hover:shadow-orange-500/40 disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
@@ -286,19 +242,28 @@ function QuickPayModal({ isOpen, onClose, debtor, onSuccess }) {
   );
 }
 
-// ============================================
-// MAIN DEBTORS PAGE
-// ============================================
+// ─── Invoice Status Badge ──────────────────────────────
+const INVOICE_STATUS = {
+  unpaid:  { label: "To'lanmagan", variant: 'warning' },
+  partial: { label: 'Qisman',     variant: 'warning' },
+  overdue: { label: "Muddati o'tgan", variant: 'danger' },
+};
+
+function InvoiceStatusBadge({ status }) {
+  const cfg = INVOICE_STATUS[status] || { label: status, variant: 'neutral' };
+  return <Badge variant={cfg.variant} size="sm">{cfg.label}</Badge>;
+}
+
+// ─── Main Debtors Page ─────────────────────────────────
 export default function Debtors() {
   const navigate = useNavigate();
   const [debtors, setDebtors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [totalDebt, setTotalDebt] = useState(0);
-  const [totalDebtors, setTotalDebtors] = useState(0);
   const [payDebtor, setPayDebtor] = useState(null);
 
-  // Expanded row — invoice tafsilotlarini ko'rsatish
   const [expandedId, setExpandedId] = useState(null);
   const [expandedInvoices, setExpandedInvoices] = useState([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
@@ -306,28 +271,23 @@ export default function Debtors() {
   const fetchDebtors = async () => {
     setLoading(true);
     try {
-      // billing/invoices/debtors/ — yagona haqiqat manbai (Invoice.remaining asosida)
-      // Shape: [{student__id, student__first_name, student__last_name, total_debt, invoice_count}]
       const res = await billingInvoicesService.debtors();
-      const raw = res.data?.data || res.data?.results || res.data || [];
-      const list = (Array.isArray(raw) ? raw : []).map(d => ({
+      const raw = unwrapList(res);
+      const list = raw.map(d => ({
         student_id: d.student__id ?? d.student_id ?? d.id,
         student_name: d.student__first_name
           ? `${d.student__first_name} ${d.student__last_name || ''}`.trim()
-          : (d.student_name || '-'),
-        // Quyidagi maydonlar backend endpointida hozircha yo'q — keyinroq boyitiladi
+          : (d.student_name || '—'),
         student_phone: d.student_phone || null,
         parent_phone: d.parent_phone || null,
         groups: d.groups || [],
-        balance: -Number(d.total_debt ?? 0),   // manfiy = qarz (eski UI bilan moslik uchun)
         total_debt: Number(d.total_debt ?? 0),
         invoice_count: d.invoice_count || 0,
       }));
       setDebtors(list);
       setTotalDebt(list.reduce((s, d) => s + d.total_debt, 0));
-      setTotalDebtors(list.length);
-    } catch {
-      toast.error("Qarzdorlarni yuklashda xato");
+    } catch (e) {
+      toast.error("Qarzdorlarni yuklashda xato: " + (e.response?.data?.detail || e.message));
     }
     setLoading(false);
   };
@@ -343,8 +303,11 @@ export default function Debtors() {
         page_size: 50,
         ordering: 'period_year,period_month',
       });
-      setExpandedInvoices(res.data.data || res.data.results || []);
-    } catch { setExpandedInvoices([]); }
+      setExpandedInvoices(unwrapList(res));
+    } catch (e) {
+      toast.error("Invoice yuklashda xato");
+      setExpandedInvoices([]);
+    }
     setLoadingInvoices(false);
   };
 
@@ -358,38 +321,34 @@ export default function Debtors() {
     }
   };
 
-  // Filter locally by search
-  const filtered = search
+  const filtered = debouncedSearch
     ? debtors.filter(d =>
-        d.student_name?.toLowerCase().includes(search.toLowerCase()) ||
-        d.student_phone?.includes(search) ||
-        d.parent_phone?.includes(search) ||
-        d.groups?.some(g => g.name?.toLowerCase().includes(search.toLowerCase()))
+        d.student_name?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        d.student_phone?.includes(debouncedSearch) ||
+        d.parent_phone?.includes(debouncedSearch) ||
+        d.groups?.some(g => g.name?.toLowerCase().includes(debouncedSearch.toLowerCase()))
       )
     : debtors;
 
   return (
     <div className="space-y-6">
-      {/* Summary */}
+      {/* Summary Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="rounded-2xl p-5 border" style={{ borderColor: '#EF444440', backgroundColor: 'var(--bg-secondary)' }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(239,68,68,0.12)' }}>
-              <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5" style={{ color: '#EF4444' }} />
-            </div>
-          </div>
-          <div className="text-2xl font-bold" style={{ color: '#EF4444' }}>{formatMoney(totalDebt)}</div>
-          <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Jami qarz summasi</div>
-        </div>
-        <div className="rounded-2xl p-5 border" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(249,115,22,0.12)' }}>
-              <FontAwesomeIcon icon={faUserGraduate} className="w-5 h-5" style={{ color: '#F97316' }} />
-            </div>
-          </div>
-          <div className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{totalDebtors}</div>
-          <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Qarzdor o'quvchilar soni</div>
-        </div>
+        <StatCard
+          label="Jami qarz summasi"
+          value={formatMoney(totalDebt)}
+          icon={faExclamationTriangle}
+          tone="danger"
+          loading={loading}
+        />
+        <StatCard
+          label="Qarzdor o'quvchilar"
+          value={debtors.length}
+          hint={debtors.length > 0 ? `O'rtacha: ${formatMoney(totalDebt / debtors.length)}` : undefined}
+          icon={faUserGraduate}
+          tone="warning"
+          loading={loading}
+        />
       </div>
 
       {/* Search */}
@@ -409,18 +368,17 @@ export default function Debtors() {
             <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Yuklanmoqda...</span>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-20">
-            <FontAwesomeIcon icon={faWallet} className="w-12 h-12 mb-3" style={{ color: 'var(--text-muted)', opacity: 0.2 }} />
-            <div className="text-sm font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
-              {search ? 'Qidiruv bo\'yicha natija topilmadi' : 'Qarzdor o\'quvchilar yo\'q'}
-            </div>
-          </div>
+          <EmptyState
+            icon={search ? faSearch : faExclamationTriangle}
+            title={search ? "Qidiruv bo'yicha natija topilmadi" : "Qarzdor o'quvchilar yo'q"}
+            description={search ? "Boshqa kalit so'z bilan urinib ko'ring" : "Barcha to'lovlar to'g'ri amalga oshirilgan"}
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                  {["O'quvchi", 'Telefon', 'Guruh(lar)', 'Oylik narx', 'Qarz', ''].map(h => (
+                  {["O'quvchi", 'Telefon', 'Guruh(lar)', 'Invoicelar', 'Qarz', ''].map(h => (
                     <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{h}</th>
                   ))}
                 </tr>
@@ -455,32 +413,32 @@ export default function Debtors() {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex flex-wrap gap-1">
-                          {d.groups?.map(g => (
-                            <span key={g.id} className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(27,54,93,0.08)', color: '#1B365D' }}>
-                              {g.name}
-                            </span>
-                          ))}
-                          {(!d.groups || d.groups.length === 0) && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>}
+                          {d.groups?.length > 0
+                            ? d.groups.map(g => (
+                                <span key={g.id} className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(27,54,93,0.08)', color: '#1B365D' }}>
+                                  {g.name}
+                                </span>
+                              ))
+                            : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>
+                          }
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                          {d.groups?.length > 0 ? formatMoney(d.groups.reduce((s, g) => s + Number(g.monthly_price || 0), 0)) : '—'}
-                        </span>
+                        <Badge variant="danger" size="sm">{d.invoice_count} ta</Badge>
                       </td>
                       <td className="px-5 py-4">
-                        <span className="text-sm font-bold" style={{ color: '#EF4444' }}>{formatMoney(Math.abs(d.balance))}</span>
+                        <span className="text-sm font-bold" style={{ color: '#EF4444' }}>{formatMoney(d.total_debt)}</span>
                       </td>
                       <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           <button onClick={() => setPayDebtor(d)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                            style={{ color: '#22C55E', backgroundColor: 'rgba(34,197,94,0.1)' }}
-                            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(34,197,94,0.2)'}
-                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(34,197,94,0.1)'}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                            style={{ color: '#fff', backgroundColor: '#22C55E' }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#16A34A'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#22C55E'}
                             title="To'lov qabul qilish">
                             <FontAwesomeIcon icon={faMoneyBillWave} className="w-3 h-3" />
-                            To'lov
+                            Qabul qilish
                           </button>
                           <button onClick={() => navigate(`/app/students/${d.student_id}/finance`)}
                             className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5"
@@ -490,9 +448,10 @@ export default function Debtors() {
                         </div>
                       </td>
                     </tr>
+
                     {/* Expanded invoices */}
                     {expandedId === d.student_id && (
-                      <tr key={`${d.student_id}-detail`}>
+                      <tr>
                         <td colSpan={6} className="px-5 py-4" style={{ backgroundColor: 'rgba(239,68,68,0.02)' }}>
                           {loadingInvoices ? (
                             <div className="text-center py-4">
@@ -500,7 +459,7 @@ export default function Debtors() {
                             </div>
                           ) : expandedInvoices.length === 0 ? (
                             <div className="text-center py-4 text-xs" style={{ color: 'var(--text-muted)' }}>
-                              Invoice ma'lumotlari topilmadi (qarz faqat balans bo'yicha)
+                              Invoice topilmadi
                             </div>
                           ) : (
                             <div className="space-y-2">
@@ -510,12 +469,6 @@ export default function Debtors() {
                               <div className="grid gap-2">
                                 {expandedInvoices.map(inv => {
                                   const remaining = Number(inv.total_amount) - Number(inv.paid_amount || 0);
-                                  const statusConfig = {
-                                    unpaid: { label: "To'lanmagan", color: '#EAB308', bg: 'rgba(234,179,8,0.12)' },
-                                    partial: { label: 'Qisman', color: '#F97316', bg: 'rgba(249,115,22,0.12)' },
-                                    overdue: { label: "Muddati o'tgan", color: '#EF4444', bg: 'rgba(239,68,68,0.12)' },
-                                  };
-                                  const st = statusConfig[inv.status] || { label: inv.status, color: '#94A3B8', bg: 'rgba(148,163,184,0.12)' };
                                   return (
                                     <div key={inv.id} className="flex items-center justify-between px-4 py-3 rounded-xl border"
                                       style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
@@ -525,7 +478,7 @@ export default function Debtors() {
                                         </div>
                                         <div>
                                           <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                            {inv.group_name || 'Guruh'} — {monthNames[(inv.period_month || 1) - 1]} {inv.period_year}
+                                            {inv.group_name || 'Guruh'} — {formatMonth(inv.period_month, inv.period_year)}
                                           </div>
                                           <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
                                             #{inv.number} {inv.due_date ? `• Muddat: ${inv.due_date}` : ''}
@@ -533,10 +486,7 @@ export default function Debtors() {
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-4">
-                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold"
-                                          style={{ color: st.color, backgroundColor: st.bg }}>
-                                          {st.label}
-                                        </span>
+                                        <InvoiceStatusBadge status={inv.status} />
                                         <div className="text-right">
                                           <div className="text-sm font-bold" style={{ color: '#EF4444' }}>{formatMoney(remaining)}</div>
                                           {Number(inv.paid_amount) > 0 && (
@@ -565,7 +515,7 @@ export default function Debtors() {
 
       {/* Quick Pay Modal */}
       <QuickPayModal
-        isOpen={!!payDebtor}
+        open={!!payDebtor}
         onClose={() => setPayDebtor(null)}
         debtor={payDebtor}
         onSuccess={fetchDebtors}

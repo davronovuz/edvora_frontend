@@ -11,82 +11,51 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { paymentsService } from '@/services/payments';
 import { billingInvoicesService } from '@/services/billing';
-import api from '@/services/api';
+import api, { unwrapList } from '@/services/api';
+import { formatMoney, formatMonth } from '@/utils/format';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import Modal from '@/components/ui/Modal';
+import Badge from '@/components/ui/Badge';
+import StatCard from '@/components/ui/StatCard';
+import EmptyState from '@/components/ui/EmptyState';
 
 // ============================================
 // CONSTANTS
 // ============================================
-const monthNames = [
-  'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
-  'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'
-];
-
-const paymentStatusConfig = {
-  pending: { label: 'Kutilmoqda', color: '#EAB308', bg: 'rgba(234,179,8,0.12)', icon: faClock },
-  completed: { label: "To'langan", color: '#22C55E', bg: 'rgba(34,197,94,0.12)', icon: faCheckCircle },
-  cancelled: { label: 'Bekor qilingan', color: '#EF4444', bg: 'rgba(239,68,68,0.12)', icon: faTimes },
-  refunded: { label: 'Qaytarilgan', color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)', icon: faUndo },
+const PAYMENT_STATUS = {
+  pending:   { label: 'Kutilmoqda',       variant: 'warning', icon: faClock },
+  completed: { label: "To'langan",        variant: 'success', icon: faCheckCircle },
+  cancelled: { label: 'Bekor qilingan',   variant: 'danger',  icon: faTimes },
+  refunded:  { label: 'Qaytarilgan',      variant: 'info',    icon: faUndo },
 };
 
-const methodConfig = {
-  cash: { label: 'Naqd', icon: faMoneyBillWave, color: '#22C55E' },
-  card: { label: 'Karta', icon: faCreditCard, color: '#3B82F6' },
-  transfer: { label: "O'tkazma", icon: faExchangeAlt, color: '#8B5CF6' },
-  payme: { label: 'Payme', icon: faMobileAlt, color: '#00CCCC' },
-  click: { label: 'Click', icon: faMobileAlt, color: '#F97316' },
+const METHOD_CONFIG = {
+  cash:     { label: 'Naqd',      icon: faMoneyBillWave, color: '#22C55E' },
+  card:     { label: 'Karta',     icon: faCreditCard,    color: '#3B82F6' },
+  transfer: { label: "O'tkazma",  icon: faExchangeAlt,   color: '#8B5CF6' },
+  payme:    { label: 'Payme',     icon: faMobileAlt,     color: '#00CCCC' },
+  click:    { label: 'Click',     icon: faMobileAlt,     color: '#F97316' },
 };
 
-const formatMoney = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
-
-// ============================================
-// SHARED COMPONENTS
-// ============================================
-function StatusBadge({ status, config }) {
-  const s = config[status] || { label: status, color: '#94A3B8', bg: 'rgba(148,163,184,0.12)' };
+function PaymentStatusBadge({ status }) {
+  const cfg = PAYMENT_STATUS[status] || { label: status, variant: 'neutral' };
   return (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
-      style={{ color: s.color, backgroundColor: s.bg }}>
-      {s.icon && <FontAwesomeIcon icon={s.icon} className="w-3 h-3" />}
-      {s.label}
-    </span>
-  );
-}
-
-function Modal({ isOpen, onClose, title, children, wide }) {
-  useEffect(() => {
-    const h = (e) => e.key === 'Escape' && onClose();
-    if (isOpen) { document.addEventListener('keydown', h); document.body.style.overflow = 'hidden'; }
-    return () => { document.removeEventListener('keydown', h); document.body.style.overflow = 'unset'; };
-  }, [isOpen, onClose]);
-  if (!isOpen) return null;
-  return (
-    <>
-      <div onClick={onClose} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
-      <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full ${wide ? 'max-w-2xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl`} style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <div className="sticky top-0 z-10 flex items-center justify-between p-5 border-b" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-          <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-          <button onClick={onClose} className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-            <FontAwesomeIcon icon={faTimes} style={{ color: 'var(--text-secondary)' }} />
-          </button>
-        </div>
-        <div className="p-5">{children}</div>
-      </div>
-    </>
+    <Badge variant={cfg.variant} size="sm" icon={cfg.icon && <FontAwesomeIcon icon={cfg.icon} className="w-3 h-3" />}>
+      {cfg.label}
+    </Badge>
   );
 }
 
 // ============================================
 // PAYMENT DETAIL MODAL
 // ============================================
-function PaymentDetailModal({ isOpen, onClose, payment }) {
-  if (!isOpen || !payment) return null;
-
-  const method = methodConfig[payment.payment_method];
+function PaymentDetailModal({ open, onClose, payment }) {
+  if (!open || !payment) return null;
+  const method = METHOD_CONFIG[payment.payment_method];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="To'lov tafsilotlari">
+    <Modal open={open} onClose={onClose} title="To'lov tafsilotlari">
       <div className="space-y-4">
-        {/* Student & Group */}
         <div className="flex items-center gap-4 p-4 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
           <div className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
             {(payment.student_name || 'S')[0]}
@@ -95,19 +64,17 @@ function PaymentDetailModal({ isOpen, onClose, payment }) {
             <div className="font-semibold" style={{ color: 'var(--text-primary)' }}>{payment.student_name || payment.student}</div>
             <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>{payment.group_name || payment.group || 'Guruh belgilanmagan'}</div>
           </div>
-          <StatusBadge status={payment.status} config={paymentStatusConfig} />
+          <PaymentStatusBadge status={payment.status} />
         </div>
 
-        {/* Amount */}
         <div className="text-center p-5 rounded-xl border" style={{ borderColor: 'var(--border-color)' }}>
           <div className="text-xs font-medium uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>To'lov summasi</div>
           <div className="text-3xl font-bold" style={{ color: '#1B365D' }}>{formatMoney(payment.amount)}</div>
           <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-            {monthNames[(payment.period_month || 1) - 1]} {payment.period_year} uchun
+            {formatMonth(payment.period_month, payment.period_year)} uchun
           </div>
         </div>
 
-        {/* Details grid */}
         <div className="grid grid-cols-2 gap-3">
           <div className="p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
             <div className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>To'lov usuli</div>
@@ -145,7 +112,7 @@ function PaymentDetailModal({ isOpen, onClose, payment }) {
 // ============================================
 // SMART PAYMENT FORM — Step-by-step
 // ============================================
-function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
+function PaymentFormModal({ open, onClose, onSuccess, editPayment }) {
   const [step, setStep] = useState(1);
   const [studentSearch, setStudentSearch] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -164,12 +131,11 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
   const [saving, setSaving] = useState(false);
   const searchTimer = useRef(null);
 
-  // Edit mode
   const isEdit = !!editPayment;
 
   useEffect(() => {
-    if (isOpen && editPayment) {
-      setStep(3); // Skip to payment details for edit
+    if (open && editPayment) {
+      setStep(3);
       setSelectedStudent({ id: editPayment.student, full_name: editPayment.student_name || '' });
       setSelectedGroup(editPayment.group ? { id: editPayment.group, name: editPayment.group_name || '' } : null);
       setAmount(String(editPayment.amount || ''));
@@ -178,7 +144,7 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
       setPeriodYear(editPayment.period_year || new Date().getFullYear());
       setNote(editPayment.note || '');
     }
-  }, [isOpen, editPayment]);
+  }, [open, editPayment]);
 
   const reset = () => {
     setStep(1);
@@ -198,14 +164,16 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
 
   const handleClose = () => { reset(); onClose(); };
 
-  // Step 1: Search students
   const searchStudents = useCallback(async (query) => {
     if (!query || query.length < 2) { setSearchResults([]); return; }
     setSearching(true);
     try {
       const res = await api.get('/students/', { params: { search: query, page_size: 10 } });
-      setSearchResults(res.data?.data || res.data?.results || []);
-    } catch { setSearchResults([]); }
+      setSearchResults(unwrapList(res));
+    } catch (e) {
+      toast.error("Qidirishda xato");
+      setSearchResults([]);
+    }
     setSearching(false);
   }, []);
 
@@ -215,23 +183,25 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
     searchTimer.current = setTimeout(() => searchStudents(val), 300);
   };
 
-  // Step 2: Load student's groups and invoices
   const selectStudent = async (student) => {
     setSelectedStudent(student);
     setStep(2);
     setLoadingGroups(true);
     try {
       const [groupsRes, invoicesRes] = await Promise.all([
-        api.get('/groups/', { params: { student_id: student.id, page_size: 50 } }).catch(() => ({ data: { data: [] } })),
-        billingInvoicesService.getAll({ student_id: student.id, status: 'unpaid,partial,overdue', page_size: 50 }).catch(() => ({ data: { data: [] } })),
+        api.get('/groups/', { params: { student_id: student.id, page_size: 50 } }),
+        billingInvoicesService.getAll({ student_id: student.id, status: 'unpaid,partial,overdue', page_size: 50 }),
       ]);
-      setStudentGroups(groupsRes.data?.data || groupsRes.data?.results || []);
-      setStudentInvoices(invoicesRes.data?.data || invoicesRes.data?.results || []);
-    } catch {}
+      setStudentGroups(unwrapList(groupsRes));
+      setStudentInvoices(unwrapList(invoicesRes));
+    } catch (e) {
+      toast.error("Ma'lumotlarni yuklashda xato");
+      setStudentGroups([]);
+      setStudentInvoices([]);
+    }
     setLoadingGroups(false);
   };
 
-  // Step 2: Select group or invoice → go to step 3
   const selectGroupOrInvoice = (group, invoice) => {
     setSelectedGroup(group);
     setSelectedInvoice(invoice);
@@ -247,7 +217,6 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
     setStep(3);
   };
 
-  // Step 3: Submit payment
   const handleSubmit = async () => {
     if (!amount || Number(amount) <= 0) { toast.error("Summani kiriting"); return; }
     setSaving(true);
@@ -274,13 +243,19 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
       handleClose();
       onSuccess();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || e.response?.data?.detail || "Xato yuz berdi");
+      const msg = e.response?.data?.error?.message
+        || e.response?.data?.detail
+        || e.response?.data?.non_field_errors?.[0]
+        || "Xato yuz berdi";
+      toast.error(msg);
     }
     setSaving(false);
   };
 
+  const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: formatMonth(i + 1) }));
+
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title={isEdit ? "To'lovni tahrirlash" : "To'lov qabul qilish"} wide={step === 2}>
+    <Modal open={open} onClose={handleClose} title={isEdit ? "To'lovni tahrirlash" : "To'lov qabul qilish"} size={step === 2 ? 'lg' : 'md'}>
       {/* Step indicator */}
       {!isEdit && (
         <div className="flex items-center gap-2 mb-6">
@@ -346,7 +321,7 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
                       {s.first_name} {s.last_name}
                     </div>
                     <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                      {s.phone || s.parent_phone || 'Telefon yo\'q'}
+                      {s.phone || s.parent_phone || "Telefon yo'q"}
                     </div>
                   </div>
                   <FontAwesomeIcon icon={faArrowRight} className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-muted)' }} />
@@ -356,17 +331,11 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
           )}
 
           {!searching && studentSearch.length >= 2 && searchResults.length === 0 && (
-            <div className="text-center py-8">
-              <FontAwesomeIcon icon={faUserGraduate} className="w-10 h-10 mb-2" style={{ color: 'var(--text-muted)', opacity: 0.3 }} />
-              <div className="text-sm" style={{ color: 'var(--text-muted)' }}>O'quvchi topilmadi</div>
-            </div>
+            <EmptyState icon={faUserGraduate} title="O'quvchi topilmadi" />
           )}
 
           {!searching && studentSearch.length < 2 && (
-            <div className="text-center py-8">
-              <FontAwesomeIcon icon={faSearch} className="w-10 h-10 mb-2" style={{ color: 'var(--text-muted)', opacity: 0.2 }} />
-              <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Kamida 2 ta harf yozing</div>
-            </div>
+            <EmptyState icon={faSearch} title="Kamida 2 ta harf yozing" />
           )}
         </div>
       )}
@@ -374,7 +343,6 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
       {/* STEP 2: Groups & Outstanding invoices */}
       {step === 2 && (
         <div className="space-y-4">
-          {/* Selected student */}
           <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.2)' }}>
             <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
               style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
@@ -398,7 +366,6 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
             </div>
           ) : (
             <>
-              {/* Outstanding invoices */}
               {studentInvoices.length > 0 && (
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-2" style={{ color: '#EF4444' }}>
@@ -423,7 +390,7 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
-                              {inv.group_name || 'Guruh'} — {monthNames[(inv.period_month || 1) - 1]} {inv.period_year}
+                              {inv.group_name || 'Guruh'} — {formatMonth(inv.period_month, inv.period_year)}
                             </div>
                             <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
                               Invoice: {inv.number} • Muddat: {inv.due_date || '—'}
@@ -440,7 +407,6 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
                 </div>
               )}
 
-              {/* Groups */}
               {studentGroups.length > 0 && (
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
@@ -475,20 +441,22 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
                 </div>
               )}
 
-              {/* No data */}
               {studentGroups.length === 0 && studentInvoices.length === 0 && (
                 <div className="text-center py-8">
-                  <FontAwesomeIcon icon={faUsers} className="w-10 h-10 mb-2" style={{ color: 'var(--text-muted)', opacity: 0.2 }} />
-                  <div className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>Bu o'quvchi hech qaysi guruhda emas</div>
-                  <button onClick={() => selectGroupOrInvoice(null, null)}
-                    className="text-sm px-4 py-2 rounded-xl font-medium"
-                    style={{ color: '#F97316', backgroundColor: 'rgba(249,115,22,0.1)' }}>
-                    Guruhsiz to'lov qilish
-                  </button>
+                  <EmptyState
+                    icon={faUsers}
+                    title="Bu o'quvchi hech qaysi guruhda emas"
+                    action={
+                      <button onClick={() => selectGroupOrInvoice(null, null)}
+                        className="text-sm px-4 py-2 rounded-xl font-medium"
+                        style={{ color: '#F97316', backgroundColor: 'rgba(249,115,22,0.1)' }}>
+                        Guruhsiz to'lov qilish
+                      </button>
+                    }
+                  />
                 </div>
               )}
 
-              {/* Skip: manual payment without group */}
               {studentGroups.length > 0 && (
                 <button onClick={() => selectGroupOrInvoice(null, null)}
                   className="w-full text-center text-xs py-2 rounded-lg transition-colors"
@@ -507,7 +475,6 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
       {/* STEP 3: Payment details */}
       {step === 3 && (
         <div className="space-y-5">
-          {/* Context info */}
           {!isEdit && (
             <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
               <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
@@ -529,18 +496,16 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
             </div>
           )}
 
-          {/* Invoice reminder */}
           {selectedInvoice && (
             <div className="p-3 rounded-xl flex items-center gap-3" style={{ backgroundColor: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}>
               <FontAwesomeIcon icon={faFileInvoiceDollar} className="w-4 h-4 flex-shrink-0" style={{ color: '#EF4444' }} />
               <div className="flex-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
                 <strong>Qarz:</strong> {formatMoney(Number(selectedInvoice.total_amount) - Number(selectedInvoice.paid_amount || 0))}
-                {' '}({monthNames[(selectedInvoice.period_month || 1) - 1]} {selectedInvoice.period_year})
+                {' '}({formatMonth(selectedInvoice.period_month, selectedInvoice.period_year)})
               </div>
             </div>
           )}
 
-          {/* Amount — big and prominent */}
           <div>
             <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Summa</label>
             <div className="relative">
@@ -557,11 +522,10 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
             </div>
           </div>
 
-          {/* Payment method — visual buttons */}
           <div>
             <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>To'lov usuli</label>
             <div className="grid grid-cols-5 gap-2">
-              {Object.entries(methodConfig).map(([key, m]) => (
+              {Object.entries(METHOD_CONFIG).map(([key, m]) => (
                 <button key={key} onClick={() => setMethod(key)}
                   className="flex flex-col items-center gap-1.5 py-3 rounded-xl border transition-all"
                   style={{
@@ -575,14 +539,13 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
             </div>
           </div>
 
-          {/* Period */}
           <div>
             <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Qaysi oy uchun</label>
             <div className="grid grid-cols-2 gap-3">
               <select value={periodMonth} onChange={e => setPeriodMonth(Number(e.target.value))}
                 className="h-11 px-4 rounded-xl border bg-transparent text-sm"
                 style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
-                {monthNames.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                {MONTH_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
               </select>
               <input type="number" value={periodYear} onChange={e => setPeriodYear(Number(e.target.value))}
                 className="h-11 px-4 rounded-xl border bg-transparent text-sm"
@@ -590,7 +553,6 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
             </div>
           </div>
 
-          {/* Note */}
           <div>
             <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Izoh (ixtiyoriy)</label>
             <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
@@ -599,7 +561,6 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
               placeholder="Qo'shimcha ma'lumot..." />
           </div>
 
-          {/* Submit */}
           <div className="flex gap-3 pt-1">
             <button onClick={handleClose}
               className="flex-1 h-12 rounded-xl border font-semibold text-sm transition-colors hover:bg-black/5 dark:hover:bg-white/5"
@@ -609,7 +570,7 @@ function PaymentFormModal({ isOpen, onClose, onSuccess, editPayment }) {
             <button onClick={handleSubmit} disabled={saving}
               className="flex-1 h-12 rounded-xl text-white font-semibold text-sm shadow-lg shadow-orange-500/25 transition-all hover:shadow-orange-500/40 disabled:opacity-50"
               style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
-              {saving ? 'Saqlanmoqda...' : isEdit ? 'Saqlash' : "✓ To'lovni qabul qilish"}
+              {saving ? 'Saqlanmoqda...' : isEdit ? 'Saqlash' : "To'lovni qabul qilish"}
             </button>
           </div>
         </div>
@@ -626,6 +587,7 @@ export default function Payments() {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterMethod, setFilterMethod] = useState('');
   const [filterYear, setFilterYear] = useState(now.getFullYear());
@@ -652,63 +614,70 @@ export default function Payments() {
     setLoading(true);
     try {
       const params = { page };
-      if (search) params.search = search;
+      if (debouncedSearch) params.search = debouncedSearch;
       if (filterStatus) params.status = filterStatus;
       if (filterMethod) params.payment_method = filterMethod;
-      // Oy boshi va oxiri bo'yicha filtr
       const startDate = `${filterYear}-${String(filterMonth).padStart(2, '0')}-01`;
       const lastDay = new Date(filterYear, filterMonth, 0).getDate();
       const endDate = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
       params.start_date = startDate;
       params.end_date = endDate;
       const res = await paymentsService.getAll(params);
-      setPayments(res.data?.data || res.data?.results || []);
-      setTotalPages(res.data?.meta?.total_pages || Math.ceil((res.data?.count || 0) / 20) || 1);
-    } catch { toast.error("Ma'lumotlarni yuklashda xato"); }
+      const body = res.data?.data || res.data;
+      setPayments(Array.isArray(body) ? body : (body?.results || []));
+      setTotalPages(res.data?.meta?.total_pages || Math.ceil((res.data?.count || body?.count || 0) / 20) || 1);
+    } catch (e) {
+      toast.error("To'lovlarni yuklashda xato");
+    }
     setLoading(false);
   };
 
   const fetchStats = async () => {
     try {
-      const res = await paymentsService.statistics({ period: 'custom', start_date: `${filterYear}-${String(filterMonth).padStart(2, '0')}-01`, end_date: `${filterYear}-${String(filterMonth).padStart(2, '0')}-${new Date(filterYear, filterMonth, 0).getDate()}` });
-      setStats(res.data);
-    } catch {}
+      const startDate = `${filterYear}-${String(filterMonth).padStart(2, '0')}-01`;
+      const lastDay = new Date(filterYear, filterMonth, 0).getDate();
+      const endDate = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const res = await paymentsService.statistics({ period: 'custom', start_date: startDate, end_date: endDate });
+      setStats(res.data?.data || res.data);
+    } catch (e) {
+      toast.error("Statistika yuklashda xato");
+    }
   };
 
   useEffect(() => { fetchStats(); }, [filterYear, filterMonth]);
-  useEffect(() => { fetchPayments(); }, [search, filterStatus, filterMethod, page, filterYear, filterMonth]);
+  useEffect(() => { fetchPayments(); }, [debouncedSearch, filterStatus, filterMethod, page, filterYear, filterMonth]);
 
   const handleDelete = async (id) => {
     if (!confirm("Bu to'lovni o'chirmoqchimisiz?")) return;
-    try { await paymentsService.delete(id); toast.success("To'lov o'chirildi"); fetchPayments(); fetchStats(); }
-    catch { toast.error('Xato'); }
+    try {
+      await paymentsService.delete(id);
+      toast.success("To'lov o'chirildi");
+      fetchPayments();
+      fetchStats();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "O'chirishda xato");
+    }
   };
 
   const handleRefund = async (id) => {
     if (!confirm("To'lovni qaytarmoqchimisiz?")) return;
-    try { await paymentsService.update(id, { status: 'refunded' }); toast.success("To'lov qaytarildi"); fetchPayments(); fetchStats(); }
-    catch { toast.error('Xato'); }
+    try {
+      await paymentsService.update(id, { status: 'refunded' });
+      toast.success("To'lov qaytarildi");
+      fetchPayments();
+      fetchStats();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Qaytarishda xato");
+    }
   };
 
-  // Calculate stats from payments if backend stats not available
-  const displayStats = stats || (() => {
-    const completed = payments.filter(p => p.status === 'completed');
-    const pending = payments.filter(p => p.status === 'pending');
-    return {
-      total_collected: completed.reduce((s, p) => s + Number(p.amount || 0), 0),
-      total_pending: pending.reduce((s, p) => s + Number(p.amount || 0), 0),
-      this_month: completed.filter(p => p.period_month === new Date().getMonth() + 1 && p.period_year === new Date().getFullYear()).reduce((s, p) => s + Number(p.amount || 0), 0),
-      total_count: payments.length,
-      pending_count: pending.length,
-    };
-  })();
-
-  const statCards = [
-    { label: 'Jami yig\'ilgan', value: formatMoney(displayStats.total_collected), icon: faWallet, color: '#22C55E' },
-    { label: 'Kutilayotgan', value: formatMoney(displayStats.total_pending), icon: faClock, color: '#EAB308', badge: displayStats.pending_count > 0 ? `${displayStats.pending_count} ta` : null },
-    { label: 'Bu oy', value: formatMoney(displayStats.this_month), icon: faCalendarAlt, color: '#3B82F6' },
-    { label: 'Jami to\'lovlar', value: displayStats.total_count, icon: faReceipt, color: '#8B5CF6' },
-  ];
+  const displayStats = stats || {
+    total_collected: payments.filter(p => p.status === 'completed').reduce((s, p) => s + Number(p.amount || 0), 0),
+    total_pending: payments.filter(p => p.status === 'pending').reduce((s, p) => s + Number(p.amount || 0), 0),
+    this_month: payments.filter(p => p.status === 'completed').reduce((s, p) => s + Number(p.amount || 0), 0),
+    total_count: payments.length,
+    pending_count: payments.filter(p => p.status === 'pending').length,
+  };
 
   return (
     <div className="space-y-6">
@@ -722,7 +691,7 @@ export default function Payments() {
           </button>
           <div className="min-w-[160px] text-center">
             <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
-              {monthNames[filterMonth - 1]}
+              {formatMonth(filterMonth)}
             </span>
             <span className="text-lg font-medium ml-2" style={{ color: 'var(--text-muted)' }}>
               {filterYear}
@@ -745,23 +714,11 @@ export default function Payments() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map(s => (
-          <div key={s.label} className="rounded-2xl p-5 border transition-all" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = s.color + '60'}
-            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: s.color + '15' }}>
-                <FontAwesomeIcon icon={s.icon} className="w-4 h-4" style={{ color: s.color }} />
-              </div>
-              {s.badge && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: s.color + '18', color: s.color }}>{s.badge}</span>
-              )}
-            </div>
-            <div className="text-lg font-bold" style={{ color: '#1B365D' }}>{s.value}</div>
-            <div className="text-xs mt-1 uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>{s.label}</div>
-          </div>
-        ))}
+        <StatCard label="Jami yig'ilgan" value={formatMoney(displayStats.total_collected)} icon={faWallet} tone="success" loading={loading} />
+        <StatCard label="Kutilayotgan" value={formatMoney(displayStats.total_pending)} icon={faClock} tone="warning"
+          hint={displayStats.pending_count > 0 ? `${displayStats.pending_count} ta` : undefined} loading={loading} />
+        <StatCard label="Bu oy" value={formatMoney(displayStats.this_month)} icon={faCalendarAlt} tone="info" loading={loading} />
+        <StatCard label="Jami to'lovlar" value={displayStats.total_count} icon={faReceipt} tone="primary" loading={loading} />
       </div>
 
       {/* Toolbar */}
@@ -777,13 +734,13 @@ export default function Payments() {
           className="h-11 px-4 rounded-xl border bg-transparent text-sm"
           style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
           <option value="">Barcha holatlar</option>
-          {Object.entries(paymentStatusConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          {Object.entries(PAYMENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
         <select value={filterMethod} onChange={e => { setFilterMethod(e.target.value); setPage(1); }}
           className="h-11 px-4 rounded-xl border bg-transparent text-sm"
           style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
           <option value="">Barcha usullar</option>
-          {Object.entries(methodConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          {Object.entries(METHOD_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
         <button onClick={() => { setEditPayment(null); setShowForm(true); }}
           className="flex items-center gap-2 px-5 h-11 rounded-xl text-white font-medium shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 transition-all whitespace-nowrap"
@@ -800,13 +757,11 @@ export default function Payments() {
             <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Yuklanmoqda...</span>
           </div>
         ) : payments.length === 0 ? (
-          <div className="text-center py-20">
-            <FontAwesomeIcon icon={faMoneyBill} className="w-12 h-12 mb-3" style={{ color: 'var(--text-muted)', opacity: 0.2 }} />
-            <div className="text-sm font-medium mb-1" style={{ color: 'var(--text-muted)' }}>To'lovlar topilmadi</div>
-            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {search || filterStatus || filterMethod ? 'Filtrlarni o\'zgartiring' : 'Birinchi to\'lovni qabul qiling'}
-            </div>
-          </div>
+          <EmptyState
+            icon={search || filterStatus || filterMethod ? faSearch : faMoneyBill}
+            title="To'lovlar topilmadi"
+            description={search || filterStatus || filterMethod ? "Filtrlarni o'zgartiring" : "Birinchi to'lovni qabul qiling"}
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -838,7 +793,7 @@ export default function Payments() {
                     </td>
                     <td className="px-5 py-4">
                       <span className="text-sm" style={{ color: 'var(--text-primary)' }}>
-                        {monthNames[(p.period_month || 1) - 1]} {p.period_year}
+                        {formatMonth(p.period_month, p.period_year)}
                       </span>
                     </td>
                     <td className="px-5 py-4">
@@ -846,15 +801,15 @@ export default function Payments() {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        <FontAwesomeIcon icon={methodConfig[p.payment_method]?.icon || faMoneyBill} className="w-4 h-4"
-                          style={{ color: methodConfig[p.payment_method]?.color || 'var(--text-muted)' }} />
+                        <FontAwesomeIcon icon={METHOD_CONFIG[p.payment_method]?.icon || faMoneyBill} className="w-4 h-4"
+                          style={{ color: METHOD_CONFIG[p.payment_method]?.color || 'var(--text-muted)' }} />
                         <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                          {methodConfig[p.payment_method]?.label || p.payment_method}
+                          {METHOD_CONFIG[p.payment_method]?.label || p.payment_method}
                         </span>
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <StatusBadge status={p.status} config={paymentStatusConfig} />
+                      <PaymentStatusBadge status={p.status} />
                     </td>
                     <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
@@ -923,7 +878,7 @@ export default function Payments() {
 
       {/* Payment Form Modal */}
       <PaymentFormModal
-        isOpen={showForm}
+        open={showForm}
         onClose={() => { setShowForm(false); setEditPayment(null); }}
         onSuccess={() => { fetchPayments(); fetchStats(); }}
         editPayment={editPayment}
@@ -931,7 +886,7 @@ export default function Payments() {
 
       {/* Payment Detail Modal */}
       <PaymentDetailModal
-        isOpen={showDetail}
+        open={showDetail}
         onClose={() => { setShowDetail(false); setSelectedPayment(null); }}
         payment={selectedPayment}
       />

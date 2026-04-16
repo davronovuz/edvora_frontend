@@ -1,16 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useThemeStore } from '@/stores/themeStore';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faHouse,
@@ -64,6 +55,8 @@ export default function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Desktop collapse
   const [tenantLogo, setTenantLogo] = useState(null);
   const [tenantName, setTenantName] = useState(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
   const { theme, toggleTheme, initTheme } = useThemeStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -79,6 +72,23 @@ export default function MainLayout() {
       if (res.data?.name && !res.data?.is_main) setTenantName(res.data.name);
     }).catch(() => {});
   }, []);
+
+  // User menu — tashqariga bosilganda yopilsin
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onClick = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    const onEsc = (e) => { if (e.key === 'Escape') setUserMenuOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [userMenuOpen]);
 
   // Sahifa o'zgarganda permissionlarni yangilash (30s throttle)
   useEffect(() => {
@@ -225,11 +235,12 @@ export default function MainLayout() {
         <div className="flex-shrink-0 p-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
           {!sidebarCollapsed ? (
             <div className="flex items-center gap-2 px-2 py-2 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <Avatar className="h-8 w-8 flex-shrink-0">
-                <AvatarFallback className="text-white text-xs" style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
-                  {getInitials(user?.full_name)}
-                </AvatarFallback>
-              </Avatar>
+              <div
+                className="h-8 w-8 flex-shrink-0 rounded-full flex items-center justify-center text-white text-xs font-medium"
+                style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}
+              >
+                {getInitials(user?.full_name)}
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>
                   {user?.full_name || 'User'}
@@ -250,11 +261,12 @@ export default function MainLayout() {
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="text-white text-xs" style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
-                  {getInitials(user?.full_name)}
-                </AvatarFallback>
-              </Avatar>
+              <div
+                className="h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-medium"
+                style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}
+              >
+                {getInitials(user?.full_name)}
+              </div>
               <button
                 onClick={handleLogout}
                 title="Chiqish"
@@ -321,33 +333,48 @@ export default function MainLayout() {
             </button>
 
             {/* User Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-primary-600 text-white text-xs">
-                      {getInitials(user?.full_name)}
-                    </AvatarFallback>
-                  </Avatar>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>
-                  <p className="font-medium">{user?.full_name}</p>
-                  <p className="text-xs text-muted-foreground">{user?.email}</p>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/settings')}>
-                  <FontAwesomeIcon icon={faCog} className="w-4 h-4 mr-2" />
-                  Sozlamalar
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-danger-500">
-                  <FontAwesomeIcon icon={faSignOutAlt} className="w-4 h-4 mr-2" />
-                  Chiqish
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="relative" ref={userMenuRef}>
+              <button
+                onClick={() => setUserMenuOpen(o => !o)}
+                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+              >
+                <div className="h-8 w-8 rounded-full bg-primary-600 flex items-center justify-center text-white text-xs font-medium">
+                  {getInitials(user?.full_name)}
+                </div>
+              </button>
+              {userMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 mt-2 w-56 rounded-lg shadow-lg border overflow-hidden z-50"
+                  style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+                >
+                  <div className="px-3 py-2 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                    <p className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{user?.full_name}</p>
+                    <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
+                  </div>
+                  <button
+                    role="menuitem"
+                    onClick={() => { setUserMenuOpen(false); navigate('/app/settings'); }}
+                    className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
+                    <FontAwesomeIcon icon={faCog} className="w-4 h-4" />
+                    Sozlamalar
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => { setUserMenuOpen(false); handleLogout(); }}
+                    className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border-t"
+                    style={{ borderColor: 'var(--border-color)' }}
+                  >
+                    <FontAwesomeIcon icon={faSignOutAlt} className="w-4 h-4" />
+                    Chiqish
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

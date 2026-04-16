@@ -4,9 +4,9 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMoneyBill, faFileInvoiceDollar, faWallet, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 
 const tabs = [
+  { path: 'debtors', label: 'Qarzdorlar', icon: faExclamationTriangle, permission: 'payments.view' },
   { path: 'payments', label: "To'lovlar", icon: faMoneyBill, permission: 'payments.view' },
   { path: 'billing', label: 'Hisob-kitob', icon: faFileInvoiceDollar, permission: 'finance.view' },
-  { path: 'debtors', label: 'Qarzdorlar', icon: faExclamationTriangle, permission: 'payments.view' },
   { path: 'finance', label: 'Xarajatlar & Ish haqi', icon: faWallet, permission: 'finance.view' },
 ];
 

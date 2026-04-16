@@ -16,11 +16,19 @@ import {
 } from '@/services/finance';
 import { paymentsService } from '@/services/payments';
 import { billingInvoicesService } from '@/services/billing';
+import { unwrapList } from '@/services/api';
+import { formatMoney, formatMonth } from '@/utils/format';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import Modal from '@/components/ui/Modal';
+import Badge from '@/components/ui/Badge';
+import SharedStatCard from '@/components/ui/StatCard';
+import EmptyState from '@/components/ui/EmptyState';
 
 // ============================================
 // CONFIG
 // ============================================
 const monthNames = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
+// TODO: monthNames → formatMonth ga ko'chirish keyingi iteratsiyada
 
 const expenseStatusConfig = {
   pending: { label: 'Kutilmoqda', color: '#EAB308', bg: 'rgba(234,179,8,0.12)' },
@@ -52,7 +60,6 @@ const payMethodIcons = {
   click: faMobileAlt,
 };
 
-const formatMoney = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
 const formatMoneyShort = (v) => {
   const n = Number(v || 0);
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace('.0', '') + 'M';
@@ -60,32 +67,14 @@ const formatMoneyShort = (v) => {
   return n.toString();
 };
 
-// ============================================
-// REUSABLE COMPONENTS
-// ============================================
-function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }) {
-  useEffect(() => {
-    const h = (e) => e.key === 'Escape' && onClose();
-    if (isOpen) { document.addEventListener('keydown', h); document.body.style.overflow = 'hidden'; }
-    return () => { document.removeEventListener('keydown', h); document.body.style.overflow = 'unset'; };
-  }, [isOpen, onClose]);
-  if (!isOpen) return null;
-  return (
-    <>
-      <div onClick={onClose} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
-      <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full ${maxWidth} max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl`} style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-            <FontAwesomeIcon icon={faTimes} className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-          </button>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </>
-  );
+// Status badge wrapper — config-based → shared Badge
+function StatusBadge({ status, config }) {
+  const cfg = config[status] || { label: status, color: '#94A3B8' };
+  const variantMap = { '#22C55E': 'success', '#3B82F6': 'info', '#EAB308': 'warning', '#EF4444': 'danger', '#8B5CF6': 'primary', '#F97316': 'warning' };
+  return <Badge variant={variantMap[cfg.color] || 'neutral'} size="sm">{cfg.label}</Badge>;
 }
 
+// Finance-specific StatCard — raqamlarni o'z stilida ko'rsatadi
 function StatCard({ label, value, subValue, icon, color, trend }) {
   return (
     <div className="rounded-2xl p-5 border transition-all" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}
@@ -109,15 +98,6 @@ function StatCard({ label, value, subValue, icon, color, trend }) {
       <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{label}</div>
       {subValue && <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{subValue}</div>}
     </div>
-  );
-}
-
-function Badge({ status, config }) {
-  const cfg = config[status] || { label: status, color: '#94A3B8', bg: 'rgba(148,163,184,0.12)' };
-  return (
-    <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ color: cfg.color, backgroundColor: cfg.bg }}>
-      {cfg.label}
-    </span>
   );
 }
 
@@ -151,10 +131,6 @@ export default function Finance() {
   const [expenseFilter, setExpenseFilter] = useState('all');
   const [salaryFilter, setSalaryFilter] = useState('all');
   const [detailModal, setDetailModal] = useState(null);
-  const [period, setPeriod] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  });
 
   // ============================================
   // DATA FETCHING
@@ -277,7 +253,6 @@ export default function Finance() {
   ];
 
   const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth();
 
   // ============================================
   // RENDER
@@ -512,48 +487,7 @@ export default function Finance() {
               </div>
             )}
 
-            {/* Debtors */}
-            {debtors.length > 0 && (
-              <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    <FontAwesomeIcon icon={faExclamationTriangle} className="mr-2 w-4 h-4" style={{ color: '#EF4444' }} />
-                    Qarzdor o'quvchilar ({debtors.length})
-                  </h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b" style={{ borderColor: 'var(--border-color)' }}>
-                        <th className="text-left px-3 py-2 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>O'quvchi</th>
-                        <th className="text-left px-3 py-2 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Telefon</th>
-                        <th className="text-left px-3 py-2 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Guruh</th>
-                        <th className="text-right px-3 py-2 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Qarz miqdori</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {debtors.slice(0, 10).map((d, i) => {
-                        const sid = d.student_id;
-                        return (
-                        <tr key={i} className="border-b last:border-0 transition-colors cursor-pointer" style={{ borderColor: 'var(--border-color)' }}
-                          onClick={() => sid && navigate(`/app/students/${sid}/finance`)}
-                          onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
-                          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                        >
-                          <td className="px-3 py-2.5 font-medium" style={{ color: 'var(--text-primary)' }}>
-                            {d.student_name}
-                          </td>
-                          <td className="px-3 py-2.5" style={{ color: 'var(--text-secondary)' }}>—</td>
-                          <td className="px-3 py-2.5" style={{ color: 'var(--text-secondary)' }}>{d.invoice_count ? `${d.invoice_count} invoice` : '—'}</td>
-                          <td className="px-3 py-2.5 text-right font-bold" style={{ color: '#EF4444' }}>{formatMoney(Math.abs(d.debt))}</td>
-                        </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+            {/* Qarzdorlar — endi alohida Debtors tab da */}
 
             {/* Payment method breakdown */}
             {paymentStats && (
@@ -645,7 +579,7 @@ export default function Finance() {
                         </td>
                         <td className="px-4 py-3 text-sm font-bold" style={{ color: '#EF4444' }}>-{formatMoney(exp.amount)}</td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{exp.expense_date}</td>
-                        <td className="px-4 py-3"><Badge status={exp.status} config={expenseStatusConfig} /></td>
+                        <td className="px-4 py-3"><StatusBadge status={exp.status} config={expenseStatusConfig} /></td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1">
                             <button onClick={() => { setForm({ category: exp.category, title: exp.title, description: exp.description || '', amount: exp.amount, expense_date: exp.expense_date, status: exp.status }); setEditId(exp.id); setShowForm(true); }}
@@ -798,7 +732,7 @@ export default function Finance() {
                         </td>
                         <td className="px-4 py-3 text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{formatMoney(s.total)}</td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{s.total_lessons || '-'}</td>
-                        <td className="px-4 py-3"><Badge status={s.status} config={salaryStatusConfig} /></td>
+                        <td className="px-4 py-3"><StatusBadge status={s.status} config={salaryStatusConfig} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -853,7 +787,7 @@ export default function Finance() {
       {/* ============================================ */}
       {/* EXPENSE FORM MODAL */}
       {/* ============================================ */}
-      <Modal isOpen={showForm} onClose={() => { setShowForm(false); setEditId(null); }} title={editId ? "Chiqimni tahrirlash" : "Yangi chiqim qo'shish"}>
+      <Modal open={showForm} onClose={() => { setShowForm(false); setEditId(null); }} title={editId ? "Chiqimni tahrirlash" : "Yangi chiqim qo'shish"}>
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Nomi <span className="text-red-500">*</span></label>

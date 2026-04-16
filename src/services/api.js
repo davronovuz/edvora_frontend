@@ -93,4 +93,38 @@ api.interceptors.response.use(
   }
 );
 
+/**
+ * Backend javob envelope'ini ochish.
+ * Backend `{success: true, data: ...}` qaytarsa — `data` ni qaytaradi.
+ * Boshqa shakllarda — javobni o'zini qaytaradi.
+ *
+ * Ishlatish:
+ *     const items = unwrap(await api.get('/students/'));
+ */
+export function unwrap(response) {
+  const body = response?.data ?? response;
+  if (body && typeof body === 'object' && 'success' in body && 'data' in body) {
+    return body.data;
+  }
+  return body;
+}
+
+/**
+ * Ro'yxat javobini normallashtirish.
+ * Qo'llab-quvvatlanadi:
+ *     - {success, data: [...]}        → [...]
+ *     - {success, data: {results: [...]}} → [...]
+ *     - {results: [...]} (DRF paginated) → [...]
+ *     - [...]                          → [...]
+ *
+ * Sahifalash bo'lsa ham faqat results massivini qaytaradi.
+ * To'liq pagination obyekti kerak bo'lsa `unwrap` ishlating.
+ */
+export function unwrapList(response) {
+  const data = unwrap(response);
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.results)) return data.results;
+  return [];
+}
+
 export default api;

@@ -1,56 +1,58 @@
-import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
-import { cva } from "class-variance-authority";
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faSpinner } from '@fortawesome/free-solid-svg-icons';
 
-import { cn } from "@/lib/utils"
+const VARIANTS = {
+  primary: 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent shadow-sm',
+  secondary: 'bg-white hover:bg-gray-50 text-gray-800 border-gray-300',
+  outline: 'bg-transparent hover:bg-gray-50 text-gray-700 border-gray-300',
+  danger: 'bg-red-600 hover:bg-red-700 text-white border-transparent shadow-sm',
+  success: 'bg-green-600 hover:bg-green-700 text-white border-transparent shadow-sm',
+  ghost: 'bg-transparent hover:bg-gray-100 text-gray-700 border-transparent',
+};
 
-const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
-        outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
-      },
-      size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  }
-)
+const SIZES = {
+  sm: 'h-8 px-3 text-xs gap-1.5',
+  md: 'h-10 px-4 text-sm gap-2',
+  lg: 'h-12 px-5 text-base gap-2',
+};
 
-function Button({
-  className,
-  variant,
-  size,
-  asChild = false,
-  ...props
+/**
+ * Yagona Button komponenti.
+ * Loading=true bo'lsa o'zi disabled bo'ladi va spinner ko'rsatadi.
+ */
+export default function Button({
+  variant = 'primary',
+  size = 'md',
+  loading = false,
+  disabled = false,
+  icon,
+  iconRight,
+  children,
+  className = '',
+  type = 'button',
+  ...rest
 }) {
-  const Comp = asChild ? Slot : "button"
+  const v = VARIANTS[variant] || VARIANTS.primary;
+  const s = SIZES[size] || SIZES.md;
+  const isDisabled = disabled || loading;
 
   return (
-    <Comp
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props} />
+    <button
+      type={type}
+      disabled={isDisabled}
+      className={`inline-flex items-center justify-center rounded-lg border font-medium transition-all
+        disabled:opacity-50 disabled:cursor-not-allowed
+        focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500
+        ${v} ${s} ${className}`}
+      {...rest}
+    >
+      {loading ? (
+        <FontAwesomeIcon icon={faSpinner} spin className="w-4 h-4" />
+      ) : icon ? (
+        <FontAwesomeIcon icon={icon} className="w-4 h-4" />
+      ) : null}
+      {children}
+      {iconRight && !loading && <FontAwesomeIcon icon={iconRight} className="w-4 h-4" />}
+    </button>
   );
 }
-
-export { Button, buttonVariants }

@@ -13,11 +13,14 @@ import {
   billingLeavesService, billingDiscountsService,
 } from '@/services/billing';
 import { groupsService } from '@/services/groups';
+import { formatMoney, formatMonth } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
+import Badge from '@/components/ui/Badge';
 
 // ============================================
 // CONFIG
 // ============================================
-const formatMoney = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
+// formatMoney — shared utils/format.js dan import qilingan
 
 const invoiceStatusConfig = {
   draft: { label: 'Qoralama', color: '#94A3B8', bg: 'rgba(148,163,184,0.12)' },
@@ -63,39 +66,15 @@ const discountKindLabels = {
 // ============================================
 // SHARED COMPONENTS
 // ============================================
+// StatusBadge — config-based → shared Badge
 function StatusBadge({ status, config }) {
-  const s = config[status] || { label: status, color: '#94A3B8', bg: 'rgba(148,163,184,0.12)' };
+  const cfg = config[status] || { label: status, color: '#94A3B8' };
+  const variantMap = { '#22C55E': 'success', '#3B82F6': 'info', '#EAB308': 'warning', '#EF4444': 'danger', '#F97316': 'warning', '#94A3B8': 'neutral', '#8B5CF6': 'primary' };
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-      style={{ color: s.color, backgroundColor: s.bg }}>
-      {s.icon && <FontAwesomeIcon icon={s.icon} className="w-3 h-3" />}
-      {s.label}
-    </span>
-  );
-}
-
-function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }) {
-  useEffect(() => {
-    const h = (e) => e.key === 'Escape' && onClose();
-    if (isOpen) { document.addEventListener('keydown', h); document.body.style.overflow = 'hidden'; }
-    return () => { document.removeEventListener('keydown', h); document.body.style.overflow = 'unset'; };
-  }, [isOpen, onClose]);
-  if (!isOpen) return null;
-  return (
-    <>
-      <div onClick={onClose} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
-      <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full ${maxWidth} max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl`} style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-            <FontAwesomeIcon icon={faTimes} className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-          </button>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </>
+    <Badge variant={variantMap[cfg.color] || 'neutral'} size="sm"
+      icon={cfg.icon && <FontAwesomeIcon icon={cfg.icon} className="w-3 h-3" />}>
+      {cfg.label}
+    </Badge>
   );
 }
 
@@ -359,7 +338,7 @@ function InvoicesTab() {
       </div>
 
       {/* Generate Modal */}
-      <Modal isOpen={generateModal} onClose={() => setGenerateModal(false)} title="Invoice yaratish">
+      <Modal open={generateModal} onClose={() => setGenerateModal(false)} title="Invoice yaratish">
         <div className="space-y-4">
           {/* Mode switch */}
           <div className="flex rounded-xl overflow-hidden border" style={{ borderColor: 'var(--border-color)' }}>
@@ -481,7 +460,7 @@ function InvoicesTab() {
       </Modal>
 
       {/* Detail Modal */}
-      <Modal isOpen={!!detail} onClose={() => setDetail(null)} title={`Invoice ${detail?.number || ''}`} maxWidth="max-w-2xl">
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Invoice ${detail?.number || ''}`} size="lg">
         {detail && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -634,7 +613,7 @@ function ProfilesTab() {
           ))}
       </div>
 
-      <Modal isOpen={modal} onClose={() => setModal(false)} title={editing ? 'Profilni tahrirlash' : 'Yangi profil'} maxWidth="max-w-xl">
+      <Modal open={modal} onClose={() => setModal(false)} title={editing ? 'Profilni tahrirlash' : 'Yangi profil'} size="md">
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Nomi</label>
@@ -888,7 +867,7 @@ function DiscountsTab() {
         </div>
       </div>
 
-      <Modal isOpen={modal} onClose={() => setModal(false)} title="Yangi chegirma">
+      <Modal open={modal} onClose={() => setModal(false)} title="Yangi chegirma">
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Nomi</label>

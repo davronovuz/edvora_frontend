@@ -21,7 +21,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
-          ui: ['@radix-ui/react-avatar', '@radix-ui/react-dropdown-menu', '@radix-ui/react-slot'],
           three: ['three', '@react-three/fiber', '@react-three/drei'],
           motion: ['framer-motion'],
           i18n: ['i18next', 'react-i18next'],

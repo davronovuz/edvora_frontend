@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
-import { Toaster } from '@/components/ui/sonner';
+import { Toaster } from 'sonner';
 
 // Layout
 import MainLayout from './components/layout/MainLayout';
