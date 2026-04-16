@@ -130,6 +130,7 @@ function InvoicesTab() {
   const [genForm, setGenForm] = useState({ group_student_id: '', year: now.getFullYear(), month: now.getMonth() + 1 });
   const [genMode, setGenMode] = useState('single'); // 'single' | 'group'
   const [genGroupId, setGenGroupId] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState(null);
   const [groups, setGroups] = useState([]);
   const [groupStudents, setGroupStudents] = useState([]);
   const [groupSearch, setGroupSearch] = useState('');
@@ -202,8 +203,10 @@ function InvoicesTab() {
   const openGenerateModal = () => {
     setGenMode('single');
     setGenGroupId('');
+    setSelectedGroup(null);
     setGenForm({ group_student_id: '', year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
     setGroupStudents([]);
+    setGroupSearch('');
     setGenerateModal(true);
     fetchGroups();
   };
@@ -368,16 +371,22 @@ function InvoicesTab() {
               <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border space-y-0.5 p-1" style={{ borderColor: 'var(--border-color)' }}>
                 {groups.map(g => (
                   <button key={g.id} onClick={() => {
-                    if (genMode === 'group') {
-                      setGenGroupId(g.id);
-                    }
+                    setGenGroupId(g.id);
+                    setSelectedGroup(g);
                     fetchGroupStudents(g.id);
                     setGroupSearch(g.name);
                     setGroups([]);
                   }}
                     className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-[var(--bg-tertiary)]"
                     style={{ color: 'var(--text-primary)' }}>
-                    <div className="font-medium">{g.name}</div>
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium">{g.name}</div>
+                      {(g.actual_price || g.price) && (
+                        <span className="text-xs font-semibold" style={{ color: '#F97316' }}>
+                          {formatMoney(g.actual_price || g.price)}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
                       {g.course_name || g.course || ''} {g.teacher_name ? `• ${g.teacher_name}` : ''}
                     </div>
@@ -425,17 +434,6 @@ function InvoicesTab() {
             </div>
           )}
 
-          {/* Group info for group mode */}
-          {genMode === 'group' && genGroupId && (
-            <div className="p-3 rounded-xl flex items-center gap-2" style={{ backgroundColor: 'rgba(249,115,22,0.08)' }}>
-              <FontAwesomeIcon icon={faLayerGroup} className="w-4 h-4" style={{ color: '#F97316' }} />
-              <span className="text-sm" style={{ color: 'var(--text-primary)' }}>
-                Guruhdagi barcha o'quvchilar uchun invoice yaratiladi
-                {groupStudents.length > 0 && <b> ({groupStudents.length} ta)</b>}
-              </span>
-            </div>
-          )}
-
           {/* Year / Month */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -452,9 +450,57 @@ function InvoicesTab() {
             </div>
           </div>
 
-          <button onClick={handleGenerate} className="btn btn-primary w-full gap-2">
+          {/* Preview — guruh tanlangandan keyin */}
+          {selectedGroup && groupStudents.length > 0 && (
+            <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                <div>
+                  <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{selectedGroup.name}</div>
+                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {monthLabels[(genForm.month || 1) - 1]} {genForm.year} • {genMode === 'group' ? `${groupStudents.length} ta o\u2019quvchi` : "1 ta o\u2019quvchi"}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Oylik narx</div>
+                  <div className="text-sm font-bold" style={{ color: '#F97316' }}>
+                    {formatMoney(selectedGroup.actual_price || selectedGroup.price || 0)}
+                  </div>
+                </div>
+              </div>
+              <div className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
+                {(genMode === 'group' ? groupStudents : groupStudents.filter(gs => gs.id === genForm.group_student_id)).map(gs => {
+                  const price = gs.monthly_price || gs.custom_price || selectedGroup.actual_price || selectedGroup.price || 0;
+                  const name = gs.student_name || gs.full_name || `${gs.first_name || ''} ${gs.last_name || ''}`.trim();
+                  return (
+                    <div key={gs.id} className="px-4 py-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ backgroundColor: '#F97316' }}>
+                          {(name || '?')[0].toUpperCase()}
+                        </div>
+                        <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{name}</span>
+                      </div>
+                      <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{formatMoney(price)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {genMode === 'group' && groupStudents.length > 0 && (
+                <div className="px-4 py-3 flex items-center justify-between border-t" style={{ borderColor: 'var(--border-color)', backgroundColor: 'rgba(249,115,22,0.05)' }}>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Jami</span>
+                  <span className="text-base font-bold" style={{ color: '#F97316' }}>
+                    {formatMoney(groupStudents.reduce((sum, gs) => sum + Number(gs.monthly_price || gs.custom_price || selectedGroup.actual_price || selectedGroup.price || 0), 0))}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <button onClick={handleGenerate} className="btn btn-primary w-full gap-2"
+            disabled={genMode === 'group' ? !genGroupId : !genForm.group_student_id}>
             <FontAwesomeIcon icon={faPlus} />
-            {genMode === 'group' ? 'Guruh uchun yaratish' : 'Invoice yaratish'}
+            {genMode === 'group'
+              ? `Guruh uchun yaratish (${groupStudents.length} ta)`
+              : 'Invoice yaratish'}
           </button>
         </div>
       </Modal>
