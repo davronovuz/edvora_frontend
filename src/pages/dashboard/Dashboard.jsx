@@ -16,6 +16,7 @@ import {
   PieChart, Pie, Cell, BarChart, Bar,
 } from 'recharts';
 import { analyticsService } from '@/services/analytics';
+import { financeDashboardService } from '@/services/finance';
 import { groupsService } from '@/services/groups';
 import { roomsService } from '@/services/rooms';
 import { toast } from 'sonner';
@@ -366,6 +367,7 @@ export default function Dashboard() {
   const [topGroups, setTopGroups] = useState([]);
   const [financeChart, setFinanceChart] = useState([]);
   const [attendanceChart, setAttendanceChart] = useState([]);
+  const [financeStats, setFinanceStats] = useState(null);
   const [debtorsSummary, setDebtorsSummary] = useState(null);
   const [leadsData, setLeadsData] = useState(null);
   const [groups, setGroups] = useState([]);
@@ -398,6 +400,7 @@ export default function Dashboard() {
         analyticsService.getAttendanceChart(),
         isOwnerOrAdmin ? analyticsService.getDebtorsSummary() : Promise.resolve(),
         isOwnerOrAdmin ? analyticsService.getLeadsChart() : Promise.resolve(),
+        isOwnerOrAdmin ? financeDashboardService.summary() : Promise.resolve(),
       ]);
 
       if (results[0].status === 'fulfilled') {
@@ -442,6 +445,10 @@ export default function Dashboard() {
       }
       if (results[8]?.status === 'fulfilled' && results[8].value) {
         setLeadsData(unwrap(results[8].value) || null);
+      }
+      if (results[9]?.status === 'fulfilled' && results[9].value) {
+        const fd = results[9].value?.data?.data || results[9].value?.data || null;
+        setFinanceStats(fd);
       }
     } catch (err) {
       setError("Ma'lumotlarni yuklashda xatolik");
@@ -571,15 +578,20 @@ export default function Dashboard() {
       {isOwnerOrAdmin && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           {/* Moliya (3/5) */}
-          {stats?.finance && (
+          {financeStats && (
             <div className="lg:col-span-3 card p-5">
-              <h3 className="text-sm font-semibold mb-4" style={{ color: C.navy }}>Oylik moliya</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold" style={{ color: C.navy }}>Oylik moliya</h3>
+                <button onClick={() => navigate('/app/finance')} className="text-xs font-medium flex items-center gap-1" style={{ color: C.primary }}>
+                  Batafsil <FontAwesomeIcon icon={faArrowRight} className="w-3 h-3" />
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: 'Daromad', value: stats.finance.income, icon: faArrowTrendUp, color: C.success },
-                  { label: 'Xarajat', value: stats.finance.expense, icon: faArrowTrendDown, color: C.danger },
-                  { label: 'Ish haqi', value: stats.finance.salary, icon: faUsers, color: C.primary },
-                  { label: 'Foyda', value: stats.finance.profit, icon: faChartLine, color: Number(stats.finance.profit) >= 0 ? C.success : C.danger },
+                  { label: 'Daromad', value: financeStats.total_income, icon: faArrowTrendUp, color: C.success },
+                  { label: 'Xarajat', value: financeStats.total_expense, icon: faArrowTrendDown, color: C.danger },
+                  { label: 'Ish haqi', value: financeStats.total_salary, icon: faUsers, color: C.primary },
+                  { label: 'Foyda', value: financeStats.net_profit, icon: faChartLine, color: Number(financeStats.net_profit) >= 0 ? C.success : C.danger },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: C.bgSoft }}>
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${item.color}12` }}>
