@@ -9,7 +9,9 @@ import {
   faCheckDouble, faExclamationTriangle, faCalendarDay, faListAlt
 } from '@fortawesome/free-solid-svg-icons';
 import { attendanceService } from '@/services/attendance';
-import api from '@/services/api';
+import { groupsService } from '@/services/groups';
+import { studentsService } from '@/services/students';
+import { unwrapList } from '@/services/api';
 
 const statusConfig = {
   present: { label: 'Keldi', color: '#22C55E', bg: 'rgba(34,197,94,0.12)', lightBg: 'rgba(34,197,94,0.06)', icon: faCheck, emoji: '' },
@@ -46,9 +48,12 @@ export default function Attendance() {
   useEffect(() => {
     (async () => {
       try {
-        const [g, s] = await Promise.all([api.get('/groups/'), api.get('/students/')]);
-        setGroups(g.data?.data || g.data?.results || []);
-        setAllStudents(s.data?.data || s.data?.results || []);
+        const [g, s] = await Promise.all([
+          groupsService.getAll({ page_size: 200 }),
+          studentsService.getAll({ page_size: 500, status: 'active' }),
+        ]);
+        setGroups(unwrapList(g));
+        setAllStudents(unwrapList(s));
       } catch {}
     })();
   }, []);
@@ -57,12 +62,11 @@ export default function Attendance() {
     if (!groupId) return;
     setLoading(true);
     try {
-      const res = await api.get(`/groups/${groupId}/students/`);
-      const studs = res.data?.data || res.data?.results || res.data || [];
-      setStudents(studs);
+      const res = await groupsService.getStudents(groupId);
+      setStudents(unwrapList(res));
       try {
         const att = await attendanceService.byGroup({ group: groupId, date: selectedDate });
-        const existing = att.data?.data || att.data?.results || [];
+        const existing = unwrapList(att);
         const map = {};
         existing.forEach(a => { map[a.student] = a.status; });
         setAttendanceData(map);

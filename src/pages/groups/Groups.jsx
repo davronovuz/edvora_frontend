@@ -16,6 +16,10 @@ import { teachersService } from '@/services/teachers';
 import { studentsService } from '@/services/students';
 import api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
+import { formatMoney } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
+import { unwrap } from '@/services/api';
+import { usePermissions } from '@/hooks/usePermissions';
 
 // =========================
 // CONFIG
@@ -35,7 +39,6 @@ const PER_PAGE = 12;
 // =========================
 // HELPERS
 // =========================
-const formatMoney = (v) => new Intl.NumberFormat('uz-UZ').format(v || 0) + " so'm";
 const formatTime = (t) => (t || '').slice(0, 5);
 
 // =========================
@@ -74,44 +77,6 @@ function StatCard({ label, value, icon, color, bg, onClick, active }) {
   );
 }
 
-function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }) {
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e) => e.key === 'Escape' && onClose();
-    document.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-  return (
-    <>
-      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div
-        className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[95vw] ${maxWidth} max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl`}
-        style={{ backgroundColor: 'var(--bg-secondary)' }}
-      >
-        <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
-            style={{ color: 'var(--text-secondary)' }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-          >
-            <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </>
-  );
-}
-
 function Field({ label, required, error, children }) {
   return (
     <div>
@@ -138,10 +103,10 @@ const inputStyle = (error) => ({
 export default function Groups() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const role = user?.role;
-  const canManage = role === 'owner' || role === 'admin';
-  const canDelete = role === 'owner';
-  const canAddStudent = role === 'owner' || role === 'admin' || role === 'registrar';
+  const { isOwner, isOwnerOrAdmin, isRegistrar } = usePermissions();
+  const canManage = isOwnerOrAdmin;
+  const canDelete = isOwner;
+  const canAddStudent = isOwnerOrAdmin || isRegistrar;
 
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -216,8 +181,8 @@ export default function Groups() {
       if (teacherFilter) params.teacher = teacherFilter;
 
       const res = await groupsService.getAll(params);
-      const body = res?.data || res;
-      const list = body?.data || body?.results || [];
+      const body = unwrap(res);
+      const list = Array.isArray(body) ? body : (body?.results ?? body?.data ?? []);
       const m = body?.meta || {};
       setGroups(Array.isArray(list) ? list : []);
       setMeta({

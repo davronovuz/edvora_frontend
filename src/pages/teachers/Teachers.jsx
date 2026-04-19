@@ -14,6 +14,8 @@ import {
 import { faTelegram } from '@fortawesome/free-brands-svg-icons';
 import { teachersService } from '@/services/teachers';
 import { useAuthStore } from '@/stores/authStore';
+import { formatMoney } from '@/utils/format';
+import Drawer from '@/components/ui/Drawer';
 
 // ============================================
 // CONFIG
@@ -39,39 +41,6 @@ const salaryTypeOptions = [
 // ============================================
 // REUSABLE COMPONENTS
 // ============================================
-function Drawer({ isOpen, onClose, title, children, width = '560px' }) {
-  useEffect(() => {
-    const handleEscape = (e) => e.key === 'Escape' && onClose();
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen, onClose]);
-
-  return (
-    <>
-      <div onClick={onClose} className={`fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} />
-      <div
-        className={`fixed top-0 right-0 z-50 h-full w-full transform transition-transform duration-300 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
-        style={{ backgroundColor: 'var(--bg-secondary)', maxWidth: width }}
-      >
-        <div className="flex items-center justify-between px-6 h-16 border-b" style={{ borderColor: 'var(--border-color)' }}>
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-          <button onClick={onClose} className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors" style={{ color: 'var(--text-secondary)' }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-            <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="h-[calc(100%-64px)] overflow-y-auto">{children}</div>
-      </div>
-    </>
-  );
-}
 
 function Section({ title, icon, iconColor, defaultOpen = true, children }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -200,7 +169,6 @@ const formatPhone = (p) => {
   const c = p.replace(/\D/g, '');
   return c.length === 12 ? `+${c.slice(0, 3)} ${c.slice(3, 5)} ${c.slice(5, 8)} ${c.slice(8, 10)} ${c.slice(10)}` : p;
 };
-const formatMoney = (v) => new Intl.NumberFormat('uz-UZ').format(v || 0) + " so'm";
 const getInitials = (f, l) => `${f?.[0] || ''}${l?.[0] || ''}`.toUpperCase();
 const formatSalary = (type, amount, percent) => {
   if (type === 'percent') return `${percent || 0}%`;

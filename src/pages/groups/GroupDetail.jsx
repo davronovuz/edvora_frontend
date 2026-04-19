@@ -17,6 +17,7 @@ import { attendanceService, holidayService } from '@/services/attendance';
 import { examsService, homeworksService, homeworkSubmissionsService, lessonPlansService } from '@/services/exams';
 import api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
+import { formatMoney } from '@/utils/format';
 
 // ─── Constants ───
 const statusColors = { present: '#22C55E', absent: '#EF4444', late: '#EAB308', excused: '#3B82F6' };
@@ -24,8 +25,6 @@ const statusIcons = { present: faCheck, absent: faTimes, late: faClock, excused:
 const statusLabels = { present: 'Keldi', absent: 'Kelmadi', late: 'Kechikdi', excused: 'Sababli' };
 const dayNamesFull = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'];
 const monthNames = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
-const formatMoney = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
-
 const examTypeLabels = { quiz: 'Quiz', midterm: 'Oraliq', final: 'Yakuniy', placement: 'Sinov', mock: 'Namunaviy' };
 const examTypeColors = { quiz: '#8B5CF6', midterm: '#3B82F6', final: '#EF4444', placement: '#F59E0B', mock: '#6B7280' };
 const gradeColors = { A: '#22C55E', B: '#3B82F6', C: '#EAB308', D: '#F97316', F: '#EF4444' };

@@ -8,6 +8,7 @@ import {
   faCheckCircle, faWrench, faBan
 } from '@fortawesome/free-solid-svg-icons';
 import { roomsService } from '@/services/rooms';
+import Modal from '@/components/ui/Modal';
 
 const statusConfig = {
   active: { label: 'Faol', color: '#22C55E', bg: 'rgba(34,197,94,0.15)', icon: faCheckCircle },
@@ -21,22 +22,6 @@ const typeConfig = {
   conference: { label: 'Konferens-zal', icon: faUsers },
   office: { label: 'Ofis', icon: faDoorOpen },
 };
-
-function Modal({ isOpen, onClose, title, children }) {
-  if (!isOpen) return null;
-  return (
-    <>
-      <div onClick={onClose} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-          <button onClick={onClose} className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5"><FontAwesomeIcon icon={faTimes} style={{ color: 'var(--text-secondary)' }} /></button>
-        </div>
-        {children}
-      </div>
-    </>
-  );
-}
 
 const emptyForm = { name: '', number: '', floor: 1, room_type: 'classroom', capacity: 20, status: 'active', has_projector: false, has_whiteboard: true, has_computers: false, has_air_conditioning: false, description: '' };
 

@@ -19,6 +19,8 @@ import { analyticsService } from '@/services/analytics';
 import { groupsService } from '@/services/groups';
 import { roomsService } from '@/services/rooms';
 import { toast } from 'sonner';
+import { unwrap, unwrapList } from '@/services/api';
+import { usePermissions } from '@/hooks/usePermissions';
 
 // ============================================
 // BREND RANGLAR
@@ -373,8 +375,7 @@ export default function Dashboard() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
 
-  const isOwnerOrAdmin = user?.role === 'owner' || user?.role === 'admin';
-  const isTeacher = user?.role === 'teacher';
+  const { isOwnerOrAdmin, isTeacher } = usePermissions();
 
   useEffect(() => { fetchDashboard(); }, []);
 
@@ -382,7 +383,7 @@ export default function Dashboard() {
     try {
       if (isTeacher) {
         const res = await analyticsService.getSummary();
-        setStats(res.data?.data || res.data || {});
+        setStats(unwrap(res) || {});
         setLoading(false);
         return;
       }
@@ -400,21 +401,19 @@ export default function Dashboard() {
       ]);
 
       if (results[0].status === 'fulfilled') {
-        setStats(results[0].value?.data?.data || results[0].value?.data || {});
+        setStats(unwrap(results[0].value) || {});
       } else {
         setError("Ma'lumotlarni yuklashda xatolik");
       }
 
       if (results[1].status === 'fulfilled') {
-        const gData = results[1].value?.data;
-        setGroups(gData?.data || gData?.results || []);
+        setGroups(unwrapList(results[1].value));
       }
       if (results[2].status === 'fulfilled') {
-        const rData = results[2].value?.data;
-        setRooms(rData?.data || rData?.results || []);
+        setRooms(unwrapList(results[2].value));
       }
-      if (results[3]?.status === 'fulfilled' && results[3].value?.data) {
-        const fData = results[3].value.data?.data;
+      if (results[3]?.status === 'fulfilled' && results[3].value) {
+        const fData = unwrap(results[3].value);
         if (fData?.labels && fData?.datasets) {
           setFinanceChart(fData.labels.map((label, i) => ({
             month: MONTH_NAMES_UZ[parseInt(label.split('/')[0]) - 1] || label,
@@ -423,14 +422,14 @@ export default function Dashboard() {
           })));
         }
       }
-      if (results[4]?.status === 'fulfilled' && results[4].value?.data) {
-        setTopGroups(results[4].value.data?.data || []);
+      if (results[4]?.status === 'fulfilled' && results[4].value) {
+        setTopGroups(unwrapList(results[4].value));
       }
-      if (results[5]?.status === 'fulfilled' && results[5].value?.data) {
-        setRecentActivity(results[5].value.data?.data || []);
+      if (results[5]?.status === 'fulfilled' && results[5].value) {
+        setRecentActivity(unwrapList(results[5].value));
       }
-      if (results[6]?.status === 'fulfilled' && results[6].value?.data) {
-        const aData = results[6].value.data?.data;
+      if (results[6]?.status === 'fulfilled' && results[6].value) {
+        const aData = unwrap(results[6].value);
         if (aData?.labels && aData?.datasets) {
           setAttendanceChart(aData.labels.map((label, i) => ({
             day: label,
@@ -438,14 +437,13 @@ export default function Dashboard() {
           })).slice(-7));
         }
       }
-      if (results[7]?.status === 'fulfilled' && results[7].value?.data) {
-        setDebtorsSummary(results[7].value.data?.data || null);
+      if (results[7]?.status === 'fulfilled' && results[7].value) {
+        setDebtorsSummary(unwrap(results[7].value) || null);
       }
-      if (results[8]?.status === 'fulfilled' && results[8].value?.data) {
-        setLeadsData(results[8].value.data?.data || null);
+      if (results[8]?.status === 'fulfilled' && results[8].value) {
+        setLeadsData(unwrap(results[8].value) || null);
       }
     } catch (err) {
-      console.error('Dashboard fetch error:', err);
       setError("Ma'lumotlarni yuklashda xatolik");
     } finally {
       setLoading(false);

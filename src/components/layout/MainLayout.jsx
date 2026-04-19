@@ -63,14 +63,20 @@ export default function MainLayout() {
 
   useEffect(() => {
     initTheme();
-    // LocalStorage'dan collapse holatini olish
     const saved = localStorage.getItem('sidebar-collapsed');
     if (saved) setSidebarCollapsed(JSON.parse(saved));
-    // Tenant logosini yuklash
     api.get('/tenant-info/').then(res => {
       if (res.data?.logo) setTenantLogo(res.data.logo);
       if (res.data?.name && !res.data?.is_main) setTenantName(res.data.name);
     }).catch(() => {});
+
+    // Token refresh muvaffaqiyatsiz bo'lsa api.js auth:logout event chiqaradi
+    const onAuthLogout = () => {
+      logout();
+      navigate('/login', { replace: true });
+    };
+    window.addEventListener('auth:logout', onAuthLogout);
+    return () => window.removeEventListener('auth:logout', onAuthLogout);
   }, []);
 
   // User menu — tashqariga bosilganda yopilsin

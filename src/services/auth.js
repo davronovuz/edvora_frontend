@@ -58,4 +58,14 @@ export const authService = {
     });
     return response.data;
   },
+
+  updateProfile: async (data) => {
+    const response = await api.patch('/auth/me/', data);
+    return response.data;
+  },
+
+  getTenantInfo: async () => {
+    const response = await api.get('/tenant-info/');
+    return response.data;
+  },
 };

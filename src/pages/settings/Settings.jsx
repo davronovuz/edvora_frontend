@@ -11,9 +11,10 @@ import {
   faDoorOpen, faBell, faHistory,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuthStore } from '@/stores/authStore';
+import Modal from '@/components/ui/Modal';
 import { usersService } from '@/services/users';
 import { holidayService } from '@/services/attendance';
-import api from '@/services/api';
+import { authService } from '@/services/auth';
 
 // Lazy load embedded pages
 const RoomsPage = lazy(() => import('@/pages/rooms/Rooms'));
@@ -70,34 +71,6 @@ const permLabels = {
 // ============================================
 // REUSABLE COMPONENTS
 // ============================================
-function Modal({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-lg' }) {
-  useEffect(() => {
-    const h = (e) => e.key === 'Escape' && onClose();
-    if (isOpen) { document.addEventListener('keydown', h); document.body.style.overflow = 'hidden'; }
-    return () => { document.removeEventListener('keydown', h); document.body.style.overflow = 'unset'; };
-  }, [isOpen, onClose]);
-  if (!isOpen) return null;
-  return (
-    <>
-      <div onClick={onClose} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
-      <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full ${maxWidth} max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl`} style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 z-10" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-          <div>
-            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-            {subtitle && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>}
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-            <FontAwesomeIcon icon={faTimes} className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-          </button>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </>
-  );
-}
-
 function Toggle({ checked, onChange, disabled }) {
   return (
     <button
@@ -249,8 +222,7 @@ export default function Settings() {
 
   const fetchCenterInfo = async () => {
     try {
-      const res = await api.get('/tenant-info/');
-      const d = res.data;
+      const d = await authService.getTenantInfo();
       setCenterForm({
         name: d.name || '',
         address: d.address || '',
@@ -315,8 +287,8 @@ export default function Settings() {
     }
     setProfileLoading(true);
     try {
-      const res = await api.patch('/auth/me/', profileForm);
-      setUser(res.data?.data || res.data);
+      const updated = await authService.updateProfile(profileForm);
+      setUser(updated?.data || updated);
       toast.success("Profil muvaffaqiyatli yangilandi");
     } catch (e) {
       toast.error(e.response?.data?.error?.message || "Profilni yangilashda xatolik");
@@ -331,11 +303,11 @@ export default function Settings() {
 
     setPasswordLoading(true);
     try {
-      await api.post('/auth/change-password/', {
-        old_password: passwordForm.old_password,
-        new_password: passwordForm.new_password,
-        new_password_confirm: passwordForm.confirm_password,
-      });
+      await authService.changePassword(
+        passwordForm.old_password,
+        passwordForm.new_password,
+        passwordForm.confirm_password,
+      );
       toast.success("Parol muvaffaqiyatli o'zgartirildi");
       setPasswordForm({ old_password: '', new_password: '', confirm_password: '' });
     } catch (e) {

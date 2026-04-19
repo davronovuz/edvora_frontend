@@ -14,6 +14,8 @@ import { paymentsService } from '@/services/payments';
 import { billingInvoicesService, billingDiscountsService } from '@/services/billing';
 import { attendanceService } from '@/services/attendance';
 import { useAuthStore } from '@/stores/authStore';
+import { formatMoney, formatDate } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
 
 // ─────────────────────────────────────────────
 // CONSTANTS
@@ -47,37 +49,12 @@ const PAY_STATUS = {
   refunded:  { label: 'Qaytarilgan', color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)',icon: faUndo },
 };
 
-const fm  = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
-const fd  = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
+const fm  = (v) => formatMoney(v);
+const fd  = (d) => formatDate(d);
 
 // ─────────────────────────────────────────────
 // SHARED UI
 // ─────────────────────────────────────────────
-function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }) {
-  useEffect(() => {
-    const esc = (e) => e.key === 'Escape' && onClose();
-    if (isOpen) { document.addEventListener('keydown', esc); document.body.style.overflow = 'hidden'; }
-    return () => { document.removeEventListener('keydown', esc); document.body.style.overflow = ''; };
-  }, [isOpen, onClose]);
-  if (!isOpen) return null;
-  return (
-    <>
-      <div onClick={onClose} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
-      <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full ${maxWidth} max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl`}
-        style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <div className="sticky top-0 flex items-center justify-between px-6 py-4 border-b z-10"
-          style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-          <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-black/5">
-            <FontAwesomeIcon icon={faTimes} className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-          </button>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </>
-  );
-}
-
 function StatusPill({ status, config }) {
   const s = config[status] || { label: status, color: '#94A3B8', bg: 'rgba(148,163,184,0.12)' };
   return (

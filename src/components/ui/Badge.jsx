@@ -2,12 +2,12 @@
 // Variant nomlari domen-mustaqil; sahifalar status → variant moslashtiradi.
 
 const VARIANTS = {
-  success: 'bg-green-100 text-green-700 border-green-200',
-  warning: 'bg-amber-100 text-amber-700 border-amber-200',
-  danger:  'bg-red-100 text-red-700 border-red-200',
-  info:    'bg-blue-100 text-blue-700 border-blue-200',
-  neutral: 'bg-gray-100 text-gray-700 border-gray-200',
-  primary: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  success: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700',
+  warning: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-700',
+  danger:  'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-700',
+  info:    'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-700',
+  neutral: 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600',
+  primary: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-700',
 };
 
 const SIZES = {

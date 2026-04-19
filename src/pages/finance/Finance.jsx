@@ -21,7 +21,6 @@ import { formatMoney, formatMonth } from '@/utils/format';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
-import SharedStatCard from '@/components/ui/StatCard';
 import EmptyState from '@/components/ui/EmptyState';
 
 // ============================================

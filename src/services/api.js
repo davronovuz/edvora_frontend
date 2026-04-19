@@ -82,7 +82,7 @@ api.interceptors.response.use(
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
         localStorage.removeItem('permissions');
-        window.location.href = '/login';
+        window.dispatchEvent(new CustomEvent('auth:logout'));
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

@@ -10,6 +10,8 @@ import {
 import { coursesService } from '@/services/courses';
 import { subjectsService } from '@/services/subjects';
 import { useAuthStore } from '@/stores/authStore';
+import { formatMoney } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
 
 // =========================
 // CONFIG
@@ -31,8 +33,6 @@ const PER_PAGE = 12;
 // =========================
 // HELPERS
 // =========================
-const formatMoney = (v) => new Intl.NumberFormat('uz-UZ').format(v || 0) + " so'm";
-
 // =========================
 // SUB COMPONENTS
 // =========================
@@ -66,44 +66,6 @@ function StatCard({ label, value, icon, color, bg, onClick, active }) {
       </div>
       <div className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{value}</div>
     </button>
-  );
-}
-
-function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }) {
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e) => e.key === 'Escape' && onClose();
-    document.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-  return (
-    <>
-      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div
-        className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[95vw] ${maxWidth} max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl`}
-        style={{ backgroundColor: 'var(--bg-secondary)' }}
-      >
-        <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
-            style={{ color: 'var(--text-secondary)' }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-          >
-            <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </>
   );
 }
 

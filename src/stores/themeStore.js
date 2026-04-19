@@ -29,12 +29,24 @@ export const useThemeStore = create(
 );
 
 // Apply theme to document
+let systemMediaQuery = null;
+let systemListener = null;
+
 function applyTheme(theme) {
   const root = document.documentElement;
-  
+
+  // Avvalgi system listener ni tozalash
+  if (systemMediaQuery && systemListener) {
+    systemMediaQuery.removeEventListener('change', systemListener);
+    systemMediaQuery = null;
+    systemListener = null;
+  }
+
   if (theme === 'system') {
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    root.classList.toggle('dark', systemDark);
+    systemMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    root.classList.toggle('dark', systemMediaQuery.matches);
+    systemListener = (e) => root.classList.toggle('dark', e.matches);
+    systemMediaQuery.addEventListener('change', systemListener);
   } else {
     root.classList.toggle('dark', theme === 'dark');
   }

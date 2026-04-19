@@ -9,6 +9,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { examsService, examResultsService, homeworksService, homeworkSubmissionsService, lessonPlansService } from '@/services/exams';
 import api from '@/services/api';
+import Modal from '@/components/ui/Modal';
 
 const examStatusConfig = {
   draft: { label: 'Qoralama', color: '#94A3B8', bg: 'rgba(148,163,184,0.15)' },
@@ -38,22 +39,6 @@ const lpStatusConfig = {
   completed: { label: "O'tildi", color: '#22C55E', bg: 'rgba(34,197,94,0.15)' },
   cancelled: { label: 'Bekor', color: '#EF4444', bg: 'rgba(239,68,68,0.15)' },
 };
-
-function Modal({ isOpen, onClose, title, children, wide }) {
-  if (!isOpen) return null;
-  return (
-    <>
-      <div onClick={onClose} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
-      <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto rounded-2xl p-6`} style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-          <button onClick={onClose} className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5"><FontAwesomeIcon icon={faTimes} style={{ color: 'var(--text-secondary)' }} /></button>
-        </div>
-        {children}
-      </div>
-    </>
-  );
-}
 
 const emptyExam = { group: '', title: '', description: '', exam_type: 'quiz', max_score: 100, passing_score: 60, exam_date: '', start_time: '09:00', duration_minutes: 60, status: 'draft' };
 const emptyHomework = { group: '', title: '', description: '', max_score: 100, assigned_date: new Date().toISOString().split('T')[0], due_date: '', status: 'active' };

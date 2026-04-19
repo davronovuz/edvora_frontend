@@ -15,6 +15,10 @@ import {
 import { faTelegram } from '@fortawesome/free-brands-svg-icons';
 import { studentsService } from '@/services/students';
 import { useAuthStore } from '@/stores/authStore';
+import { formatMoney } from '@/utils/format';
+import Drawer from '@/components/ui/Drawer';
+import { unwrap } from '@/services/api';
+import { usePermissions } from '@/hooks/usePermissions';
 
 // ============================================
 // CONFIG
@@ -42,46 +46,6 @@ const sourceOptions = [
 // ============================================
 // REUSABLE COMPONENTS
 // ============================================
-function Drawer({ isOpen, onClose, title, children, width = '520px' }) {
-  useEffect(() => {
-    const handleEscape = (e) => e.key === 'Escape' && onClose();
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen, onClose]);
-
-  return (
-    <>
-      <div
-        onClick={onClose}
-        className={`fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-      />
-      <div
-        className={`fixed top-0 right-0 z-50 h-full w-full transform transition-transform duration-300 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
-        style={{ backgroundColor: 'var(--bg-secondary)', maxWidth: width }}
-      >
-        <div className="flex items-center justify-between px-6 h-16 border-b" style={{ borderColor: 'var(--border-color)' }}>
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
-            style={{ color: 'var(--text-secondary)' }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-          >
-            <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="h-[calc(100%-64px)] overflow-y-auto">{children}</div>
-      </div>
-    </>
-  );
-}
 
 function Section({ title, icon, iconColor, defaultOpen = true, children }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -235,7 +199,6 @@ const formatPhone = (p) => {
   const c = p.replace(/\D/g, '');
   return c.length === 12 ? `+${c.slice(0, 3)} ${c.slice(3, 5)} ${c.slice(5, 8)} ${c.slice(8, 10)} ${c.slice(10)}` : p;
 };
-const formatMoney = (v) => new Intl.NumberFormat('uz-UZ').format(v || 0) + " so'm";
 const getAge = (d) => {
   if (!d) return null;
   const t = new Date(), b = new Date(d);
@@ -338,22 +301,12 @@ export default function Students() {
       if (sortField) params.ordering = (sortDir === 'desc' ? '-' : '') + sortField;
 
       const res = await studentsService.getAll(params);
-      const responseData = res.data;
-
-      if (responseData?.data && Array.isArray(responseData.data)) {
-        setStudents(responseData.data);
-        if (responseData.meta) setMeta(responseData.meta);
-      } else if (Array.isArray(responseData?.results)) {
-        setStudents(responseData.results);
-        setMeta({
-          total: responseData.count || 0,
-          total_pages: Math.ceil((responseData.count || 0) / 20),
-          per_page: 20,
-        });
-      } else if (Array.isArray(responseData)) {
-        setStudents(responseData);
-      } else {
-        setStudents([]);
+      const body = unwrap(res);
+      const list = Array.isArray(body) ? body : (body?.results ?? body?.data ?? []);
+      setStudents(Array.isArray(list) ? list : []);
+      if (body?.meta) setMeta(body.meta);
+      else if (body?.count !== undefined) {
+        setMeta({ total: body.count, total_pages: Math.ceil(body.count / 20), per_page: 20 });
       }
     } catch (err) {
       toast.error(err.response?.data?.error?.message || "O'quvchilarni yuklashda xatolik");
@@ -366,16 +319,17 @@ export default function Students() {
   const fetchStats = async () => {
     try {
       const res = await studentsService.getStatistics();
-      const data = res.data?.data || res.data;
+      const data = unwrap(res);
       setStats(data);
     } catch {
       // Statistika yuklanmasa — critical emas
     }
   };
 
-  const canEdit = ['owner', 'admin'].includes(user?.role);
-  const canCreate = ['owner', 'admin', 'registrar'].includes(user?.role);
-  const canDelete = user?.role === 'owner';
+  const { isOwner, isOwnerOrAdmin, isRegistrar } = usePermissions();
+  const canEdit = isOwnerOrAdmin;
+  const canCreate = isOwnerOrAdmin || isRegistrar;
+  const canDelete = isOwner;
 
   // Selection
   const toggleSelectAll = () => {

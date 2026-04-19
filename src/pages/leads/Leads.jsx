@@ -10,6 +10,7 @@ import {
 import { faTelegram, faInstagram } from '@fortawesome/free-brands-svg-icons';
 import { leadsService, leadActivitiesService } from '@/services/leads';
 import api from '@/services/api';
+import Modal from '@/components/ui/Modal';
 
 const statusConfig = {
   new: { label: 'Yangi', color: '#3B82F6', bg: 'rgba(59,130,246,0.15)' },
@@ -46,24 +47,6 @@ const activityTypes = [
   { value: 'trial', label: 'Sinov darsi', icon: faStar },
   { value: 'note', label: 'Eslatma', icon: faClipboard },
 ];
-
-function Modal({ isOpen, onClose, title, children, wide }) {
-  if (!isOpen) return null;
-  return (
-    <>
-      <div onClick={onClose} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
-      <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto rounded-2xl p-6`} style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-          <button onClick={onClose} className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5">
-            <FontAwesomeIcon icon={faTimes} style={{ color: 'var(--text-secondary)' }} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </>
-  );
-}
 
 const emptyForm = { first_name: '', last_name: '', phone: '', email: '', interested_course: '', source: 'phone', priority: 'medium', status: 'new', notes: '' };
 

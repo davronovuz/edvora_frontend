@@ -16,6 +16,7 @@ import { groupsService } from '@/services/groups';
 import { formatMoney, formatMonth } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
+import StatCard from '@/components/ui/StatCard';
 
 // ============================================
 // CONFIG
@@ -75,20 +76,6 @@ function StatusBadge({ status, config }) {
       icon={cfg.icon && <FontAwesomeIcon icon={cfg.icon} className="w-3 h-3" />}>
       {cfg.label}
     </Badge>
-  );
-}
-
-function StatCard({ label, value, icon, color }) {
-  return (
-    <div className="rounded-2xl p-5 border transition-all" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: color + '15' }}>
-          <FontAwesomeIcon icon={icon} className="w-5 h-5" style={{ color }} />
-        </div>
-      </div>
-      <div className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{value}</div>
-      <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{label}</div>
-    </div>
   );
 }
 
