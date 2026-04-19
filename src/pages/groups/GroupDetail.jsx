@@ -15,9 +15,11 @@ import {
 import { groupsService } from '@/services/groups';
 import { attendanceService, holidayService } from '@/services/attendance';
 import { examsService, homeworksService, homeworkSubmissionsService, lessonPlansService } from '@/services/exams';
-import api from '@/services/api';
+import { paymentsService } from '@/services/payments';
+import { studentsService } from '@/services/students';
 import { useAuthStore } from '@/stores/authStore';
 import { formatMoney } from '@/utils/format';
+import { unwrap, unwrapList } from '@/services/api';
 
 // ─── Constants ───
 const statusColors = { present: '#22C55E', absent: '#EF4444', late: '#EAB308', excused: '#3B82F6' };
@@ -152,13 +154,13 @@ export default function GroupDetail() {
         groupsService.getById(id),
         groupsService.getStudents(id),
         groupsService.getSummary(id),
-        api.get('/payments/', { params: { group: id, page_size: 200 } }),
+        paymentsService.getAll({ group: id, page_size: 200 }),
       ]);
-      if (groupRes.status === 'fulfilled') setGroup(groupRes.value.data?.data || groupRes.value.data);
+      if (groupRes.status === 'fulfilled') setGroup(unwrap(groupRes.value));
       else { toast.error("Guruh topilmadi"); navigate('/app/groups'); return; }
-      setStudents(studentsRes.status === 'fulfilled' ? (studentsRes.value.data?.data || studentsRes.value.data?.results || studentsRes.value.data || []) : []);
-      setSummary(summaryRes.status === 'fulfilled' ? (summaryRes.value.data?.data || null) : null);
-      setPayments(paymentsRes.status === 'fulfilled' ? (paymentsRes.value.data?.data || paymentsRes.value.data?.results || []) : []);
+      setStudents(studentsRes.status === 'fulfilled' ? unwrapList(studentsRes.value) : []);
+      setSummary(summaryRes.status === 'fulfilled' ? unwrap(summaryRes.value) : null);
+      setPayments(paymentsRes.status === 'fulfilled' ? unwrapList(paymentsRes.value) : []);
     } catch { toast.error("Xatolik"); }
     setLoading(false);
   };
@@ -167,10 +169,13 @@ export default function GroupDetail() {
     try {
       const [year, month] = currentMonth.split('-').map(Number);
       const daysInMonth = new Date(year, month, 0).getDate();
-      const res = await api.get('/attendance/', {
-        params: { group: id, date__gte: `${year}-${String(month).padStart(2, '0')}-01`, date__lte: `${year}-${String(month).padStart(2, '0')}-${daysInMonth}`, page_size: 1000 }
+      const res = await attendanceService.getAll({
+        group: id,
+        date__gte: `${year}-${String(month).padStart(2, '0')}-01`,
+        date__lte: `${year}-${String(month).padStart(2, '0')}-${daysInMonth}`,
+        page_size: 1000,
       });
-      const data = res.data?.data || res.data?.results || [];
+      const data = unwrapList(res);
       const map = {};
       data.forEach(a => { map[`${a.student}-${new Date(a.date).getDate()}`] = a.status; });
       setAttendanceMap(map);
@@ -316,8 +321,8 @@ export default function GroupDetail() {
 
   const openAddStudent = async () => {
     try {
-      const res = await api.get('/students/', { params: { page_size: 200 } });
-      setAllStudents(res.data?.data || res.data?.results || []);
+      const res = await studentsService.getAll({ page_size: 500, status: 'active' });
+      setAllStudents(unwrapList(res));
       setShowAddStudent(true);
     } catch { toast.error('Xato'); }
   };

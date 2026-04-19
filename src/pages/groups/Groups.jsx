@@ -14,11 +14,11 @@ import { groupsService } from '@/services/groups';
 import { coursesService } from '@/services/courses';
 import { teachersService } from '@/services/teachers';
 import { studentsService } from '@/services/students';
-import api from '@/services/api';
+import { roomsService } from '@/services/rooms';
 import { useAuthStore } from '@/stores/authStore';
 import { formatMoney } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
-import { unwrap } from '@/services/api';
+import { unwrap, unwrapList } from '@/services/api';
 import { usePermissions } from '@/hooks/usePermissions';
 
 // =========================
@@ -203,16 +203,11 @@ export default function Groups() {
       const [c, t, r] = await Promise.allSettled([
         coursesService.getAll({ per_page: 200, is_active: true }),
         teachersService.getAll({ per_page: 200 }),
-        api.get('/rooms/', { params: { per_page: 200 } }),
+        roomsService.getAll({ per_page: 200 }),
       ]);
-      const extract = (res) => {
-        if (res.status !== 'fulfilled') return [];
-        const body = res.value?.data || res.value;
-        return body?.data || body?.results || [];
-      };
-      setCourses(extract(c));
-      setTeachers(extract(t));
-      setRooms(extract(r));
+      if (c.status === 'fulfilled') setCourses(unwrapList(c.value));
+      if (t.status === 'fulfilled') setTeachers(unwrapList(t.value));
+      if (r.status === 'fulfilled') setRooms(unwrapList(r.value));
     } catch {}
   };
 

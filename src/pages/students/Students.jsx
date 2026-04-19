@@ -19,6 +19,7 @@ import { formatMoney } from '@/utils/format';
 import Drawer from '@/components/ui/Drawer';
 import { unwrap } from '@/services/api';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useStudents } from './useStudents';
 
 // ============================================
 // CONFIG
@@ -216,24 +217,22 @@ export default function Students() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
 
-  // Data
-  const [students, setStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, frozen: 0, with_debt: 0, graduated: 0 });
-
-  // Server-side filters
-  const [search, setSearch] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [debtFilter, setDebtFilter] = useState('');
-
-  // Sorting
-  const [sortField, setSortField] = useState('');
-  const [sortDir, setSortDir] = useState('asc');
-
-  // Server-side pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [meta, setMeta] = useState({ total: 0, total_pages: 1, per_page: 20 });
+  // Data — useStudents hook orqali
+  const {
+    students, setStudents,
+    stats,
+    loading,
+    meta,
+    search,
+    searchInput, setSearchInput,
+    statusFilter, setStatusFilter,
+    debtFilter, setDebtFilter,
+    sortField, sortDir,
+    currentPage, setCurrentPage,
+    handleSort,
+    refresh: fetchStudents,
+    refreshStats: fetchStats,
+  } = useStudents();
 
   // Selection
   const [selectedIds, setSelectedIds] = useState([]);
@@ -272,60 +271,6 @@ export default function Students() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSearch(searchInput);
-      setCurrentPage(1);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
-
-  // Fetch students — server-side
-  useEffect(() => {
-    fetchStudents();
-  }, [currentPage, search, statusFilter, debtFilter, sortField, sortDir]);
-
-  // Fetch stats once
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
-  const fetchStudents = async () => {
-    setLoading(true);
-    try {
-      const params = { page: currentPage, per_page: 20 };
-      if (search) params.search = search;
-      if (statusFilter) params.status = statusFilter;
-      if (debtFilter === 'debt') params.has_debt = 'true';
-      if (sortField) params.ordering = (sortDir === 'desc' ? '-' : '') + sortField;
-
-      const res = await studentsService.getAll(params);
-      const body = unwrap(res);
-      const list = Array.isArray(body) ? body : (body?.results ?? body?.data ?? []);
-      setStudents(Array.isArray(list) ? list : []);
-      if (body?.meta) setMeta(body.meta);
-      else if (body?.count !== undefined) {
-        setMeta({ total: body.count, total_pages: Math.ceil(body.count / 20), per_page: 20 });
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.error?.message || "O'quvchilarni yuklashda xatolik");
-      setStudents([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStats = async () => {
-    try {
-      const res = await studentsService.getStatistics();
-      const data = unwrap(res);
-      setStats(data);
-    } catch {
-      // Statistika yuklanmasa — critical emas
-    }
-  };
-
   const { isOwner, isOwnerOrAdmin, isRegistrar } = usePermissions();
   const canEdit = isOwnerOrAdmin;
   const canCreate = isOwnerOrAdmin || isRegistrar;
@@ -337,18 +282,6 @@ export default function Students() {
   };
   const toggleSelect = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
-  };
-
-  // Sort
-  const handleSort = (field) => {
-    if (sortField === field) {
-      if (sortDir === 'asc') setSortDir('desc');
-      else { setSortField(''); setSortDir('asc'); }
-    } else {
-      setSortField(field);
-      setSortDir('asc');
-    }
-    setCurrentPage(1);
   };
 
   const getSortIcon = (field) => {
