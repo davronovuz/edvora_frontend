@@ -552,7 +552,7 @@ export default function Students() {
       <div className="flex gap-3 overflow-x-auto pb-1">
         <StatCard
           label="Jami o'quvchilar"
-          value={stats.total || 0}
+          value={stats?.total || 0}
           icon={faUsers}
           color="#6366F1"
           bg="rgba(99, 102, 241, 0.08)"
@@ -561,7 +561,7 @@ export default function Students() {
         />
         <StatCard
           label="Faol"
-          value={stats.active || 0}
+          value={stats?.active || 0}
           icon={faUser}
           color="#22C55E"
           bg="rgba(34, 197, 94, 0.08)"
@@ -570,7 +570,7 @@ export default function Students() {
         />
         <StatCard
           label="Muzlatilgan"
-          value={stats.frozen || 0}
+          value={stats?.frozen || 0}
           icon={faSnowflake}
           color="#06B6D4"
           bg="rgba(6, 182, 212, 0.08)"
@@ -579,7 +579,7 @@ export default function Students() {
         />
         <StatCard
           label="Qarzdorlar"
-          value={stats.with_debt || 0}
+          value={stats?.with_debt || 0}
           icon={faExclamationTriangle}
           color="#EF4444"
           bg="rgba(239, 68, 68, 0.08)"
