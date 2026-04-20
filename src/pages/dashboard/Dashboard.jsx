@@ -586,24 +586,58 @@ export default function Dashboard() {
                   Batafsil <FontAwesomeIcon icon={faArrowRight} className="w-3 h-3" />
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: 'Daromad', value: financeStats.total_income, icon: faArrowTrendUp, color: C.success },
-                  { label: 'Xarajat', value: financeStats.total_expense, icon: faArrowTrendDown, color: C.danger },
-                  { label: 'Ish haqi', value: financeStats.total_salary, icon: faUsers, color: C.primary },
-                  { label: 'Foyda', value: financeStats.net_profit, icon: faChartLine, color: Number(financeStats.net_profit) >= 0 ? C.success : C.danger },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: C.bgSoft }}>
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${item.color}12` }}>
-                      <FontAwesomeIcon icon={item.icon} className="w-4 h-4" style={{ color: item.color }} />
+              {(() => {
+                const curEmpty = Number(financeStats.total_income || 0) === 0
+                  && Number(financeStats.total_expense || 0) === 0
+                  && Number(financeStats.total_salary || 0) === 0;
+                const atIncome = Number(financeStats.all_time?.total_income || 0);
+                const atExpense = Number(financeStats.all_time?.total_expense || 0);
+                const atProfit = Number(financeStats.all_time?.net_profit || 0);
+                const expected = Number(financeStats.expected_income || 0);
+                const totalDebt = Number(financeStats.total_debt || 0);
+                const prev = financeStats.previous || {};
+                const trend = financeStats.trend || {};
+
+                const items = [
+                  { label: 'Daromad', value: financeStats.total_income, icon: faArrowTrendUp, color: C.success, prev: prev.total_income, pct: trend.income_pct },
+                  { label: 'Xarajat', value: financeStats.total_expense, icon: faArrowTrendDown, color: C.danger, prev: prev.total_expense, pct: trend.expense_pct },
+                  { label: 'Ish haqi', value: financeStats.total_salary, icon: faUsers, color: C.primary, prev: prev.total_salary, pct: trend.salary_pct },
+                  { label: 'Foyda', value: financeStats.net_profit, icon: faChartLine, color: Number(financeStats.net_profit) >= 0 ? C.success : C.danger, prev: prev.net_profit, pct: trend.profit_pct },
+                ];
+
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      {items.map((item, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: C.bgSoft }}>
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${item.color}12` }}>
+                            <FontAwesomeIcon icon={item.icon} className="w-4 h-4" style={{ color: item.color }} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-medium" style={{ color: C.muted }}>{item.label}</p>
+                            <p className="text-base font-bold" style={{ color: C.navy }}>{formatCurrency(item.value)} <span className="text-xs font-normal" style={{ color: C.muted }}>so'm</span></p>
+                            <p className="text-[10px] mt-0.5" style={{ color: C.muted }}>
+                              O'tgan oy: {formatCurrency(item.prev || 0)}
+                              {item.pct !== null && item.pct !== undefined && (
+                                <span className="ml-1 font-medium" style={{ color: item.pct >= 0 ? C.success : C.danger }}>
+                                  {item.pct >= 0 ? '↑' : '↓'}{Math.abs(item.pct)}%
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <p className="text-[11px] font-medium" style={{ color: C.muted }}>{item.label}</p>
-                      <p className="text-base font-bold" style={{ color: C.navy }}>{formatCurrency(item.value)} <span className="text-xs font-normal" style={{ color: C.muted }}>so'm</span></p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    {curEmpty && (atIncome > 0 || expected > 0 || totalDebt > 0) && (
+                      <div className="mt-3 p-3 rounded-xl text-xs" style={{ backgroundColor: `${C.warning}10`, color: C.textSec }}>
+                        <strong style={{ color: C.navy }}>Bu oyda hali tranzaksiya yo'q.</strong>
+                        {atIncome > 0 && <> Umumiy daromad: <strong>{formatCurrency(atIncome)} so'm</strong>.</>}
+                        {totalDebt > 0 && <> Ochiq qarz: <strong style={{ color: C.danger }}>{formatCurrency(totalDebt)} so'm</strong>.</>}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
 
