@@ -662,12 +662,12 @@ export default function Payments() {
   const handleRefund = async (id) => {
     if (!confirm("To'lovni qaytarmoqchimisiz?")) return;
     try {
-      await paymentsService.update(id, { status: 'refunded' });
+      await paymentsService.refund(id);
       toast.success("To'lov qaytarildi");
       fetchPayments();
       fetchStats();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Qaytarishda xato");
+      toast.error(e.response?.data?.error?.message || e.response?.data?.detail || "Qaytarishda xato");
     }
   };
 
