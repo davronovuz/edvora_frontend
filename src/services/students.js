@@ -17,6 +17,10 @@ export const studentsService = {
   // Groups
   getGroups: (id) => api.get(`/students/${id}/groups/`),
 
+  // Progress & history
+  getProgressSummary: (id) => api.get(`/students/${id}/progress-summary/`),
+  getTransferHistory: (id) => api.get(`/students/${id}/transfer-history/`),
+
   // Tags
   getTags: (id) => api.get(`/students/${id}/tags/`),
   addTag: (id, tagId) => api.post(`/students/${id}/tags/`, { tag_id: tagId }),

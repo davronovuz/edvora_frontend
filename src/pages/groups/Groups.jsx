@@ -142,6 +142,10 @@ export default function Groups() {
 
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferForm, setTransferForm] = useState({ student_id: '', target_group_id: '', reason: '' });
+  const [transferSourceStudents, setTransferSourceStudents] = useState([]);
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [transferStudentsLoading, setTransferStudentsLoading] = useState(false);
+  const [transferSearch, setTransferSearch] = useState('');
 
   const [conflictsOpen, setConflictsOpen] = useState(false);
   const [conflicts, setConflicts] = useState([]);
@@ -422,18 +426,31 @@ export default function Groups() {
     }
   };
 
-  const openTransfer = (g) => {
+  const openTransfer = async (g) => {
     if (!canManage) return toast.error("Sizda ruxsat yo'q");
     setSelected(g);
     setTransferForm({ student_id: '', target_group_id: '', reason: '' });
+    setTransferSearch('');
+    setTransferSourceStudents([]);
     setTransferOpen(true);
     setOpenMenuId(null);
+    setTransferStudentsLoading(true);
+    try {
+      const res = await groupsService.getStudents(g.id);
+      const list = res.data?.data || res.data?.results || res.data || [];
+      setTransferSourceStudents(Array.isArray(list) ? list : []);
+    } catch {
+      toast.error("O'quvchilar yuklanmadi");
+    } finally {
+      setTransferStudentsLoading(false);
+    }
   };
 
   const handleTransfer = async () => {
     if (!transferForm.student_id || !transferForm.target_group_id) {
       return toast.error("O'quvchi va guruhni tanlang");
     }
+    setTransferLoading(true);
     try {
       await groupsService.transferStudent(selected.id, {
         student_id: Number(transferForm.student_id),
@@ -445,6 +462,8 @@ export default function Groups() {
       fetchGroups();
     } catch (e) {
       toast.error(e.response?.data?.error?.message || "Xatolik");
+    } finally {
+      setTransferLoading(false);
     }
   };
 
@@ -1237,15 +1256,48 @@ export default function Groups() {
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             <strong>{selected?.name}</strong> guruhidan boshqa guruhga ko'chirish
           </p>
-          <Field label="O'quvchi ID" required>
-            <input
-              type="number"
-              value={transferForm.student_id}
-              onChange={(e) => setTransferForm({ ...transferForm, student_id: e.target.value })}
-              placeholder="Masalan: 42"
-              className="w-full h-12 px-4 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400"
-              style={inputStyle()}
-            />
+          <Field label="O'quvchi" required>
+            {transferStudentsLoading ? (
+              <div className="w-full h-12 px-4 rounded-xl border flex items-center text-sm" style={{ ...inputStyle(), color: 'var(--text-muted)' }}>
+                O'quvchilar yuklanmoqda...
+              </div>
+            ) : transferSourceStudents.length === 0 ? (
+              <div className="w-full h-12 px-4 rounded-xl border flex items-center text-sm" style={{ ...inputStyle(), color: 'var(--text-muted)' }}>
+                Bu guruhda o'quvchi yo'q
+              </div>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  value={transferSearch}
+                  onChange={e => setTransferSearch(e.target.value)}
+                  placeholder="Qidirish (ism yoki telefon)..."
+                  className="w-full h-11 px-4 mb-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400 text-sm"
+                  style={inputStyle()}
+                />
+                <select
+                  value={transferForm.student_id}
+                  onChange={(e) => setTransferForm({ ...transferForm, student_id: e.target.value })}
+                  className="w-full h-12 px-4 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
+                  style={inputStyle()}
+                >
+                  <option value="">Tanlang...</option>
+                  {transferSourceStudents
+                    .filter(s => {
+                      if (!transferSearch.trim()) return true;
+                      const q = transferSearch.toLowerCase();
+                      const name = (s.student_name || '').toLowerCase();
+                      const phone = (s.student_phone || '').toLowerCase();
+                      return name.includes(q) || phone.includes(q);
+                    })
+                    .map(s => (
+                      <option key={s.student || s.id} value={s.student || s.id}>
+                        {s.student_name || '—'}{s.student_phone ? ` — ${s.student_phone}` : ''}
+                      </option>
+                    ))}
+                </select>
+              </>
+            )}
           </Field>
           <Field label="Maqsadli guruh" required>
             <select
@@ -1255,9 +1307,16 @@ export default function Groups() {
               style={inputStyle()}
             >
               <option value="">Tanlang...</option>
-              {groups.filter(g => g.id !== selected?.id).map((g) => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
+              {groups.filter(g => g.id !== selected?.id).map((g) => {
+                const count = g.students_count ?? 0;
+                const max = g.max_students ?? 0;
+                const full = max > 0 && count >= max;
+                return (
+                  <option key={g.id} value={g.id} disabled={full}>
+                    {g.name} {max > 0 ? `(${count}/${max})` : ''}{full ? " — to'lgan" : ''}
+                  </option>
+                );
+              })}
             </select>
           </Field>
           <Field label="Sabab (ixtiyoriy)">
@@ -1281,10 +1340,11 @@ export default function Groups() {
             </button>
             <button
               onClick={handleTransfer}
-              className="flex-1 h-12 rounded-xl text-white font-medium"
+              disabled={transferLoading || !transferForm.student_id || !transferForm.target_group_id}
+              className="flex-1 h-12 rounded-xl text-white font-medium disabled:opacity-50 flex items-center justify-center gap-2"
               style={{ background: 'linear-gradient(135deg, #8B5CF6, #7C3AED)' }}
             >
-              Ko'chirish
+              {transferLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Ko'chirish"}
             </button>
           </div>
         </div>

@@ -11,6 +11,7 @@ import {
   faChartPie, faSave, faFileAlt, faBook, faClipboardList,
   faPlus, faEdit, faStar, faGraduationCap, faEye,
   faPencilAlt, faPercent, faInfoCircle,
+  faEllipsisVertical, faExchangeAlt, faSnowflake, faSun, faUser,
 } from '@fortawesome/free-solid-svg-icons';
 import { groupsService } from '@/services/groups';
 import { attendanceService, holidayService } from '@/services/attendance';
@@ -102,6 +103,25 @@ export default function GroupDetail() {
   const [editLp, setEditLp] = useState(null);
   const [expandedLp, setExpandedLp] = useState(null);
 
+  // Row action dropdown
+  const [rowMenuId, setRowMenuId] = useState(null);
+  const rowMenuRef = useRef(null);
+
+  // Transfer modal (inside GroupDetail)
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferStudent, setTransferStudent] = useState(null);
+  const [transferTargetId, setTransferTargetId] = useState('');
+  const [transferReason, setTransferReason] = useState('');
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [allGroups, setAllGroups] = useState([]);
+
+  // Freeze modal (inside GroupDetail)
+  const [freezeOpen, setFreezeOpen] = useState(false);
+  const [freezeTarget, setFreezeTarget] = useState(null);
+  const [freezeForm, setFreezeForm] = useState({ reason: '', start_date: '', end_date: '' });
+  const [freezeErrors, setFreezeErrors] = useState({});
+  const [freezeLoading, setFreezeLoading] = useState(false);
+
   // ─── Data fetching ───
   useEffect(() => { fetchCore(); }, [id]);
   useEffect(() => { if (group && activeTab === 'attendance') { fetchAttendance(); fetchLessonPlans(); fetchExams(); } }, [currentMonth, group, activeTab]);
@@ -125,6 +145,16 @@ export default function GroupDetail() {
     window.addEventListener('scroll', close, true);
     return () => window.removeEventListener('scroll', close, true);
   }, [cellPopup]);
+
+  // Close row action menu on outside click
+  useEffect(() => {
+    if (!rowMenuId) return;
+    const handler = (e) => {
+      if (rowMenuRef.current && !rowMenuRef.current.contains(e.target)) setRowMenuId(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [rowMenuId]);
 
   const fetchHolidays = async () => {
     try {
@@ -341,6 +371,91 @@ export default function GroupDetail() {
     if (!confirm("Talabani guruhdan chiqarishni tasdiqlaysizmi?")) return;
     try { await groupsService.removeStudent(id, studentId); toast.success("Talaba chiqarildi"); fetchCore(); }
     catch { toast.error('Xato'); }
+  };
+
+  const openTransfer = async (gs) => {
+    const sid = getStudentId(gs);
+    setTransferStudent({ id: sid, name: getStudentName(gs) });
+    setTransferTargetId('');
+    setTransferReason('');
+    setTransferOpen(true);
+    if (allGroups.length === 0) {
+      try {
+        const res = await groupsService.getAll({ page_size: 200 });
+        const list = res.data?.results || res.data?.data || res.data || [];
+        setAllGroups(Array.isArray(list) ? list : []);
+      } catch { toast.error("Guruhlar ro'yxatini yuklab bo'lmadi"); }
+    }
+  };
+
+  const submitTransfer = async () => {
+    if (!transferTargetId) { toast.error('Guruh tanlang'); return; }
+    setTransferLoading(true);
+    try {
+      await groupsService.transferStudent(id, {
+        student_id: Number(transferStudent.id),
+        target_group_id: Number(transferTargetId),
+        reason: transferReason || undefined,
+      });
+      toast.success("O'quvchi ko'chirildi");
+      setTransferOpen(false);
+      setTransferStudent(null);
+      fetchCore();
+    } catch (e) {
+      toast.error(e.response?.data?.error?.message || 'Ko\'chirishda xato');
+    } finally {
+      setTransferLoading(false);
+    }
+  };
+
+  const freezeStudent = (gs) => {
+    setFreezeTarget({ id: getStudentId(gs), name: getStudentName(gs) });
+    setFreezeForm({
+      reason: '',
+      start_date: new Date().toISOString().split('T')[0],
+      end_date: '',
+    });
+    setFreezeErrors({});
+    setFreezeOpen(true);
+  };
+
+  const submitFreeze = async () => {
+    const errs = {};
+    if (!freezeForm.reason.trim() || freezeForm.reason.trim().length < 3) {
+      errs.reason = "Sabab kamida 3 ta belgi bo'lishi kerak";
+    }
+    if (!freezeForm.start_date) errs.start_date = 'Sana majburiy';
+    if (freezeForm.end_date && freezeForm.end_date < freezeForm.start_date) {
+      errs.end_date = "Qaytish sanasi boshlanishidan keyin bo'lishi kerak";
+    }
+    if (Object.keys(errs).length) { setFreezeErrors(errs); return; }
+    setFreezeLoading(true);
+    try {
+      const payload = { start_date: freezeForm.start_date, reason: freezeForm.reason.trim() };
+      if (freezeForm.end_date) payload.end_date = freezeForm.end_date;
+      await studentsService.freeze(freezeTarget.id, payload);
+      toast.success(`${freezeTarget.name} muzlatildi`);
+      setFreezeOpen(false);
+      setFreezeTarget(null);
+      fetchCore();
+    } catch (e) {
+      toast.error(e.response?.data?.error?.message || 'Xato');
+    } finally {
+      setFreezeLoading(false);
+    }
+  };
+
+  const unfreezeStudent = async (gs) => {
+    const sid = getStudentId(gs);
+    const name = getStudentName(gs);
+    if (!confirm(`${name} ni muzlatishdan chiqarasizmi?`)) return;
+    try {
+      await studentsService.unfreeze(sid);
+      toast.success(`${name} faollashtirildi`);
+      fetchCore();
+    } catch (e) {
+      toast.error(e.response?.data?.error?.message || 'Xato');
+    }
   };
 
   const getStudentStats = (studentId) => {
@@ -619,9 +734,85 @@ export default function GroupDetail() {
                                <Badge text="To'lamagan" color="#EF4444" bg="rgba(239,68,68,0.12)" />}
                             </td>
                             <td className="py-2 px-3 text-right">
-                              <button onClick={() => removeStudent(sid)} className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
-                                <FontAwesomeIcon icon={faTrash} className="w-3 h-3" />
-                              </button>
+                              <div className="relative inline-block" ref={rowMenuId === sid ? rowMenuRef : null}>
+                                <button
+                                  onClick={() => setRowMenuId(rowMenuId === sid ? null : sid)}
+                                  className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+                                  aria-label="Amallar"
+                                >
+                                  <FontAwesomeIcon icon={faEllipsisVertical} className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+                                </button>
+                                {rowMenuId === sid && (
+                                  <div
+                                    className="absolute right-0 top-full mt-1 w-52 rounded-xl shadow-lg border z-30 py-1 overflow-hidden text-left"
+                                    style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+                                  >
+                                    <button
+                                      onClick={() => { setRowMenuId(null); navigate(`/app/students/${sid}`); }}
+                                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
+                                      style={{ color: 'var(--text-primary)' }}
+                                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    >
+                                      <FontAwesomeIcon icon={faUser} className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+                                      Profilni ochish
+                                    </button>
+                                    <button
+                                      onClick={() => { setRowMenuId(null); navigate(`/app/students/${sid}/finance`); }}
+                                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
+                                      style={{ color: 'var(--text-primary)' }}
+                                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    >
+                                      <FontAwesomeIcon icon={faWallet} className="w-3.5 h-3.5" style={{ color: '#22C55E' }} />
+                                      Moliyasini ko'rish
+                                    </button>
+                                    <button
+                                      onClick={() => { setRowMenuId(null); openTransfer(gs); }}
+                                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
+                                      style={{ color: 'var(--text-primary)' }}
+                                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    >
+                                      <FontAwesomeIcon icon={faExchangeAlt} className="w-3.5 h-3.5" style={{ color: '#3B82F6' }} />
+                                      Boshqa guruhga ko'chirish
+                                    </button>
+                                    {gs.status === 'frozen' ? (
+                                      <button
+                                        onClick={() => { setRowMenuId(null); unfreezeStudent(gs); }}
+                                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
+                                        style={{ color: 'var(--text-primary)' }}
+                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                      >
+                                        <FontAwesomeIcon icon={faSun} className="w-3.5 h-3.5" style={{ color: '#F59E0B' }} />
+                                        Muzlatishdan chiqarish
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => { setRowMenuId(null); freezeStudent(gs); }}
+                                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
+                                        style={{ color: 'var(--text-primary)' }}
+                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                      >
+                                        <FontAwesomeIcon icon={faSnowflake} className="w-3.5 h-3.5" style={{ color: '#06B6D4' }} />
+                                        Muzlatish
+                                      </button>
+                                    )}
+                                    <div className="my-1 border-t" style={{ borderColor: 'var(--border-color)' }} />
+                                    <button
+                                      onClick={() => { setRowMenuId(null); removeStudent(sid); }}
+                                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-red-500"
+                                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.06)'}
+                                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    >
+                                      <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
+                                      Guruhdan chiqarish
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1274,6 +1465,192 @@ export default function GroupDetail() {
             <button onClick={saveBulkGrade} disabled={saving} className="w-full mt-4 py-3 rounded-xl text-white font-semibold disabled:opacity-50 flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--primary-600)' }}>
               <FontAwesomeIcon icon={faSave} className="w-4 h-4" />{saving ? 'Saqlanmoqda...' : 'Saqlash'}
             </button>
+          </div>
+        </>
+      )}
+
+      {/* Freeze Modal */}
+      {freezeOpen && (
+        <>
+          <div onClick={() => !freezeLoading && setFreezeOpen(false)} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg p-6 rounded-2xl shadow-2xl" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(6, 182, 212, 0.12)' }}>
+                <FontAwesomeIcon icon={faSnowflake} className="w-5 h-5" style={{ color: '#06B6D4' }} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>O'quvchini muzlatish</h3>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{freezeTarget?.name}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  Muzlatish sababi <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={freezeForm.reason}
+                  onChange={e => setFreezeForm({ ...freezeForm, reason: e.target.value })}
+                  rows={3}
+                  placeholder="Masalan: sog'lig'i yomon, vaqtincha dam olmoqda..."
+                  className="w-full px-3 py-2 rounded-lg border outline-none resize-none text-sm"
+                  style={{
+                    backgroundColor: 'var(--bg-primary)',
+                    borderColor: freezeErrors.reason ? '#EF4444' : 'var(--border-color)',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+                {freezeErrors.reason && <p className="text-xs text-red-500 mt-1">{freezeErrors.reason}</p>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                    Boshlanish sanasi <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={freezeForm.start_date}
+                    onChange={e => setFreezeForm({ ...freezeForm, start_date: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border outline-none text-sm"
+                    style={{
+                      backgroundColor: 'var(--bg-primary)',
+                      borderColor: freezeErrors.start_date ? '#EF4444' : 'var(--border-color)',
+                      color: 'var(--text-primary)',
+                    }}
+                  />
+                  {freezeErrors.start_date && <p className="text-xs text-red-500 mt-1">{freezeErrors.start_date}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                    Qaytish sanasi
+                  </label>
+                  <input
+                    type="date"
+                    value={freezeForm.end_date}
+                    onChange={e => setFreezeForm({ ...freezeForm, end_date: e.target.value })}
+                    min={freezeForm.start_date || undefined}
+                    className="w-full px-3 py-2 rounded-lg border outline-none text-sm"
+                    style={{
+                      backgroundColor: 'var(--bg-primary)',
+                      borderColor: freezeErrors.end_date ? '#EF4444' : 'var(--border-color)',
+                      color: 'var(--text-primary)',
+                    }}
+                  />
+                  {freezeErrors.end_date && <p className="text-xs text-red-500 mt-1">{freezeErrors.end_date}</p>}
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 p-3 rounded-lg" style={{ backgroundColor: 'rgba(6, 182, 212, 0.08)' }}>
+                <FontAwesomeIcon icon={faInfoCircle} className="w-4 h-4 mt-0.5" style={{ color: '#06B6D4' }} />
+                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  Muzlatilgan o'quvchi barcha guruhlardan vaqtincha chiqariladi. Keyin bitta bosish bilan qayta faollashtirsa bo'ladi.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setFreezeOpen(false)}
+                disabled={freezeLoading}
+                className="flex-1 h-11 rounded-xl border font-medium text-sm transition-colors"
+                style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                Bekor qilish
+              </button>
+              <button
+                onClick={submitFreeze}
+                disabled={freezeLoading}
+                className="flex-1 h-11 rounded-xl disabled:opacity-50 text-white font-medium transition-colors flex items-center justify-center gap-2 text-sm"
+                style={{ backgroundColor: '#06B6D4' }}
+              >
+                {freezeLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><FontAwesomeIcon icon={faSnowflake} className="w-4 h-4" /> Muzlatish</>}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Transfer Modal */}
+      {transferOpen && (
+        <>
+          <div onClick={() => !transferLoading && setTransferOpen(false)} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg p-6 rounded-2xl shadow-2xl" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(59, 130, 246, 0.12)' }}>
+                <FontAwesomeIcon icon={faExchangeAlt} className="w-5 h-5" style={{ color: '#3B82F6' }} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Boshqa guruhga ko'chirish</h3>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{transferStudent?.name}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  Maqsad guruh <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={transferTargetId}
+                  onChange={e => setTransferTargetId(e.target.value)}
+                  className="w-full h-11 px-3 rounded-lg border outline-none text-sm"
+                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  <option value="">Guruh tanlang...</option>
+                  {allGroups
+                    .filter(g => String(g.id) !== String(id))
+                    .map(g => {
+                      const count = g.students_count ?? 0;
+                      const max = g.max_students ?? 0;
+                      const full = max > 0 && count >= max;
+                      return (
+                        <option key={g.id} value={g.id} disabled={full}>
+                          {g.name} {max > 0 ? `(${count}/${max})` : ''}{full ? ' — to\'lgan' : ''}
+                        </option>
+                      );
+                    })}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  Sabab (ixtiyoriy)
+                </label>
+                <textarea
+                  value={transferReason}
+                  onChange={e => setTransferReason(e.target.value)}
+                  rows={3}
+                  placeholder="Masalan: vaqt to'g'ri kelmadi..."
+                  className="w-full px-3 py-2 rounded-lg border outline-none resize-none text-sm"
+                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setTransferOpen(false)}
+                disabled={transferLoading}
+                className="flex-1 h-11 rounded-xl border font-medium text-sm transition-colors"
+                style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                Bekor qilish
+              </button>
+              <button
+                onClick={submitTransfer}
+                disabled={transferLoading || !transferTargetId}
+                className="flex-1 h-11 rounded-xl text-white font-medium text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                style={{ backgroundColor: '#3B82F6' }}
+              >
+                {transferLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><FontAwesomeIcon icon={faExchangeAlt} className="w-4 h-4" /> Ko'chirish</>}
+              </button>
+            </div>
           </div>
         </>
       )}

@@ -11,6 +11,7 @@ import {
   faSnowflake, faSun, faArchive, faExclamationTriangle,
   faUserGraduate, faUserClock, faUserMinus, faSort, faSortUp, faSortDown,
   faEllipsisV, faFileExcel, faWallet, faCalendarAlt,
+  faChartLine, faArrowUp, faArrowDown, faExchangeAlt, faMinus,
 } from '@fortawesome/free-solid-svg-icons';
 import { faTelegram } from '@fortawesome/free-brands-svg-icons';
 import { studentsService } from '@/services/students';
@@ -160,6 +161,118 @@ function DeleteModal({ isOpen, onClose, onConfirm, studentName, loading }) {
   );
 }
 
+function FreezeModal({ isOpen, onClose, onConfirm, student, loading, form, setForm, errors }) {
+  if (!isOpen) return null;
+  const name = student ? `${student.first_name} ${student.last_name}` : '';
+  return (
+    <>
+      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg p-6 rounded-2xl shadow-2xl" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(6, 182, 212, 0.12)' }}>
+            <FontAwesomeIcon icon={faSnowflake} className="w-5 h-5" style={{ color: '#06B6D4' }} />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>O'quvchini muzlatish</h3>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{name}</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+              Muzlatish sababi <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={form.reason}
+              onChange={e => setForm({ ...form, reason: e.target.value })}
+              rows={3}
+              placeholder="Masalan: sog'lig'i yomon, vaqtincha dam olmoqda..."
+              className="w-full px-3 py-2 rounded-lg border outline-none transition-colors resize-none text-sm"
+              style={{
+                backgroundColor: 'var(--bg-primary)',
+                borderColor: errors.reason ? '#EF4444' : 'var(--border-color)',
+                color: 'var(--text-primary)',
+              }}
+              onFocus={e => { if (!errors.reason) e.currentTarget.style.borderColor = 'var(--primary-600)'; }}
+              onBlur={e => { if (!errors.reason) e.currentTarget.style.borderColor = 'var(--border-color)'; }}
+            />
+            {errors.reason && <p className="text-xs text-red-500 mt-1">{errors.reason}</p>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                Boshlanish sanasi <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={form.start_date}
+                onChange={e => setForm({ ...form, start_date: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border outline-none text-sm"
+                style={{
+                  backgroundColor: 'var(--bg-primary)',
+                  borderColor: errors.start_date ? '#EF4444' : 'var(--border-color)',
+                  color: 'var(--text-primary)',
+                }}
+              />
+              {errors.start_date && <p className="text-xs text-red-500 mt-1">{errors.start_date}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                Qaytish sanasi
+              </label>
+              <input
+                type="date"
+                value={form.end_date}
+                onChange={e => setForm({ ...form, end_date: e.target.value })}
+                min={form.start_date || undefined}
+                className="w-full px-3 py-2 rounded-lg border outline-none text-sm"
+                style={{
+                  backgroundColor: 'var(--bg-primary)',
+                  borderColor: errors.end_date ? '#EF4444' : 'var(--border-color)',
+                  color: 'var(--text-primary)',
+                }}
+              />
+              {errors.end_date && <p className="text-xs text-red-500 mt-1">{errors.end_date}</p>}
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2 p-3 rounded-lg" style={{ backgroundColor: 'rgba(6, 182, 212, 0.08)' }}>
+            <FontAwesomeIcon icon={faInfoCircle} className="w-4 h-4 mt-0.5" style={{ color: '#06B6D4' }} />
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              Muzlatilgan o'quvchi barcha guruhlardan vaqtincha chiqariladi. Keyin bitta bosish bilan qayta faollashtirsa bo'ladi.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 h-11 rounded-xl border font-medium transition-colors text-sm"
+            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            Bekor qilish
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex-1 h-11 rounded-xl disabled:opacity-50 text-white font-medium transition-colors flex items-center justify-center gap-2 text-sm"
+            style={{ backgroundColor: '#06B6D4' }}
+            onMouseEnter={e => !loading && (e.currentTarget.style.backgroundColor = '#0891B2')}
+            onMouseLeave={e => !loading && (e.currentTarget.style.backgroundColor = '#06B6D4')}
+          >
+            {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><FontAwesomeIcon icon={faSnowflake} className="w-4 h-4" /> Muzlatish</>}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // Stat card
 function StatCard({ label, value, icon, color, bg, onClick, active }) {
   return (
@@ -246,9 +359,21 @@ export default function Students() {
   const [formLoading, setFormLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Freeze modal
+  const [isFreezeOpen, setIsFreezeOpen] = useState(false);
+  const [freezeStudent, setFreezeStudent] = useState(null);
+  const [freezeForm, setFreezeForm] = useState({ reason: '', start_date: '', end_date: '' });
+  const [freezeErrors, setFreezeErrors] = useState({});
+  const [freezeLoading, setFreezeLoading] = useState(false);
+
   // Action dropdown
   const [actionDropdownId, setActionDropdownId] = useState(null);
   const actionRef = useRef(null);
+
+  // Progress & transfer history (view drawer)
+  const [progress, setProgress] = useState(null);
+  const [transferHistory, setTransferHistory] = useState([]);
+  const [progressLoading, setProgressLoading] = useState(false);
 
   // Form
   const initialForm = {
@@ -270,6 +395,35 @@ export default function Students() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Fetch progress + transfer history when view drawer opens
+  useEffect(() => {
+    if (!isViewOpen || !selectedStudent?.id) {
+      setProgress(null);
+      setTransferHistory([]);
+      return;
+    }
+    let cancelled = false;
+    setProgressLoading(true);
+    Promise.all([
+      studentsService.getProgressSummary(selectedStudent.id),
+      studentsService.getTransferHistory(selectedStudent.id),
+    ])
+      .then(([progRes, trRes]) => {
+        if (cancelled) return;
+        setProgress(unwrap(progRes));
+        const tr = unwrap(trRes);
+        setTransferHistory(Array.isArray(tr) ? tr : []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        toast.error("Progress ma'lumotlarini olishda xato");
+      })
+      .finally(() => {
+        if (!cancelled) setProgressLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [isViewOpen, selectedStudent?.id]);
 
   const { isOwner, isOwnerOrAdmin, isRegistrar } = usePermissions();
   const canEdit = isOwnerOrAdmin;
@@ -459,21 +613,54 @@ export default function Students() {
     }
   };
 
-  const handleFreeze = async (student) => {
+  const openFreeze = (student) => {
+    setFreezeStudent(student);
+    setFreezeForm({
+      reason: '',
+      start_date: new Date().toISOString().split('T')[0],
+      end_date: '',
+    });
+    setFreezeErrors({});
+    setIsFreezeOpen(true);
+  };
+
+  const submitFreeze = async () => {
+    const errs = {};
+    if (!freezeForm.reason.trim() || freezeForm.reason.trim().length < 3) {
+      errs.reason = "Sabab kamida 3 ta belgi bo'lishi kerak";
+    }
+    if (!freezeForm.start_date) {
+      errs.start_date = 'Sana majburiy';
+    }
+    if (freezeForm.end_date && freezeForm.end_date < freezeForm.start_date) {
+      errs.end_date = "Qaytish sanasi boshlanishidan keyin bo'lishi kerak";
+    }
+    if (Object.keys(errs).length) {
+      setFreezeErrors(errs);
+      return;
+    }
+    setFreezeLoading(true);
     try {
-      await studentsService.freeze(student.id, {
-        start_date: new Date().toISOString().split('T')[0],
-        reason: 'Muzlatildi',
-      });
-      toast.success(`${student.first_name} muzlatildi`);
+      const payload = {
+        start_date: freezeForm.start_date,
+        reason: freezeForm.reason.trim(),
+      };
+      if (freezeForm.end_date) payload.end_date = freezeForm.end_date;
+      await studentsService.freeze(freezeStudent.id, payload);
+      toast.success(`${freezeStudent.first_name} muzlatildi`);
+      setIsFreezeOpen(false);
+      setFreezeStudent(null);
       fetchStudents();
       fetchStats();
     } catch (err) {
       toast.error(err.response?.data?.error?.message || "Xatolik yuz berdi");
+    } finally {
+      setFreezeLoading(false);
     }
   };
 
   const handleUnfreeze = async (student) => {
+    if (!window.confirm(`${student.first_name} ${student.last_name} ni muzlatishdan chiqarasizmi?`)) return;
     try {
       await studentsService.unfreeze(student.id);
       toast.success(`${student.first_name} faollashtirildi`);
@@ -681,10 +868,10 @@ export default function Students() {
           <div className="h-5 w-px" style={{ backgroundColor: 'var(--border-color)' }} />
           <button
             onClick={() => {
-              selectedIds.forEach(id => {
-                const s = students.find(st => st.id === id);
-                if (s?.status === 'active') handleFreeze(s);
-              });
+              const first = selectedIds
+                .map(id => students.find(st => st.id === id))
+                .find(s => s?.status === 'active');
+              if (first) openFreeze(first);
               setSelectedIds([]);
             }}
             className="h-8 px-3 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
@@ -870,7 +1057,7 @@ export default function Students() {
                               )}
                               {canEdit && s.status === 'active' && (
                                 <button
-                                  onClick={() => { handleFreeze(s); setActionDropdownId(null); }}
+                                  onClick={() => { openFreeze(s); setActionDropdownId(null); }}
                                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
                                   style={{ color: 'var(--text-primary)' }}
                                   onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
@@ -1218,6 +1405,106 @@ export default function Students() {
               </div>
             )}
 
+            {/* Progress */}
+            <div className="p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/30">
+                  <FontAwesomeIcon icon={faChartLine} className="w-4 h-4 text-emerald-600" />
+                </div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Progress</h4>
+              </div>
+              {progressLoading && !progress ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {[0,1,2].map(i => (
+                    <div key={i} className="h-20 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+                  ))}
+                </div>
+              ) : progress ? (
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Davomat</p>
+                    {progress.attendance?.month_rate != null ? (
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{Math.round(progress.attendance.month_rate)}%</span>
+                        {progress.attendance.trend === 'up' && <FontAwesomeIcon icon={faArrowUp} className="w-3 h-3 text-green-500" />}
+                        {progress.attendance.trend === 'down' && <FontAwesomeIcon icon={faArrowDown} className="w-3 h-3 text-red-500" />}
+                        {progress.attendance.trend === 'stable' && <FontAwesomeIcon icon={faMinus} className="w-3 h-3 text-gray-400" />}
+                      </div>
+                    ) : (
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Ma'lumot yo'q</span>
+                    )}
+                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>joriy oy</p>
+                  </div>
+                  <div className="p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Baholar</p>
+                    {progress.grades?.exam_avg != null ? (
+                      <>
+                        <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{Number(progress.grades.exam_avg).toFixed(1)}</span>
+                        <span className="text-xs ml-0.5" style={{ color: 'var(--text-muted)' }}>/100</span>
+                        <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{progress.grades.exam_count || 0} ta imtihon</p>
+                      </>
+                    ) : (
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Ma'lumot yo'q</span>
+                    )}
+                    {progress.grades?.homework_avg != null && (
+                      <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Uy vaz.: {Number(progress.grades.homework_avg).toFixed(1)}</p>
+                    )}
+                  </div>
+                  <div className="p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Moliya</p>
+                    <span className={`text-lg font-bold ${Number(progress.finance?.balance) < 0 ? 'text-red-500' : ''}`} style={Number(progress.finance?.balance) >= 0 ? { color: 'var(--text-primary)' } : {}}>
+                      {formatMoney(progress.finance?.balance ?? 0)}
+                    </span>
+                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {progress.finance?.groups_with_debt > 0
+                        ? `${progress.finance.groups_with_debt} qarzdor guruh`
+                        : 'qarz yo\'q'}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Ma'lumot yuklanmadi</p>
+              )}
+            </div>
+
+            {/* Transfer history */}
+            <div className="p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-violet-100 dark:bg-violet-900/30">
+                  <FontAwesomeIcon icon={faExchangeAlt} className="w-4 h-4 text-violet-600" />
+                </div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Ko'chirish tarixi</h4>
+              </div>
+              {progressLoading && transferHistory.length === 0 ? (
+                <div className="space-y-2">
+                  {[0,1].map(i => (
+                    <div key={i} className="h-12 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+                  ))}
+                </div>
+              ) : transferHistory.length === 0 ? (
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Hech qanday ko'chirish bo'lmagan</p>
+              ) : (
+                <div className="space-y-2">
+                  {transferHistory.map(t => (
+                    <div key={t.id} className="p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                      <div className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                        <span className="truncate">{t.from_group?.name || '—'}</span>
+                        <FontAwesomeIcon icon={faArrowUp} className="w-3 h-3 rotate-90" style={{ color: 'var(--text-muted)' }} />
+                        <span className="truncate">{t.to_group?.name || '—'}</span>
+                      </div>
+                      {t.reason && (
+                        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{t.reason}</p>
+                      )}
+                      <div className="flex items-center justify-between mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                        <span>{t.performed_by?.name || 'Tizim'}</span>
+                        {t.date && <span>{new Date(t.date).toLocaleDateString('uz-UZ')}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Actions */}
             <div className="p-6">
               <div className="flex gap-3">
@@ -1232,7 +1519,7 @@ export default function Students() {
                 )}
                 {canEdit && selectedStudent.status === 'active' && (
                   <button
-                    onClick={() => { handleFreeze(selectedStudent); setIsViewOpen(false); }}
+                    onClick={() => { openFreeze(selectedStudent); setIsViewOpen(false); }}
                     className="h-12 px-5 rounded-xl border font-medium flex items-center justify-center gap-2 transition-colors"
                     style={{ borderColor: '#06B6D4', color: '#06B6D4' }}
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(6, 182, 212, 0.08)'}
@@ -1267,6 +1554,18 @@ export default function Students() {
         onConfirm={handleDelete}
         studentName={`${selectedStudent?.first_name} ${selectedStudent?.last_name}`}
         loading={deleteLoading}
+      />
+
+      {/* FREEZE MODAL */}
+      <FreezeModal
+        isOpen={isFreezeOpen}
+        onClose={() => { setIsFreezeOpen(false); setFreezeStudent(null); }}
+        onConfirm={submitFreeze}
+        student={freezeStudent}
+        loading={freezeLoading}
+        form={freezeForm}
+        setForm={setFreezeForm}
+        errors={freezeErrors}
       />
     </div>
   );
