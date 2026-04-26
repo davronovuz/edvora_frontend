@@ -11,6 +11,7 @@ const LandingPage = lazy(() => import('./pages/landing/LandingPage'));
 import Login from './pages/auth/Login';
 import Dashboard from './pages/dashboard/Dashboard';
 import Students from './pages/students/Students';
+import StudentDetail from './pages/students/StudentDetail';
 import StudentFinanceDetail from './pages/students/StudentFinanceDetail';
 import Teachers from './pages/teachers/Teachers';
 import Courses from './pages/courses/Courses';
@@ -81,6 +82,7 @@ export default function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="students" element={<ProtectedRoute permission="students.view"><Students /></ProtectedRoute>} />
+          <Route path="students/:id" element={<ProtectedRoute permission="students.view"><StudentDetail /></ProtectedRoute>} />
           <Route path="students/:id/finance" element={<ProtectedRoute permission="finance.view"><StudentFinanceDetail /></ProtectedRoute>} />
           <Route path="teachers" element={<ProtectedRoute permission="teachers.view"><Teachers /></ProtectedRoute>} />
           <Route path="courses" element={<ProtectedRoute permission="courses.view"><Courses /></ProtectedRoute>} />

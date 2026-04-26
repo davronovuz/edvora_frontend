@@ -273,14 +273,16 @@ function FreezeModal({ isOpen, onClose, onConfirm, student, loading, form, setFo
   );
 }
 
-// Stat card
+// Stat card — list variant with left accent border
 function StatCard({ label, value, icon, color, bg, onClick, active }) {
   return (
     <button
       onClick={onClick}
-      className={`flex-1 min-w-[140px] p-4 rounded-xl border-2 transition-all duration-200 text-left ${active ? 'shadow-sm scale-[1.02]' : ''}`}
+      className={`flex-1 min-w-[140px] p-4 rounded-xl border transition-all duration-200 text-left ${active ? 'shadow-md -translate-y-0.5' : 'hover:-translate-y-0.5 hover:shadow-md'}`}
       style={{
         borderColor: active ? color : 'var(--border-color)',
+        borderLeftWidth: '4px',
+        borderLeftColor: color,
         backgroundColor: active ? bg : 'var(--bg-secondary)',
       }}
       onMouseEnter={e => {
@@ -296,11 +298,15 @@ function StatCard({ label, value, icon, color, bg, onClick, active }) {
         }
       }}
     >
-      <div className="flex items-center justify-between mb-2">
-        <FontAwesomeIcon icon={icon} className="w-5 h-5" style={{ color }} />
-        <span className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{value}</span>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-medium uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>{label}</p>
+          <p className="text-[26px] font-bold leading-none tracking-tight" style={{ color: active ? color : '#1B365D' }}>{value}</p>
+        </div>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-1" style={{ backgroundColor: bg, color }}>
+          <FontAwesomeIcon icon={icon} className="w-4 h-4" />
+        </div>
       </div>
-      <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</p>
     </button>
   );
 }
@@ -696,11 +702,11 @@ export default function Students() {
   // RENDER
   // ============================================
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 fade-up">
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="text-[22px] font-bold tracking-tight" style={{ color: '#1B365D' }}>
             {t('students.title')}
           </h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
@@ -968,9 +974,8 @@ export default function Students() {
                       onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
                       onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                       onClick={(e) => {
-                        // Checkbox va action buttonlarni bosganda table row click bo'lmasin
                         if (e.target.closest('input[type="checkbox"]') || e.target.closest('.actions-cell')) return;
-                        openView(s);
+                        navigate(`/app/students/${s.id}`);
                       }}
                     >
                       <td className="p-4" onClick={e => e.stopPropagation()}>
@@ -1034,7 +1039,7 @@ export default function Students() {
                               style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
                             >
                               <button
-                                onClick={() => { openView(s); setActionDropdownId(null); }}
+                                onClick={() => { navigate(`/app/students/${s.id}`); setActionDropdownId(null); }}
                                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
                                 style={{ color: 'var(--text-primary)' }}
                                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}

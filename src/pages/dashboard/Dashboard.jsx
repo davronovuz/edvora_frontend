@@ -42,29 +42,32 @@ const C = {
 };
 
 // ============================================
-// STAT CARD — professional
+// STAT CARD — new design
 // ============================================
 const StatCard = ({ title, value, icon, accent = C.primary, onClick, subtitle, trend }) => (
   <div
     onClick={onClick}
-    className={`card p-5 transition-all duration-200 hover:shadow-md ${onClick ? 'cursor-pointer active:scale-[0.98]' : ''}`}
+    className={`card p-5 transition-all duration-200 ${onClick ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98]' : 'hover:shadow-md'}`}
   >
-    <div className="flex items-start justify-between">
-      <div className="flex-1">
-        <p className="text-xs font-medium mb-2" style={{ color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</p>
-        <p className="text-2xl font-bold" style={{ color: C.navy }}>{value}</p>
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] font-medium uppercase tracking-wider mb-2.5" style={{ color: C.muted }}>{title}</p>
+        <p className="text-[26px] font-bold leading-none tracking-tight" style={{ color: C.navy }}>{value}</p>
         {subtitle && (
-          <p className="text-[11px] mt-1" style={{ color: C.muted }}>{subtitle}</p>
+          <p className="text-[11px] mt-2" style={{ color: C.muted }}>{subtitle}</p>
         )}
         {trend !== undefined && (
-          <div className="flex items-center gap-1 mt-1.5">
-            <FontAwesomeIcon icon={trend >= 0 ? faArrowTrendUp : faArrowTrendDown} className="w-3 h-3" style={{ color: trend >= 0 ? C.success : C.danger }} />
-            <span className="text-[11px] font-medium" style={{ color: trend >= 0 ? C.success : C.danger }}>{Math.abs(trend)}%</span>
+          <div
+            className="inline-flex items-center gap-1 mt-2.5 px-2 py-1 rounded-full"
+            style={{ backgroundColor: trend >= 0 ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)' }}
+          >
+            <FontAwesomeIcon icon={trend >= 0 ? faArrowTrendUp : faArrowTrendDown} className="w-2.5 h-2.5" style={{ color: trend >= 0 ? C.success : C.danger }} />
+            <span className="text-[11px] font-semibold" style={{ color: trend >= 0 ? C.success : C.danger }}>{Math.abs(trend)}%</span>
           </div>
         )}
       </div>
-      <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${accent}12` }}>
-        <FontAwesomeIcon icon={icon} className="w-5 h-5" style={{ color: accent }} />
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${accent}14`, color: accent }}>
+        <FontAwesomeIcon icon={icon} className="w-[18px] h-[18px]" />
       </div>
     </div>
   </div>
@@ -495,11 +498,11 @@ export default function Dashboard() {
   const billingRate = stats?.billing?.collection_rate || 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 fade-up">
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: C.navy }}>
+          <h1 className="text-[22px] font-bold tracking-tight" style={{ color: C.navy }}>
             {greeting}{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}!
           </h1>
           <p className="text-sm mt-0.5" style={{ color: C.muted }}>

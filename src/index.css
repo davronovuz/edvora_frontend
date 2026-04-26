@@ -71,20 +71,43 @@
   --bg-primary: #F8F9FA;
   --bg-secondary: #FFFFFF;
   --bg-tertiary: #F1F3F5;
-  
+
   /* Text */
   --text-primary: #1A202C;
   --text-secondary: #4A5568;
   --text-muted: #A0AEC0;
-  
-  /* Primary (for inline styles) */
+
+  /* Primary */
+  --primary-500: #F97316;
   --primary-600: #F97316;
   --primary-700: #EA580C;
+  --primary-gradient: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
+  --primary-shadow: 0 4px 14px rgba(249, 115, 22, 0.3);
+  --primary-shadow-hover: 0 6px 20px rgba(249, 115, 22, 0.4);
+  --focus-ring: 0 0 0 3px rgba(249, 115, 22, 0.25);
+
+  /* Semantic colors */
+  --navy: #1B365D;
+  --navy-light: #2D4A7A;
+  --gold: #F28C28;
+  --success: #22C55E;
+  --success-50: #ECFDF5;
+  --warning: #F59E0B;
+  --warning-50: #FFFBEB;
+  --danger: #EF4444;
+  --danger-50: #FEF2F2;
+  --info: #3B82F6;
 
   /* Border */
   --border-color: #E2E8F0;
+  --border: #E2E8F0;
   --border-hover: #CBD5E1;
-  
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 2px 8px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
+
   /* Sidebar */
   --sidebar-bg: #FFFFFF;
   --sidebar-text: #4A5568;
@@ -104,14 +127,25 @@
   --text-secondary: #CBD5E1;
   --text-muted: #64748B;
 
-  /* Primary (for inline styles) */
+  /* Primary */
+  --primary-500: #F97316;
   --primary-600: #F97316;
   --primary-700: #EA580C;
 
+  /* Semantic */
+  --navy: #93C5FD;
+  --gold: #F28C28;
+
   /* Border */
   --border-color: #334155;
+  --border: #334155;
   --border-hover: #475569;
-  
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3);
+
   /* Sidebar */
   --sidebar-bg: #1E293B;
   --sidebar-text: #CBD5E1;
@@ -131,6 +165,20 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 240ms ease both; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ============================================
