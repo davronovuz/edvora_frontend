@@ -22,6 +22,7 @@ import { unwrap } from '@/services/api';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useUrlState } from '@/hooks/useUrlState';
 import {
   useStudentsList,
   useStudentStatistics,
@@ -340,6 +341,15 @@ const getInitials = (f, l) => `${f?.[0] || ''}${l?.[0] || ''}`.toUpperCase();
 // ============================================
 // MAIN COMPONENT
 // ============================================
+const FILTER_DEFAULTS = {
+  search: '',
+  status: '',
+  debt: '',
+  sortField: '',
+  sortDir: 'asc',
+  page: 1,
+};
+
 export default function Students() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
@@ -347,13 +357,22 @@ export default function Students() {
 
   const qc = useQueryClient();
 
-  const [searchInput, setSearchInput] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [debtFilter, setDebtFilter] = useState('');
-  const [sortField, setSortField] = useState('');
-  const [sortDir, setSortDir] = useState('asc');
-  const [currentPage, setCurrentPage] = useState(1);
-  const search = useDebouncedValue(searchInput, 400);
+  const [filters, setFilters] = useUrlState(FILTER_DEFAULTS);
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
+
+  useEffect(() => {
+    if (debouncedSearch !== filters.search) {
+      setFilters({ search: debouncedSearch, page: 1 });
+    }
+  }, [debouncedSearch]);
+
+  const search = filters.search;
+  const statusFilter = filters.status;
+  const debtFilter = filters.debt;
+  const sortField = filters.sortField;
+  const sortDir = filters.sortDir;
+  const currentPage = filters.page;
 
   const queryParams = {
     page: currentPage,
@@ -377,13 +396,14 @@ export default function Students() {
 
   const handleSort = (field) => {
     if (sortField === field) {
-      if (sortDir === 'asc') setSortDir('desc');
-      else { setSortField(''); setSortDir('asc'); }
+      if (sortDir === 'asc') {
+        setFilters({ sortDir: 'desc', page: 1 });
+      } else {
+        setFilters({ sortField: '', sortDir: 'asc', page: 1 });
+      }
     } else {
-      setSortField(field);
-      setSortDir('asc');
+      setFilters({ sortField: field, sortDir: 'asc', page: 1 });
     }
-    setCurrentPage(1);
   };
 
   // Selection
@@ -687,22 +707,18 @@ export default function Students() {
   // Stat filter toggle
   const toggleStatFilter = (status) => {
     if (statusFilter === status) {
-      setStatusFilter('');
+      setFilters({ status: '', page: 1 });
     } else {
-      setStatusFilter(status);
-      setDebtFilter('');
+      setFilters({ status, debt: '', page: 1 });
     }
-    setCurrentPage(1);
   };
 
   const toggleDebtFilter = () => {
     if (debtFilter === 'debt') {
-      setDebtFilter('');
+      setFilters({ debt: '', page: 1 });
     } else {
-      setDebtFilter('debt');
-      setStatusFilter('');
+      setFilters({ debt: 'debt', status: '', page: 1 });
     }
-    setCurrentPage(1);
   };
 
   // ============================================
@@ -756,7 +772,7 @@ export default function Students() {
           icon={faUsers}
           color="#6366F1"
           bg="rgba(99, 102, 241, 0.08)"
-          onClick={() => { setStatusFilter(''); setDebtFilter(''); setCurrentPage(1); }}
+          onClick={() => setFilters({ status: '', debt: '', page: 1 })}
           active={!statusFilter && !debtFilter}
         />
         <StatCard
@@ -803,7 +819,7 @@ export default function Students() {
             />
             {searchInput && (
               <button
-                onClick={() => setSearchInput('')}
+                onClick={() => { setSearchInput(''); setFilters({ search: '', page: 1 }); }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
                 style={{ color: 'var(--text-muted)' }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
@@ -815,7 +831,7 @@ export default function Students() {
           </div>
           <select
             value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setDebtFilter(''); setCurrentPage(1); }}
+            onChange={(e) => setFilters({ status: e.target.value, debt: '', page: 1 })}
             className="h-11 px-4 rounded-xl border bg-transparent cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500"
             style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)' }}
           >
@@ -827,7 +843,7 @@ export default function Students() {
           </select>
           {(searchInput || statusFilter || debtFilter) && (
             <button
-              onClick={() => { setSearchInput(''); setStatusFilter(''); setDebtFilter(''); setCurrentPage(1); }}
+              onClick={() => { setSearchInput(''); setFilters({ search: '', status: '', debt: '', page: 1 }); }}
               className="h-11 px-4 rounded-xl font-medium transition-colors text-red-500"
               onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -844,7 +860,7 @@ export default function Students() {
             {statusFilter && (
               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: statusConfig[statusFilter]?.bg, color: statusConfig[statusFilter]?.color }}>
                 {statusConfig[statusFilter]?.label}
-                <button onClick={() => { setStatusFilter(''); setCurrentPage(1); }} className="ml-1 opacity-60 hover:opacity-100">
+                <button onClick={() => setFilters({ status: '', page: 1 })} className="ml-1 opacity-60 hover:opacity-100">
                   <FontAwesomeIcon icon={faTimes} className="w-2.5 h-2.5" />
                 </button>
               </span>
@@ -852,7 +868,7 @@ export default function Students() {
             {debtFilter && (
               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#EF4444' }}>
                 Qarzdorlar
-                <button onClick={() => { setDebtFilter(''); setCurrentPage(1); }} className="ml-1 opacity-60 hover:opacity-100">
+                <button onClick={() => setFilters({ debt: '', page: 1 })} className="ml-1 opacity-60 hover:opacity-100">
                   <FontAwesomeIcon icon={faTimes} className="w-2.5 h-2.5" />
                 </button>
               </span>
@@ -860,7 +876,7 @@ export default function Students() {
             {search && (
               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(99, 102, 241, 0.12)', color: '#6366F1' }}>
                 "{search}"
-                <button onClick={() => { setSearchInput(''); setCurrentPage(1); }} className="ml-1 opacity-60 hover:opacity-100">
+                <button onClick={() => { setSearchInput(''); setFilters({ search: '', page: 1 }); }} className="ml-1 opacity-60 hover:opacity-100">
                   <FontAwesomeIcon icon={faTimes} className="w-2.5 h-2.5" />
                 </button>
               </span>
@@ -1123,7 +1139,7 @@ export default function Students() {
                 </p>
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    onClick={() => setFilters({ page: Math.max(1, currentPage - 1) })}
                     disabled={currentPage === 1}
                     className="w-9 h-9 rounded-lg flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     style={{ color: 'var(--text-secondary)' }}
@@ -1141,7 +1157,7 @@ export default function Students() {
                     return (
                       <button
                         key={page}
-                        onClick={() => setCurrentPage(page)}
+                        onClick={() => setFilters({ page })}
                         className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${currentPage === page ? 'bg-primary-600 text-white' : ''}`}
                         style={currentPage !== page ? { color: 'var(--text-secondary)' } : {}}
                         onMouseEnter={e => { if (currentPage !== page) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
@@ -1152,7 +1168,7 @@ export default function Students() {
                     );
                   })}
                   <button
-                    onClick={() => setCurrentPage(p => Math.min(meta.total_pages, p + 1))}
+                    onClick={() => setFilters({ page: Math.min(meta.total_pages, currentPage + 1) })}
                     disabled={currentPage === meta.total_pages}
                     className="w-9 h-9 rounded-lg flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     style={{ color: 'var(--text-secondary)' }}
