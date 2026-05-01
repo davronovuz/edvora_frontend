@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { notify } from '@/lib/notify';
@@ -20,7 +20,16 @@ import { formatMoney } from '@/utils/format';
 import Drawer from '@/components/ui/Drawer';
 import { unwrap } from '@/services/api';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useStudents } from './useStudents';
+import { useQueryClient } from '@tanstack/react-query';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import {
+  useStudentsList,
+  useStudentStatistics,
+  useDeleteStudent,
+  useFreezeStudent,
+  useUnfreezeStudent,
+  useArchiveStudent,
+} from '@/hooks/queries/useStudents';
 
 // ============================================
 // CONFIG
@@ -336,22 +345,46 @@ export default function Students() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
 
-  // Data — useStudents hook orqali
-  const {
-    students, setStudents,
-    stats,
-    loading,
-    meta,
-    search,
-    searchInput, setSearchInput,
-    statusFilter, setStatusFilter,
-    debtFilter, setDebtFilter,
-    sortField, sortDir,
-    currentPage, setCurrentPage,
-    handleSort,
-    refresh: fetchStudents,
-    refreshStats: fetchStats,
-  } = useStudents();
+  const qc = useQueryClient();
+
+  const [searchInput, setSearchInput] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [debtFilter, setDebtFilter] = useState('');
+  const [sortField, setSortField] = useState('');
+  const [sortDir, setSortDir] = useState('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const search = useDebouncedValue(searchInput, 400);
+
+  const queryParams = {
+    page: currentPage,
+    per_page: 20,
+    ...(search && { search }),
+    ...(statusFilter && { status: statusFilter }),
+    ...(debtFilter === 'debt' && { has_debt: 'true' }),
+    ...(sortField && { ordering: (sortDir === 'desc' ? '-' : '') + sortField }),
+  };
+
+  const { data, isLoading: loading } = useStudentsList(queryParams);
+  const students = data?.items || [];
+  const meta = data?.meta || { total: 0, total_pages: 1, per_page: 20 };
+
+  const { data: stats } = useStudentStatistics();
+
+  const deleteMutation = useDeleteStudent();
+  const freezeMutation = useFreezeStudent();
+  const unfreezeMutation = useUnfreezeStudent();
+  const archiveMutation = useArchiveStudent();
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else { setSortField(''); setSortDir('asc'); }
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+    setCurrentPage(1);
+  };
 
   // Selection
   const [selectedIds, setSelectedIds] = useState([]);
@@ -363,14 +396,12 @@ export default function Students() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [formMode, setFormMode] = useState('create');
   const [formLoading, setFormLoading] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Freeze modal
   const [isFreezeOpen, setIsFreezeOpen] = useState(false);
   const [freezeStudent, setFreezeStudent] = useState(null);
   const [freezeForm, setFreezeForm] = useState({ reason: '', start_date: '', end_date: '' });
   const [freezeErrors, setFreezeErrors] = useState({});
-  const [freezeLoading, setFreezeLoading] = useState(false);
 
   // Action dropdown
   const [actionDropdownId, setActionDropdownId] = useState(null);
@@ -578,8 +609,7 @@ export default function Students() {
         notify.success("O'quvchi yangilandi!");
       }
       setIsFormOpen(false);
-      fetchStudents();
-      fetchStats();
+      qc.invalidateQueries({ queryKey: ['students'] });
     } catch (err) {
       const errData = err.response?.data;
       const msg = errData?.error?.message || errData?.detail || "Xatolik yuz berdi";
@@ -604,19 +634,10 @@ export default function Students() {
     }
   };
 
-  const handleDelete = async () => {
-    setDeleteLoading(true);
-    try {
-      await studentsService.delete(selectedStudent.id);
-      notify.success("O'quvchi o'chirildi!");
-      setIsDeleteOpen(false);
-      fetchStudents();
-      fetchStats();
-    } catch (err) {
-      notify.error(err);
-    } finally {
-      setDeleteLoading(false);
-    }
+  const handleDelete = () => {
+    deleteMutation.mutate(selectedStudent.id, {
+      onSuccess: () => setIsDeleteOpen(false),
+    });
   };
 
   const openFreeze = (student) => {
@@ -645,36 +666,22 @@ export default function Students() {
       setFreezeErrors(errs);
       return;
     }
-    setFreezeLoading(true);
-    try {
-      const payload = {
-        start_date: freezeForm.start_date,
-        reason: freezeForm.reason.trim(),
-      };
-      if (freezeForm.end_date) payload.end_date = freezeForm.end_date;
-      await studentsService.freeze(freezeStudent.id, payload);
-      notify.success(`${freezeStudent.first_name} muzlatildi`);
-      setIsFreezeOpen(false);
-      setFreezeStudent(null);
-      fetchStudents();
-      fetchStats();
-    } catch (err) {
-      notify.error(err);
-    } finally {
-      setFreezeLoading(false);
-    }
+    const payload = {
+      start_date: freezeForm.start_date,
+      reason: freezeForm.reason.trim(),
+    };
+    if (freezeForm.end_date) payload.end_date = freezeForm.end_date;
+    freezeMutation.mutate({ id: freezeStudent.id, data: payload }, {
+      onSuccess: () => {
+        setIsFreezeOpen(false);
+        setFreezeStudent(null);
+      },
+    });
   };
 
-  const handleUnfreeze = async (student) => {
+  const handleUnfreeze = (student) => {
     if (!window.confirm(`${student.first_name} ${student.last_name} ni muzlatishdan chiqarasizmi?`)) return;
-    try {
-      await studentsService.unfreeze(student.id);
-      notify.success(`${student.first_name} faollashtirildi`);
-      fetchStudents();
-      fetchStats();
-    } catch (err) {
-      notify.error(err);
-    }
+    unfreezeMutation.mutate(student.id);
   };
 
   // Stat filter toggle
@@ -1558,7 +1565,7 @@ export default function Students() {
         onClose={() => setIsDeleteOpen(false)}
         onConfirm={handleDelete}
         studentName={`${selectedStudent?.first_name} ${selectedStudent?.last_name}`}
-        loading={deleteLoading}
+        loading={deleteMutation.isPending}
       />
 
       {/* FREEZE MODAL */}
@@ -1567,7 +1574,7 @@ export default function Students() {
         onClose={() => { setIsFreezeOpen(false); setFreezeStudent(null); }}
         onConfirm={submitFreeze}
         student={freezeStudent}
-        loading={freezeLoading}
+        loading={freezeMutation.isPending}
         form={freezeForm}
         setForm={setFreezeForm}
         errors={freezeErrors}
