@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faSearch, faEdit, faTrash, faTimes, faMapMarkerAlt, faPhone,
@@ -43,7 +43,7 @@ export default function Branches() {
       if (search) params.search = search;
       const res = await branchesService.getAll(params);
       setBranches(res.data?.data || res.data?.results || []);
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
     setLoading(false);
   };
 
@@ -56,16 +56,16 @@ export default function Branches() {
       if (!payload.latitude) delete payload.latitude;
       if (!payload.longitude) delete payload.longitude;
       if (!payload.landmark) delete payload.landmark;
-      if (editId) { await branchesService.update(editId, payload); toast.success(t('branches.title') + ' ' + t('common.updated')); }
-      else { await branchesService.create(payload); toast.success(t('branches.title') + ' ' + t('common.created')); }
+      if (editId) { await branchesService.update(editId, payload); notify.success(t('branches.title') + ' ' + t('common.updated')); }
+      else { await branchesService.create(payload); notify.success(t('branches.title') + ' ' + t('common.created')); }
       setShowForm(false); setEditId(null); setForm(emptyForm); fetchBranches();
-    } catch (e) { toast.error(e.response?.data?.error?.message || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const handleDelete = async (id) => {
     if (!confirm(t('common.delete') + '?')) return;
-    try { await branchesService.delete(id); toast.success(t('common.delete') + ' ✓'); fetchBranches(); }
-    catch { toast.error('Xato'); }
+    try { await branchesService.delete(id); notify.success(t('common.delete') + ' ✓'); fetchBranches(); }
+    catch { notify.error('Xato'); }
   };
 
   const handleEdit = (b) => {
@@ -85,7 +85,7 @@ export default function Branches() {
       const res = await branchesService.getStatistics(branch.id);
       setStats(res.data?.data || res.data);
       setShowStats(branch);
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
   };
 
   const toggleDay = (d) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faBell, faCheckDouble, faTimes, faMoneyBill, faCalendarAlt,
@@ -65,7 +65,7 @@ export default function Notifications() {
       if (filterRead === 'read') params.is_read = true;
       const res = await notificationsService.getAll(params);
       setNotifications(res.data?.data || res.data?.results || []);
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
     setLoading(false);
   };
 
@@ -74,7 +74,7 @@ export default function Notifications() {
     try {
       const res = await remindersService.getAll();
       setReminders(res.data?.data || res.data?.results || []);
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
     setLoading(false);
   };
 
@@ -83,7 +83,7 @@ export default function Notifications() {
     try {
       const res = await holidaysService.getAll();
       setHolidays(res.data?.data || res.data?.results || []);
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
     setLoading(false);
   };
 
@@ -92,7 +92,7 @@ export default function Notifications() {
     try {
       const res = await autoSmsService.getAll();
       setAutoSms(res.data?.data || res.data?.results || []);
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
     setLoading(false);
   };
 
@@ -107,15 +107,15 @@ export default function Notifications() {
     try {
       await notificationsService.markAsRead(id);
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
   };
 
   const markAllAsRead = async () => {
     try {
       await notificationsService.markAllAsRead();
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-      toast.success(t('notifications.markRead') + ' ✓');
-    } catch { toast.error('Xato'); }
+      notify.success(t('notifications.markRead') + ' ✓');
+    } catch { notify.error('Xato'); }
   };
 
   // Reminder CRUD
@@ -123,20 +123,20 @@ export default function Notifications() {
     try {
       if (reminderEditId) { await remindersService.update(reminderEditId, reminderForm); }
       else { await remindersService.create(reminderForm); }
-      toast.success(t('notifications.reminders') + ' ✓');
+      notify.success(t('notifications.reminders') + ' ✓');
       setShowReminderForm(false); setReminderEditId(null); setReminderForm(emptyReminder); fetchReminders();
-    } catch (e) { toast.error(e.response?.data?.error?.message || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const handleDeleteReminder = async (id) => {
     if (!confirm(t('common.delete') + '?')) return;
-    try { await remindersService.delete(id); toast.success(t('common.delete') + ' ✓'); fetchReminders(); }
-    catch { toast.error('Xato'); }
+    try { await remindersService.delete(id); notify.success(t('common.delete') + ' ✓'); fetchReminders(); }
+    catch { notify.error('Xato'); }
   };
 
   const handleCompleteReminder = async (id) => {
-    try { await remindersService.complete(id); toast.success('✓'); fetchReminders(); }
-    catch { toast.error('Xato'); }
+    try { await remindersService.complete(id); notify.success('✓'); fetchReminders(); }
+    catch { notify.error('Xato'); }
   };
 
   // Holiday CRUD
@@ -144,15 +144,15 @@ export default function Notifications() {
     try {
       if (holidayEditId) { await holidaysService.update(holidayEditId, holidayForm); }
       else { await holidaysService.create(holidayForm); }
-      toast.success('✓');
+      notify.success('✓');
       setShowHolidayForm(false); setHolidayEditId(null); setHolidayForm(emptyHoliday); fetchHolidays();
-    } catch (e) { toast.error(e.response?.data?.error?.message || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const handleDeleteHoliday = async (id) => {
     if (!confirm(t('common.delete') + '?')) return;
-    try { await holidaysService.delete(id); toast.success(t('common.delete') + ' ✓'); fetchHolidays(); }
-    catch { toast.error('Xato'); }
+    try { await holidaysService.delete(id); notify.success(t('common.delete') + ' ✓'); fetchHolidays(); }
+    catch { notify.error('Xato'); }
   };
 
   // Auto SMS CRUD
@@ -160,15 +160,15 @@ export default function Notifications() {
     try {
       if (autoSmsEditId) { await autoSmsService.update(autoSmsEditId, autoSmsForm); }
       else { await autoSmsService.create(autoSmsForm); }
-      toast.success(t('notifications.autoSms') + ' ✓');
+      notify.success(t('notifications.autoSms') + ' ✓');
       setShowAutoSmsForm(false); setAutoSmsEditId(null); setAutoSmsForm(emptyAutoSms); fetchAutoSms();
-    } catch (e) { toast.error(e.response?.data?.error?.message || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const handleDeleteAutoSms = async (id) => {
     if (!confirm(t('common.delete') + '?')) return;
-    try { await autoSmsService.delete(id); toast.success(t('common.delete') + ' ✓'); fetchAutoSms(); }
-    catch { toast.error('Xato'); }
+    try { await autoSmsService.delete(id); notify.success(t('common.delete') + ' ✓'); fetchAutoSms(); }
+    catch { notify.error('Xato'); }
   };
 
   // Send SMS
@@ -176,9 +176,9 @@ export default function Notifications() {
     try {
       const phones = smsForm.phone_numbers.split(',').map(p => p.trim()).filter(Boolean);
       await notificationsService.sendSms({ phone_numbers: phones, message: smsForm.message });
-      toast.success(t('notifications.sendSms') + ' ✓');
+      notify.success(t('notifications.sendSms') + ' ✓');
       setShowSendSms(false); setSmsForm({ phone_numbers: '', message: '' });
-    } catch (e) { toast.error(e.response?.data?.error?.message || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const unreadCount = notifications.filter(n => !n.is_read).length;

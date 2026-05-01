@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faSearch, faEdit, faTrash, faTimes, faCheck, faBook,
@@ -160,7 +160,7 @@ export default function Courses() {
         total_pages: m.total_pages ?? 1,
       });
     } catch (e) {
-      toast.error("Kurslarni yuklashda xatolik");
+      notify.error("Kurslarni yuklashda xatolik");
       setCourses([]);
     } finally {
       setLoading(false);
@@ -212,7 +212,7 @@ export default function Courses() {
 
   // ============== Form helpers ==============
   const openCreate = () => {
-    if (!canManage) return toast.error("Sizda ruxsat yo'q");
+    if (!canManage) return notify.error("Sizda ruxsat yo'q");
     setForm(initialForm);
     setErrors({});
     setFormMode('create');
@@ -221,7 +221,7 @@ export default function Courses() {
   };
 
   const openEdit = (c) => {
-    if (!canManage) return toast.error("Sizda ruxsat yo'q");
+    if (!canManage) return notify.error("Sizda ruxsat yo'q");
     setSelected(c);
     setForm({
       name: c.name || '',
@@ -247,7 +247,7 @@ export default function Courses() {
   };
 
   const openDelete = (c) => {
-    if (!canDelete) return toast.error("O'chirish faqat egasiga ruxsat etiladi");
+    if (!canDelete) return notify.error("O'chirish faqat egasiga ruxsat etiladi");
     setSelected(c);
     setDeleteOpen(true);
     setOpenMenuId(null);
@@ -296,10 +296,10 @@ export default function Courses() {
 
       if (formMode === 'create') {
         await coursesService.create(payload);
-        toast.success("Kurs qo'shildi");
+        notify.success("Kurs qo'shildi");
       } else {
         await coursesService.update(selected.id, payload);
-        toast.success("Kurs yangilandi");
+        notify.success("Kurs yangilandi");
       }
       setFormOpen(false);
       fetchCourses();
@@ -312,7 +312,7 @@ export default function Courses() {
         (typeof data === 'object' ? Object.values(data || {}).flat().join(', ') : null) ||
         e.message ||
         'Xatolik';
-      toast.error(msg);
+      notify.error(msg);
     } finally {
       setFormLoading(false);
     }
@@ -321,7 +321,7 @@ export default function Courses() {
   const handleDelete = async () => {
     try {
       await coursesService.delete(selected.id);
-      toast.success("Kurs o'chirildi");
+      notify.success("Kurs o'chirildi");
       setDeleteOpen(false);
       fetchCourses();
       fetchStats();
@@ -329,15 +329,15 @@ export default function Courses() {
       const data = e.response?.data;
       const msg = data?.error?.message || data?.detail || '';
       if (e.response?.status === 409 || msg.toLowerCase().includes('protect') || msg.toLowerCase().includes('group')) {
-        toast.error("Bu kursni o'chirib bo'lmaydi — unga guruhlar bog'langan");
+        notify.error("Bu kursni o'chirib bo'lmaydi — unga guruhlar bog'langan");
       } else {
-        toast.error(msg || "Xatolik");
+        notify.error(msg || "Xatolik");
       }
     }
   };
 
   const exportCSV = () => {
-    if (!courses.length) return toast.info("Eksport uchun ma'lumot yo'q");
+    if (!courses.length) return notify.info("Eksport uchun ma'lumot yo'q");
     const headers = ['Nomi', 'Fan', 'Daraja', 'Davomiyligi', 'Darslar', 'Narxi', 'Holat', 'Guruhlar'];
     const rows = courses.map((c) => [
       c.name,

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSearch, faFileExport, faFilter, faChartBar } from '@fortawesome/free-solid-svg-icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -88,7 +88,7 @@ export default function AttendanceReports() {
       data.sort((a, b) => (b.rate || 0) - (a.rate || 0));
       setReportData(data);
     } catch {
-      toast.error("Hisobotni yuklashda xato");
+      notify.error("Hisobotni yuklashda xato");
     }
     setLoading(false);
   };

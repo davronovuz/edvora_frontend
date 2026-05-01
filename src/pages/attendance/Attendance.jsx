@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faClipboardCheck, faSearch, faCheck, faTimes, faClock, faShieldAlt,
@@ -73,7 +73,7 @@ export default function Attendance() {
       } catch {
         setAttendanceData({});
       }
-    } catch { toast.error("O'quvchilarni yuklashda xato"); }
+    } catch { notify.error("O'quvchilarni yuklashda xato"); }
     setLoading(false);
   };
 
@@ -93,12 +93,12 @@ export default function Attendance() {
     const records = Object.entries(attendanceData)
       .filter(([_, status]) => status)
       .map(([student, status]) => ({ group: selectedGroup, student, date: selectedDate, status }));
-    if (records.length === 0) { toast.warning("Hech qanday davomat belgilanmagan"); return; }
+    if (records.length === 0) { notify.warning("Hech qanday davomat belgilanmagan"); return; }
     setSaving(true);
     try {
       await attendanceService.bulkCreate({ records });
-      toast.success(`${records.length} ta o'quvchi davomati saqlandi`);
-    } catch (e) { toast.error(e.response?.data?.error?.message || "Saqlashda xato"); }
+      notify.success(`${records.length} ta o'quvchi davomati saqlandi`);
+    } catch (e) { notify.error(e); }
     setSaving(false);
   };
 
@@ -108,7 +108,7 @@ export default function Attendance() {
     try {
       const res = await attendanceService.byStudent({ student: historyStudent });
       setHistory(res.data?.data || res.data?.results || []);
-    } catch { toast.error("Xato"); }
+    } catch { notify.error("Xato"); }
     setLoading(false);
   };
 
@@ -119,7 +119,7 @@ export default function Attendance() {
       if (reportGroup) params.group = reportGroup;
       const res = await attendanceService.report(params);
       setReport(res.data?.data || res.data);
-    } catch { toast.error("Xato"); }
+    } catch { notify.error("Xato"); }
     setLoading(false);
   };
 

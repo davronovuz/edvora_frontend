@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft, faPhone, faWallet, faMoneyBillWave, faExclamationTriangle,
@@ -113,7 +113,7 @@ function PayModal({ isOpen, onClose, student, groups, debt, defaultGroup, defaul
 
   const handleSubmit = async () => {
     const num = parseFloat(amount);
-    if (!num || num <= 0) { toast.error("Summani kiriting"); return; }
+    if (!num || num <= 0) { notify.error("Summani kiriting"); return; }
     setSaving(true);
     try {
       await paymentsService.create({
@@ -128,11 +128,11 @@ function PayModal({ isOpen, onClose, student, groups, debt, defaultGroup, defaul
         ...(groupId ? { group: groupId } : {}),
       });
       // Backend signali invoice'larga FIFO taqsimlashni avtomatik bajaradi
-      toast.success("To'lov qabul qilindi!");
+      notify.success("To'lov qabul qilindi!");
       onClose();
       onSuccess();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || e.response?.data?.detail || "To'lov qabul qilinmadi");
+      notify.error(e);
     }
     setSaving(false);
   };
@@ -288,7 +288,7 @@ function DiscountModal({ isOpen, onClose, studentId, onSuccess }) {
   }, [isOpen]);
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.value) { toast.error("Maydonlarni to'ldiring"); return; }
+    if (!form.name.trim() || !form.value) { notify.error("Maydonlarni to'ldiring"); return; }
     setSaving(true);
     try {
       const payload = {
@@ -303,7 +303,7 @@ function DiscountModal({ isOpen, onClose, studentId, onSuccess }) {
         is_active: true,
       };
       await billingDiscountsService.create(payload);
-      toast.success("Chegirma qo'shildi");
+      notify.success("Chegirma qo'shildi");
       onClose();
       onSuccess();
     } catch (e) {
@@ -311,7 +311,7 @@ function DiscountModal({ isOpen, onClose, studentId, onSuccess }) {
       const msg = resp?.detail
         || (typeof Object.values(resp || {})[0] === 'string' ? Object.values(resp)[0] : null)
         || 'Saqlashda xato';
-      toast.error(msg);
+      notify.error(msg);
     }
     setSaving(false);
   };
@@ -666,7 +666,7 @@ export default function StudentFinanceDetail() {
       const attData = attRes ? unwrap(attRes) : null;
       setAttRate(attData?.statistics?.rate ?? null);
     } catch {
-      toast.error("Ma'lumotlarni yuklashda xato");
+      notify.error("Ma'lumotlarni yuklashda xato");
     }
     setLoading(false);
   }, [id]);
@@ -709,14 +709,14 @@ export default function StudentFinanceDetail() {
   };
 
   const handleGenerate = async (groupStudentId, month, year) => {
-    if (!groupStudentId) { toast.error("Guruh o'quvchisi topilmadi"); return; }
+    if (!groupStudentId) { notify.error("Guruh o'quvchisi topilmadi"); return; }
     setGenerating(true);
     try {
       await billingInvoicesService.generate({ group_student_id: groupStudentId, year, month });
-      toast.success(`${MONTHS[month - 1]} ${year} uchun invoice yaratildi`);
+      notify.success(`${MONTHS[month - 1]} ${year} uchun invoice yaratildi`);
       loadAll();
     } catch (e) {
-      toast.error(e.response?.data?.detail || e.response?.data?.error || 'Invoice yaratishda xato');
+      notify.error(e);
     }
     setGenerating(false);
   };
@@ -725,10 +725,10 @@ export default function StudentFinanceDetail() {
     if (!confirm("To'lovni qaytarmoqchimisiz?")) return;
     try {
       await paymentsService.refund(payId);
-      toast.success('Qaytarildi');
+      notify.success('Qaytarildi');
       loadAll();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || e.response?.data?.detail || 'Xato');
+      notify.error(e);
     }
   };
 

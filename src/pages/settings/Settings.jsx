@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faUser, faLock, faUsers, faEdit, faTrash, faPlus, faTimes,
@@ -216,7 +216,7 @@ export default function Settings() {
       const res = await usersService.getAll();
       const data = res.data?.data || res.data?.results || [];
       setUsers(Array.isArray(data) ? data : []);
-    } catch { toast.error("Foydalanuvchilarni yuklab bo'lmadi"); }
+    } catch { notify.error("Foydalanuvchilarni yuklab bo'lmadi"); }
     setUsersLoading(false);
   };
 
@@ -238,38 +238,38 @@ export default function Settings() {
       const res = await holidayService.getAll();
       const data = res.data?.data || res.data?.results || [];
       setHolidays(Array.isArray(data) ? data : []);
-    } catch { toast.error("Dam olish kunlarini yuklab bo'lmadi"); }
+    } catch { notify.error("Dam olish kunlarini yuklab bo'lmadi"); }
     setHolidaysLoading(false);
   };
 
   const handleSaveHoliday = async () => {
     if (!holidayForm.name.trim() || !holidayForm.date) {
-      toast.error("Nom va sanani kiriting"); return;
+      notify.error("Nom va sanani kiriting"); return;
     }
     try {
       const payload = { name: holidayForm.name, date: holidayForm.date, holiday_type: holidayForm.holiday_type };
       if (holidayForm.end_date) payload.end_date = holidayForm.end_date;
       if (editHolidayId) {
         await holidayService.update(editHolidayId, payload);
-        toast.success("Dam olish kuni yangilandi");
+        notify.success("Dam olish kuni yangilandi");
       } else {
         await holidayService.create(payload);
-        toast.success("Dam olish kuni qo'shildi");
+        notify.success("Dam olish kuni qo'shildi");
       }
       setShowHolidayForm(false);
       setEditHolidayId(null);
       setHolidayForm({ name: '', date: '', end_date: '', holiday_type: 'custom' });
       fetchHolidays();
-    } catch (e) { toast.error(e.response?.data?.error?.message || "Xatolik"); }
+    } catch (e) { notify.error(e); }
   };
 
   const handleDeleteHoliday = async (h) => {
     if (!confirm(`"${h.name}" dam olish kunini o'chirishni tasdiqlaysizmi?`)) return;
     try {
       await holidayService.delete(h.id);
-      toast.success("Dam olish kuni o'chirildi");
+      notify.success("Dam olish kuni o'chirildi");
       fetchHolidays();
-    } catch { toast.error("O'chirishda xatolik"); }
+    } catch { notify.error("O'chirishda xatolik"); }
   };
 
   const openEditHoliday = (h) => {
@@ -283,23 +283,23 @@ export default function Settings() {
 
   const handleUpdateProfile = async () => {
     if (!profileForm.first_name.trim() || !profileForm.last_name.trim()) {
-      toast.error("Ism va familiyani kiriting"); return;
+      notify.error("Ism va familiyani kiriting"); return;
     }
     setProfileLoading(true);
     try {
       const updated = await authService.updateProfile(profileForm);
       setUser(updated?.data || updated);
-      toast.success("Profil muvaffaqiyatli yangilandi");
+      notify.success("Profil muvaffaqiyatli yangilandi");
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || "Profilni yangilashda xatolik");
+      notify.error(e);
     }
     setProfileLoading(false);
   };
 
   const handleChangePassword = async () => {
-    if (!passwordForm.old_password) { toast.error("Joriy parolni kiriting"); return; }
-    if (passwordForm.new_password.length < 8) { toast.error("Yangi parol kamida 8 ta belgidan iborat bo'lishi kerak"); return; }
-    if (passwordForm.new_password !== passwordForm.confirm_password) { toast.error("Yangi parollar mos kelmaydi"); return; }
+    if (!passwordForm.old_password) { notify.error("Joriy parolni kiriting"); return; }
+    if (passwordForm.new_password.length < 8) { notify.error("Yangi parol kamida 8 ta belgidan iborat bo'lishi kerak"); return; }
+    if (passwordForm.new_password !== passwordForm.confirm_password) { notify.error("Yangi parollar mos kelmaydi"); return; }
 
     setPasswordLoading(true);
     try {
@@ -308,14 +308,14 @@ export default function Settings() {
         passwordForm.new_password,
         passwordForm.confirm_password,
       );
-      toast.success("Parol muvaffaqiyatli o'zgartirildi");
+      notify.success("Parol muvaffaqiyatli o'zgartirildi");
       setPasswordForm({ old_password: '', new_password: '', confirm_password: '' });
     } catch (e) {
       const msg = e.response?.data?.error?.message || e.response?.data?.detail;
       if (msg?.includes('INVALID_PASSWORD') || msg?.includes("noto'g'ri")) {
-        toast.error("Joriy parol noto'g'ri");
+        notify.error("Joriy parol noto'g'ri");
       } else {
-        toast.error(msg || "Parolni o'zgartirishda xatolik");
+        notify.error(msg || "Parolni o'zgartirishda xatolik");
       }
     }
     setPasswordLoading(false);
@@ -323,10 +323,10 @@ export default function Settings() {
 
   const handleSaveUser = async () => {
     if (!userForm.first_name.trim() || !userForm.last_name.trim()) {
-      toast.error("Ism va familiya majburiy"); return;
+      notify.error("Ism va familiya majburiy"); return;
     }
     if (!userEditId && (!userForm.password || userForm.password.length < 4)) {
-      toast.error("Parol kamida 4 ta belgidan iborat bo'lishi kerak"); return;
+      notify.error("Parol kamida 4 ta belgidan iborat bo'lishi kerak"); return;
     }
 
     setUserFormLoading(true);
@@ -340,10 +340,10 @@ export default function Settings() {
 
       if (userEditId) {
         await usersService.update(userEditId, payload);
-        toast.success("Foydalanuvchi yangilandi");
+        notify.success("Foydalanuvchi yangilandi");
       } else {
         await usersService.create(payload);
-        toast.success("Foydalanuvchi muvaffaqiyatli yaratildi");
+        notify.success("Foydalanuvchi muvaffaqiyatli yaratildi");
       }
       setShowUserForm(false);
       setUserEditId(null);
@@ -353,29 +353,29 @@ export default function Settings() {
       const errData = e.response?.data;
       const errMsg = errData?.error?.message || errData?.detail ||
         (typeof errData === 'object' ? Object.values(errData).flat().join(', ') : null) || "Xatolik yuz berdi";
-      toast.error(errMsg);
+      notify.error(errMsg);
     }
     setUserFormLoading(false);
   };
 
   const handleDeleteUser = async (u) => {
-    if (u.role === 'owner') { toast.error("Egani o'chirib bo'lmaydi"); return; }
-    if (u.id === user?.id) { toast.error("O'zingizni o'chira olmaysiz"); return; }
+    if (u.role === 'owner') { notify.error("Egani o'chirib bo'lmaydi"); return; }
+    if (u.id === user?.id) { notify.error("O'zingizni o'chira olmaysiz"); return; }
     if (!confirm(`${u.first_name} ${u.last_name} — bu foydalanuvchini o'chirishni tasdiqlaysizmi?`)) return;
     try {
       await usersService.delete(u.id);
-      toast.success("Foydalanuvchi o'chirildi");
+      notify.success("Foydalanuvchi o'chirildi");
       fetchUsers();
-    } catch { toast.error("O'chirishda xatolik"); }
+    } catch { notify.error("O'chirishda xatolik"); }
   };
 
   const handleToggleActive = async (u) => {
     if (u.role === 'owner') return;
     try {
       await usersService.update(u.id, { is_active: !u.is_active });
-      toast.success(u.is_active ? "Foydalanuvchi nofaol qilindi" : "Foydalanuvchi faollashtirildi");
+      notify.success(u.is_active ? "Foydalanuvchi nofaol qilindi" : "Foydalanuvchi faollashtirildi");
       fetchUsers();
-    } catch { toast.error("Xatolik"); }
+    } catch { notify.error("Xatolik"); }
   };
 
   // Permissions
@@ -389,7 +389,7 @@ export default function Settings() {
       setPermissionsData(data.permissions || {});
       setCustomPerms(data.custom_permissions || {});
     } catch {
-      toast.error("Ruxsatlarni yuklab bo'lmadi");
+      notify.error("Ruxsatlarni yuklab bo'lmadi");
       setPermissionsData({});
       setCustomPerms({});
     }
@@ -419,18 +419,18 @@ export default function Settings() {
     setCustomPerms({});
     // Re-fetch to get defaults
     openPermissions(showPermissions);
-    toast.info("Rol bo'yicha standart ruxsatlarga qaytarildi");
+    notify.info("Rol bo'yicha standart ruxsatlarga qaytarildi");
   };
 
   const savePermissions = async () => {
     setPermLoading(true);
     try {
       await usersService.updatePermissions(showPermissions.id, { custom_permissions: customPerms });
-      toast.success("Ruxsatlar muvaffaqiyatli saqlandi");
+      notify.success("Ruxsatlar muvaffaqiyatli saqlandi");
       setShowPermissions(null);
       fetchUsers();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || "Ruxsatlarni saqlashda xatolik");
+      notify.error(e);
     }
     setPermLoading(false);
   };

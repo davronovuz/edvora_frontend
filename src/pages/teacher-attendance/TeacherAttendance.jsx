@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faChevronRight, faCheck, faTimes, faCalendarAlt } from '@fortawesome/free-solid-svg-icons';
 import api from '@/services/api';
@@ -56,7 +56,7 @@ export default function TeacherAttendance() {
         setAttendance({});
       }
     } catch {
-      toast.error("Ma'lumotlarni yuklashda xato");
+      notify.error("Ma'lumotlarni yuklashda xato");
     }
     setLoading(false);
   };

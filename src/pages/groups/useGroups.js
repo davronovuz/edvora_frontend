@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { groupsService } from '@/services/groups';
 import { coursesService } from '@/services/courses';
 import { teachersService } from '@/services/teachers';

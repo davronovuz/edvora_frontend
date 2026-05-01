@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faSearch, faEye, faEdit, faTrash, faPhone, faEnvelope,
@@ -267,7 +267,7 @@ export default function Teachers() {
         setTeachers([]);
       }
     } catch (err) {
-      toast.error(err.response?.data?.error?.message || "O'qituvchilarni yuklashda xatolik");
+      notify.error(err);
       setTeachers([]);
     } finally {
       setLoading(false);
@@ -321,7 +321,7 @@ export default function Teachers() {
       const res = await teachersService.getAll({ per_page: 10000 });
       const data = res.data?.data || res.data?.results || res.data || [];
       if (!Array.isArray(data) || data.length === 0) {
-        toast.error("Eksport uchun ma'lumot topilmadi");
+        notify.error("Eksport uchun ma'lumot topilmadi");
         return;
       }
       const headers = ['Ism', 'Familiya', 'Telefon', 'Email', 'Fanlar', 'Guruhlar', 'Status'];
@@ -339,9 +339,9 @@ export default function Teachers() {
       a.download = `oqituvchilar_${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('Eksport tayyor!');
+      notify.success('Eksport tayyor!');
     } catch {
-      toast.error('Eksport xatolik');
+      notify.error('Eksport xatolik');
     }
   };
 
@@ -455,10 +455,10 @@ export default function Teachers() {
     try {
       if (formMode === 'create') {
         await teachersService.create(data);
-        toast.success("O'qituvchi muvaffaqiyatli qo'shildi!");
+        notify.success("O'qituvchi muvaffaqiyatli qo'shildi!");
       } else {
         await teachersService.update(selectedTeacher.id, data);
-        toast.success("O'qituvchi yangilandi!");
+        notify.success("O'qituvchi yangilandi!");
       }
       setIsFormOpen(false);
       fetchTeachers();
@@ -475,7 +475,7 @@ export default function Teachers() {
         setErrors({ phone: Array.isArray(errData.phone) ? errData.phone[0] : errData.phone });
         return;
       }
-      toast.error(msg);
+      notify.error(msg);
     } finally {
       setFormLoading(false);
     }
@@ -485,12 +485,12 @@ export default function Teachers() {
     setDeleteLoading(true);
     try {
       await teachersService.delete(selectedTeacher.id);
-      toast.success("O'qituvchi o'chirildi!");
+      notify.success("O'qituvchi o'chirildi!");
       setIsDeleteOpen(false);
       fetchTeachers();
       fetchStats();
     } catch (err) {
-      toast.error(err.response?.data?.error?.message || "Xatolik yuz berdi");
+      notify.error(err);
     } finally {
       setDeleteLoading(false);
     }

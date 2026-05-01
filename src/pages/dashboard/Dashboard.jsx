@@ -19,7 +19,7 @@ import { analyticsService } from '@/services/analytics';
 import { financeDashboardService } from '@/services/finance';
 import { groupsService } from '@/services/groups';
 import { roomsService } from '@/services/rooms';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { unwrap, unwrapList } from '@/services/api';
 import { usePermissions } from '@/hooks/usePermissions';
 

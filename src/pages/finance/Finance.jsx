@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faSearch, faEdit, faTrash, faTimes, faWallet, faArrowUp, faArrowDown,
@@ -200,7 +200,7 @@ export default function Finance() {
         setSalaries(Array.isArray(data) ? data : []);
         setTotalPages(res.data?.meta?.total_pages || Math.ceil((res.data?.count || 0) / 20) || 1);
       }
-    } catch { toast.error('Ma\'lumotlarni yuklashda xatolik'); }
+    } catch { notify.error('Ma\'lumotlarni yuklashda xatolik'); }
     setLoading(false);
   };
 
@@ -222,26 +222,26 @@ export default function Finance() {
   // HANDLERS
   // ============================================
   const handleSaveExpense = async () => {
-    if (!form.title.trim() || !form.amount) { toast.error('Maydonlarni to\'ldiring'); return; }
+    if (!form.title.trim() || !form.amount) { notify.error('Maydonlarni to\'ldiring'); return; }
     try {
       const payload = { ...form, amount: parseFloat(form.amount) };
       if (editId) {
         await expensesService.update(editId, payload);
-        toast.success("Chiqim yangilandi");
+        notify.success("Chiqim yangilandi");
       } else {
         await expensesService.create(payload);
-        toast.success("Chiqim qo'shildi");
+        notify.success("Chiqim qo'shildi");
       }
       setShowForm(false); setEditId(null); setForm(emptyExpense); fetchData();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || e.response?.data?.detail || "Xatolik yuz berdi");
+      notify.error(e);
     }
   };
 
   const handleDeleteExpense = async (id) => {
     if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
-    try { await expensesService.delete(id); toast.success("O'chirildi"); fetchData(); }
-    catch { toast.error('Xatolik'); }
+    try { await expensesService.delete(id); notify.success("O'chirildi"); fetchData(); }
+    catch { notify.error('Xatolik'); }
   };
 
   const tabs = [

@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faExclamationTriangle, faSearch, faPhone, faMoneyBillWave,
@@ -64,7 +64,7 @@ function QuickPayModal({ open, onClose, debtor, onSuccess }) {
 
   const handleSubmit = async () => {
     const num = parseFloat(amount);
-    if (!num || num <= 0) { toast.error("Summani kiriting"); return; }
+    if (!num || num <= 0) { notify.error("Summani kiriting"); return; }
     setSaving(true);
     try {
       const now = new Date();
@@ -81,7 +81,7 @@ function QuickPayModal({ open, onClose, debtor, onSuccess }) {
       if (selectedGroup) payload.group = selectedGroup.id;
 
       await paymentsService.create(payload);
-      toast.success("To'lov qabul qilindi!");
+      notify.success("To'lov qabul qilindi!");
       onClose();
       onSuccess?.();
     } catch (e) {
@@ -89,7 +89,7 @@ function QuickPayModal({ open, onClose, debtor, onSuccess }) {
         || e.response?.data?.detail
         || e.response?.data?.non_field_errors?.[0]
         || "To'lov qabul qilinmadi";
-      toast.error(msg);
+      notify.error(msg);
     }
     setSaving(false);
   };
@@ -287,7 +287,7 @@ export default function Debtors() {
       setDebtors(list);
       setTotalDebt(list.reduce((s, d) => s + d.total_debt, 0));
     } catch (e) {
-      toast.error("Qarzdorlarni yuklashda xato: " + (e.response?.data?.detail || e.message));
+      notify.error(e, "Qarzdorlarni yuklashda xato");
     }
     setLoading(false);
   };
@@ -305,7 +305,7 @@ export default function Debtors() {
       });
       setExpandedInvoices(unwrapList(res));
     } catch (e) {
-      toast.error("Invoice yuklashda xato");
+      notify.error("Invoice yuklashda xato");
       setExpandedInvoices([]);
     }
     setLoadingInvoices(false);

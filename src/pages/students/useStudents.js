@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { studentsService } from '@/services/students';
 import { unwrap } from '@/services/api';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -46,7 +46,7 @@ export function useStudents() {
       }
     } catch (err) {
       if (err.name === 'CanceledError' || err.name === 'AbortError') return;
-      toast.error(err.response?.data?.error?.message || "O'quvchilarni yuklashda xatolik");
+      notify.error(err);
       setStudents([]);
     } finally {
       setLoading(false);

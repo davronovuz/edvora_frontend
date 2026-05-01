@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faSearch, faEdit, faTrash, faTimes, faMoneyBill,
@@ -171,7 +171,7 @@ function PaymentFormModal({ open, onClose, onSuccess, editPayment }) {
       const res = await api.get('/students/', { params: { search: query, page_size: 10 } });
       setSearchResults(unwrapList(res));
     } catch (e) {
-      toast.error("Qidirishda xato");
+      notify.error("Qidirishda xato");
       setSearchResults([]);
     }
     setSearching(false);
@@ -195,7 +195,7 @@ function PaymentFormModal({ open, onClose, onSuccess, editPayment }) {
       setStudentGroups(unwrapList(groupsRes));
       setStudentInvoices(unwrapList(invoicesRes));
     } catch (e) {
-      toast.error("Ma'lumotlarni yuklashda xato");
+      notify.error("Ma'lumotlarni yuklashda xato");
       setStudentGroups([]);
       setStudentInvoices([]);
     }
@@ -218,7 +218,7 @@ function PaymentFormModal({ open, onClose, onSuccess, editPayment }) {
   };
 
   const handleSubmit = async () => {
-    if (!amount || Number(amount) <= 0) { toast.error("Summani kiriting"); return; }
+    if (!amount || Number(amount) <= 0) { notify.error("Summani kiriting"); return; }
     setSaving(true);
     try {
       const payload = {
@@ -235,10 +235,10 @@ function PaymentFormModal({ open, onClose, onSuccess, editPayment }) {
 
       if (isEdit) {
         await paymentsService.update(editPayment.id, payload);
-        toast.success("To'lov yangilandi");
+        notify.success("To'lov yangilandi");
       } else {
         await paymentsService.create(payload);
-        toast.success("To'lov qabul qilindi!");
+        notify.success("To'lov qabul qilindi!");
       }
       handleClose();
       onSuccess();
@@ -247,7 +247,7 @@ function PaymentFormModal({ open, onClose, onSuccess, editPayment }) {
         || e.response?.data?.detail
         || e.response?.data?.non_field_errors?.[0]
         || "Xato yuz berdi";
-      toast.error(msg);
+      notify.error(msg);
     }
     setSaving(false);
   };
@@ -627,7 +627,7 @@ export default function Payments() {
       setPayments(Array.isArray(body) ? body : (body?.results || []));
       setTotalPages(res.data?.meta?.total_pages || Math.ceil((res.data?.count || body?.count || 0) / 20) || 1);
     } catch (e) {
-      toast.error("To'lovlarni yuklashda xato");
+      notify.error("To'lovlarni yuklashda xato");
     }
     setLoading(false);
   };
@@ -640,7 +640,7 @@ export default function Payments() {
       const res = await paymentsService.statistics({ period: 'custom', start_date: startDate, end_date: endDate });
       setStats(res.data?.data || res.data);
     } catch (e) {
-      toast.error("Statistika yuklashda xato");
+      notify.error("Statistika yuklashda xato");
     }
   };
 
@@ -651,11 +651,11 @@ export default function Payments() {
     if (!confirm("Bu to'lovni o'chirmoqchimisiz?")) return;
     try {
       await paymentsService.delete(id);
-      toast.success("To'lov o'chirildi");
+      notify.success("To'lov o'chirildi");
       fetchPayments();
       fetchStats();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "O'chirishda xato");
+      notify.error(e);
     }
   };
 
@@ -663,11 +663,11 @@ export default function Payments() {
     if (!confirm("To'lovni qaytarmoqchimisiz?")) return;
     try {
       await paymentsService.refund(id);
-      toast.success("To'lov qaytarildi");
+      notify.success("To'lov qaytarildi");
       fetchPayments();
       fetchStats();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || e.response?.data?.detail || "Qaytarishda xato");
+      notify.error(e);
     }
   };
 

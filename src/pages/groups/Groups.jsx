@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faSearch, faEdit, faTrash, faTimes, faCheck, faUsers,
@@ -195,7 +195,7 @@ export default function Groups() {
         total_pages: m.total_pages ?? 1,
       });
     } catch (e) {
-      toast.error("Guruhlarni yuklashda xatolik");
+      notify.error("Guruhlarni yuklashda xatolik");
       setGroups([]);
     } finally {
       setLoading(false);
@@ -249,7 +249,7 @@ export default function Groups() {
 
   // ============== Helpers ==============
   const openCreate = () => {
-    if (!canManage) return toast.error("Sizda ruxsat yo'q");
+    if (!canManage) return notify.error("Sizda ruxsat yo'q");
     setForm(initialForm);
     setErrors({});
     setFormMode('create');
@@ -258,7 +258,7 @@ export default function Groups() {
   };
 
   const openEdit = (g) => {
-    if (!canManage) return toast.error("Sizda ruxsat yo'q");
+    if (!canManage) return notify.error("Sizda ruxsat yo'q");
     setSelected(g);
     setForm({
       name: g.name || '',
@@ -281,7 +281,7 @@ export default function Groups() {
   };
 
   const openDelete = (g) => {
-    if (!canDelete) return toast.error("O'chirish faqat egasiga ruxsat etiladi");
+    if (!canDelete) return notify.error("O'chirish faqat egasiga ruxsat etiladi");
     setSelected(g);
     setDeleteOpen(true);
     setOpenMenuId(null);
@@ -322,10 +322,10 @@ export default function Groups() {
 
       if (formMode === 'create') {
         await groupsService.create(payload);
-        toast.success("Guruh qo'shildi");
+        notify.success("Guruh qo'shildi");
       } else {
         await groupsService.update(selected.id, payload);
-        toast.success("Guruh yangilandi");
+        notify.success("Guruh yangilandi");
       }
       setFormOpen(false);
       fetchGroups();
@@ -337,7 +337,7 @@ export default function Groups() {
         data?.detail ||
         (typeof data === 'object' ? Object.values(data || {}).flat().join(', ') : null) ||
         'Xatolik';
-      toast.error(msg);
+      notify.error(msg);
     } finally {
       setFormLoading(false);
     }
@@ -346,13 +346,13 @@ export default function Groups() {
   const handleDelete = async () => {
     try {
       await groupsService.delete(selected.id);
-      toast.success("Guruh o'chirildi");
+      notify.success("Guruh o'chirildi");
       setDeleteOpen(false);
       fetchGroups();
       fetchStats();
     } catch (e) {
       const msg = e.response?.data?.error?.message || e.response?.data?.detail || "Xatolik";
-      toast.error(msg);
+      notify.error(msg);
     }
   };
 
@@ -375,7 +375,7 @@ export default function Groups() {
       setGroupStudents(Array.isArray(list) ? list : []);
     } catch {
       setGroupStudents([]);
-      toast.error("O'quvchilarni yuklashda xato");
+      notify.error("O'quvchilarni yuklashda xato");
     } finally {
       setStudentsLoading(false);
     }
@@ -385,16 +385,16 @@ export default function Groups() {
     if (!confirm("O'quvchini guruhdan chiqarmoqchimisiz?")) return;
     try {
       await groupsService.removeStudent(selected.id, studentId);
-      toast.success("O'quvchi guruhdan chiqarildi");
+      notify.success("O'quvchi guruhdan chiqarildi");
       openStudents(selected);
       fetchGroups();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || "Xatolik");
+      notify.error(e);
     }
   };
 
   const openAddStudent = async (g) => {
-    if (!canAddStudent) return toast.error("Sizda ruxsat yo'q");
+    if (!canAddStudent) return notify.error("Sizda ruxsat yo'q");
     setSelected(g);
     setAddStudentForm({ student_id: '', custom_price: '', discount_percent: '' });
     setOpenMenuId(null);
@@ -412,22 +412,22 @@ export default function Groups() {
   };
 
   const handleAddStudent = async () => {
-    if (!addStudentForm.student_id) return toast.error("O'quvchini tanlang");
+    if (!addStudentForm.student_id) return notify.error("O'quvchini tanlang");
     try {
       const payload = { student_id: Number(addStudentForm.student_id) };
       if (addStudentForm.custom_price) payload.custom_price = Number(addStudentForm.custom_price);
       if (addStudentForm.discount_percent) payload.discount_percent = Number(addStudentForm.discount_percent);
       await groupsService.addStudent(selected.id, payload);
-      toast.success("O'quvchi qo'shildi");
+      notify.success("O'quvchi qo'shildi");
       setAddStudentOpen(false);
       fetchGroups();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || "Xatolik");
+      notify.error(e);
     }
   };
 
   const openTransfer = async (g) => {
-    if (!canManage) return toast.error("Sizda ruxsat yo'q");
+    if (!canManage) return notify.error("Sizda ruxsat yo'q");
     setSelected(g);
     setTransferForm({ student_id: '', target_group_id: '', reason: '' });
     setTransferSearch('');
@@ -440,7 +440,7 @@ export default function Groups() {
       const list = res.data?.data || res.data?.results || res.data || [];
       setTransferSourceStudents(Array.isArray(list) ? list : []);
     } catch {
-      toast.error("O'quvchilar yuklanmadi");
+      notify.error("O'quvchilar yuklanmadi");
     } finally {
       setTransferStudentsLoading(false);
     }
@@ -448,7 +448,7 @@ export default function Groups() {
 
   const handleTransfer = async () => {
     if (!transferForm.student_id || !transferForm.target_group_id) {
-      return toast.error("O'quvchi va guruhni tanlang");
+      return notify.error("O'quvchi va guruhni tanlang");
     }
     setTransferLoading(true);
     try {
@@ -457,11 +457,11 @@ export default function Groups() {
         target_group_id: Number(transferForm.target_group_id),
         reason: transferForm.reason || undefined,
       });
-      toast.success("O'quvchi ko'chirildi");
+      notify.success("O'quvchi ko'chirildi");
       setTransferOpen(false);
       fetchGroups();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || "Xatolik");
+      notify.error(e);
     } finally {
       setTransferLoading(false);
     }
@@ -477,14 +477,14 @@ export default function Groups() {
       setConflicts(Array.isArray(list) ? list : []);
     } catch {
       setConflicts([]);
-      toast.error("Konfliktlarni yuklashda xato");
+      notify.error("Konfliktlarni yuklashda xato");
     } finally {
       setConflictsLoading(false);
     }
   };
 
   const exportCSV = () => {
-    if (!groups.length) return toast.info("Eksport uchun ma'lumot yo'q");
+    if (!groups.length) return notify.info("Eksport uchun ma'lumot yo'q");
     const headers = ['Nomi', 'Kurs', "O'qituvchi", 'Kunlar', 'Vaqt', 'Xona', "O'quvchilar", 'Holat'];
     const rows = groups.map((g) => [
       g.name,

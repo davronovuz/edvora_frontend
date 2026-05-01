@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft, faCheck, faTimes, faClock, faShieldAlt,
@@ -187,11 +187,11 @@ export default function GroupDetail() {
         paymentsService.getAll({ group: id, page_size: 200 }),
       ]);
       if (groupRes.status === 'fulfilled') setGroup(unwrap(groupRes.value));
-      else { toast.error("Guruh topilmadi"); navigate('/app/groups'); return; }
+      else { notify.error("Guruh topilmadi"); navigate('/app/groups'); return; }
       setStudents(studentsRes.status === 'fulfilled' ? unwrapList(studentsRes.value) : []);
       setSummary(summaryRes.status === 'fulfilled' ? unwrap(summaryRes.value) : null);
       setPayments(paymentsRes.status === 'fulfilled' ? unwrapList(paymentsRes.value) : []);
-    } catch { toast.error("Xatolik"); }
+    } catch { notify.error("Xatolik"); }
     setLoading(false);
   };
 
@@ -312,7 +312,7 @@ export default function GroupDetail() {
         setAutoSaveStatus(prev => ({ ...prev, [day]: 'saved' }));
         setTimeout(() => setAutoSaveStatus(prev => { const n = { ...prev }; if (n[day] === 'saved') delete n[day]; return n; }), 2000);
       }
-    } catch (e) { toast.error(e.response?.data?.error?.message || "Xatolik"); }
+    } catch (e) { notify.error(e); }
     setSaving(false);
   };
 
@@ -354,23 +354,23 @@ export default function GroupDetail() {
       const res = await studentsService.getAll({ page_size: 500, status: 'active' });
       setAllStudents(unwrapList(res));
       setShowAddStudent(true);
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
   };
 
   const handleAddStudent = async () => {
     if (!addStudentId) return;
     try {
       await groupsService.addStudent(id, { student_id: addStudentId });
-      toast.success("Talaba qo'shildi");
+      notify.success("Talaba qo'shildi");
       setShowAddStudent(false); setAddStudentId('');
       fetchCore();
-    } catch (e) { toast.error(e.response?.data?.error?.message || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const removeStudent = async (studentId) => {
     if (!confirm("Talabani guruhdan chiqarishni tasdiqlaysizmi?")) return;
-    try { await groupsService.removeStudent(id, studentId); toast.success("Talaba chiqarildi"); fetchCore(); }
-    catch { toast.error('Xato'); }
+    try { await groupsService.removeStudent(id, studentId); notify.success("Talaba chiqarildi"); fetchCore(); }
+    catch { notify.error('Xato'); }
   };
 
   const openTransfer = async (gs) => {
@@ -384,12 +384,12 @@ export default function GroupDetail() {
         const res = await groupsService.getAll({ page_size: 200 });
         const list = res.data?.results || res.data?.data || res.data || [];
         setAllGroups(Array.isArray(list) ? list : []);
-      } catch { toast.error("Guruhlar ro'yxatini yuklab bo'lmadi"); }
+      } catch { notify.error("Guruhlar ro'yxatini yuklab bo'lmadi"); }
     }
   };
 
   const submitTransfer = async () => {
-    if (!transferTargetId) { toast.error('Guruh tanlang'); return; }
+    if (!transferTargetId) { notify.error('Guruh tanlang'); return; }
     setTransferLoading(true);
     try {
       await groupsService.transferStudent(id, {
@@ -397,12 +397,12 @@ export default function GroupDetail() {
         target_group_id: Number(transferTargetId),
         reason: transferReason || undefined,
       });
-      toast.success("O'quvchi ko'chirildi");
+      notify.success("O'quvchi ko'chirildi");
       setTransferOpen(false);
       setTransferStudent(null);
       fetchCore();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || 'Ko\'chirishda xato');
+      notify.error(e);
     } finally {
       setTransferLoading(false);
     }
@@ -434,12 +434,12 @@ export default function GroupDetail() {
       const payload = { start_date: freezeForm.start_date, reason: freezeForm.reason.trim() };
       if (freezeForm.end_date) payload.end_date = freezeForm.end_date;
       await studentsService.freeze(freezeTarget.id, payload);
-      toast.success(`${freezeTarget.name} muzlatildi`);
+      notify.success(`${freezeTarget.name} muzlatildi`);
       setFreezeOpen(false);
       setFreezeTarget(null);
       fetchCore();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || 'Xato');
+      notify.error(e);
     } finally {
       setFreezeLoading(false);
     }
@@ -451,10 +451,10 @@ export default function GroupDetail() {
     if (!confirm(`${name} ni muzlatishdan chiqarasizmi?`)) return;
     try {
       await studentsService.unfreeze(sid);
-      toast.success(`${name} faollashtirildi`);
+      notify.success(`${name} faollashtirildi`);
       fetchCore();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || 'Xato');
+      notify.error(e);
     }
   };
 
@@ -489,16 +489,16 @@ export default function GroupDetail() {
       const payload = cleanPayload({ ...formData, group: id });
       if (editExam) await examsService.update(editExam.id, payload);
       else await examsService.create(payload);
-      toast.success(editExam ? "Imtihon yangilandi" : "Imtihon yaratildi");
+      notify.success(editExam ? "Imtihon yangilandi" : "Imtihon yaratildi");
       setShowExamForm(false); setEditExam(null);
       fetchExams();
-    } catch (e) { toast.error(e.response?.data?.error?.message || e.response?.data?.detail || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const deleteExam = async (examId) => {
     if (!confirm("Imtihonni o'chirishni tasdiqlaysizmi?")) return;
-    try { await examsService.delete(examId); toast.success("O'chirildi"); fetchExams(); }
-    catch { toast.error('Xato'); }
+    try { await examsService.delete(examId); notify.success("O'chirildi"); fetchExams(); }
+    catch { notify.error('Xato'); }
   };
 
   const loadExamResults = async (examId) => {
@@ -507,7 +507,7 @@ export default function GroupDetail() {
       // Backend: {data: {results: [...], exam: ..., statistics: ...}}
       const results = res.data?.data?.results || res.data?.results || res.data?.data || [];
       setExamResults({ examId, data: Array.isArray(results) ? results : [] });
-    } catch { toast.error('Natijalar yuklanmadi'); }
+    } catch { notify.error('Natijalar yuklanmadi'); }
   };
 
   const openBulkGrade = async (exam) => {
@@ -531,12 +531,12 @@ export default function GroupDetail() {
       const results = Object.entries(gradeInputs)
         .filter(([, v]) => v.score !== '' && v.score !== null)
         .map(([studentId, v]) => ({ student_id: studentId, score: Number(v.score), status: v.status || 'graded' }));
-      if (results.length === 0) { toast.warning("Hech qanday ball kiritilmagan"); setSaving(false); return; }
+      if (results.length === 0) { notify.warning("Hech qanday ball kiritilmagan"); setSaving(false); return; }
       await examsService.bulkGrade(bulkGradeExam.id, { results });
-      toast.success(`${results.length} ta natija saqlandi`);
+      notify.success(`${results.length} ta natija saqlandi`);
       setBulkGradeExam(null); setGradeInputs({});
       fetchExams();
-    } catch (e) { toast.error(e.response?.data?.error?.message || 'Xato'); }
+    } catch (e) { notify.error(e); }
     setSaving(false);
   };
 
@@ -546,16 +546,16 @@ export default function GroupDetail() {
       const payload = cleanPayload({ ...formData, group: id });
       if (editHw) await homeworksService.update(editHw.id, payload);
       else await homeworksService.create(payload);
-      toast.success(editHw ? "Vazifa yangilandi" : "Vazifa yaratildi");
+      notify.success(editHw ? "Vazifa yangilandi" : "Vazifa yaratildi");
       setShowHwForm(false); setEditHw(null);
       fetchHomeworks();
-    } catch (e) { toast.error(e.response?.data?.error?.message || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const deleteHw = async (hwId) => {
     if (!confirm("Vazifani o'chirishni tasdiqlaysizmi?")) return;
-    try { await homeworksService.delete(hwId); toast.success("O'chirildi"); fetchHomeworks(); }
-    catch { toast.error('Xato'); }
+    try { await homeworksService.delete(hwId); notify.success("O'chirildi"); fetchHomeworks(); }
+    catch { notify.error('Xato'); }
   };
 
   const loadHwSubmissions = async (hwId) => {
@@ -564,15 +564,15 @@ export default function GroupDetail() {
       // Backend: {data: {submissions: [...], homework: ..., statistics: ...}}
       const subs = res.data?.data?.submissions || res.data?.results || res.data?.data || [];
       setHwSubmissions({ hwId, data: Array.isArray(subs) ? subs : [] });
-    } catch { toast.error('Topshiriqlar yuklanmadi'); }
+    } catch { notify.error('Topshiriqlar yuklanmadi'); }
   };
 
   const gradeSubmission = async (submissionId, score, feedback) => {
     try {
       await homeworkSubmissionsService.grade(submissionId, { score, feedback, status: 'graded' });
-      toast.success('Baholandi');
+      notify.success('Baholandi');
       if (hwSubmissions) loadHwSubmissions(hwSubmissions.hwId);
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
   };
 
   // ─── Lesson Plan helpers ───
@@ -581,16 +581,16 @@ export default function GroupDetail() {
       const payload = cleanPayload({ ...formData, group: id });
       if (editLp) await lessonPlansService.update(editLp.id, payload);
       else await lessonPlansService.create(payload);
-      toast.success(editLp ? "Dars rejasi yangilandi" : "Dars rejasi yaratildi");
+      notify.success(editLp ? "Dars rejasi yangilandi" : "Dars rejasi yaratildi");
       setShowLpForm(false); setEditLp(null);
       fetchLessonPlans();
-    } catch (e) { toast.error(e.response?.data?.error?.message || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const deleteLp = async (lpId) => {
     if (!confirm("Dars rejasini o'chirishni tasdiqlaysizmi?")) return;
-    try { await lessonPlansService.delete(lpId); toast.success("O'chirildi"); fetchLessonPlans(); }
-    catch { toast.error('Xato'); }
+    try { await lessonPlansService.delete(lpId); notify.success("O'chirildi"); fetchLessonPlans(); }
+    catch { notify.error('Xato'); }
   };
 
   // ─── Derived ───
@@ -1241,9 +1241,9 @@ export default function GroupDetail() {
                               <button onClick={async () => {
                                 try {
                                   await lessonPlansService.update(lp.id, { status: lp.status === 'draft' ? 'ready' : 'completed' });
-                                  toast.success(lp.status === 'draft' ? 'Tayyor deb belgilandi' : 'Tugadi deb belgilandi');
+                                  notify.success(lp.status === 'draft' ? 'Tayyor deb belgilandi' : 'Tugadi deb belgilandi');
                                   fetchLessonPlans();
-                                } catch { toast.error('Xato'); }
+                                } catch { notify.error('Xato'); }
                               }} className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20" title={lp.status === 'draft' ? 'Tayyor' : 'Tugadi'}>
                                 <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5" style={{ color: lp.status === 'draft' ? '#3B82F6' : '#22C55E' }} />
                               </button>

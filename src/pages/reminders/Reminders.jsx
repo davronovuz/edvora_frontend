@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faTimes, faClock, faExclamationTriangle, faCalendarAlt,
@@ -79,35 +79,35 @@ export default function Reminders() {
 
       if (editId) {
         await api.patch(`/notifications/${editId}/`, payload);
-        toast.success("Eslatma yangilandi");
+        notify.success("Eslatma yangilandi");
       } else {
         await api.post('/notifications/', payload);
-        toast.success("Eslatma qo'shildi");
+        notify.success("Eslatma qo'shildi");
       }
       setShowForm(false);
       setEditId(null);
       setForm({ title: '', description: '', due_date: '', priority: 'medium', related_student: '', related_type: 'payment' });
       fetchReminders();
     } catch (e) {
-      toast.error(e.response?.data?.error?.message || "Xato");
+      notify.error(e);
     }
   };
 
   const markDone = async (id) => {
     try {
       await api.patch(`/notifications/${id}/`, { is_read: true });
-      toast.success("Bajarildi");
+      notify.success("Bajarildi");
       fetchReminders();
-    } catch { toast.error("Xato"); }
+    } catch { notify.error("Xato"); }
   };
 
   const deleteReminder = async (id) => {
     if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
     try {
       await api.delete(`/notifications/${id}/`);
-      toast.success("O'chirildi");
+      notify.success("O'chirildi");
       fetchReminders();
-    } catch { toast.error("Xato"); }
+    } catch { notify.error("Xato"); }
   };
 
   const priorityColors = {

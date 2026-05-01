@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faFileInvoice, faPlus, faSearch, faTimes, faEdit, faTrash, faEye,
@@ -144,7 +144,7 @@ function InvoicesTab() {
       const res = await billingInvoicesService.getAll(params);
       setInvoices(res.data.data || res.data.results || []);
       setTotalPages(res.data.meta?.total_pages || Math.ceil((res.data.meta?.total || 0) / 20) || 1);
-    } catch { toast.error('Invoice yuklashda xato'); }
+    } catch { notify.error('Invoice yuklashda xato'); }
     setLoading(false);
   };
 
@@ -162,10 +162,10 @@ function InvoicesTab() {
     if (!confirm('Invoice bekor qilinsinmi?')) return;
     try {
       await billingInvoicesService.cancel(id);
-      toast.success('Invoice bekor qilindi');
+      notify.success('Invoice bekor qilindi');
       fetchInvoices();
       fetchSummary();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const fetchGroups = async (q = '') => {
@@ -201,25 +201,25 @@ function InvoicesTab() {
   const handleGenerate = async () => {
     try {
       if (genMode === 'group') {
-        if (!genGroupId) { toast.error('Guruhni tanlang'); return; }
+        if (!genGroupId) { notify.error('Guruhni tanlang'); return; }
         await billingInvoicesService.generateGroup({ group_id: genGroupId, year: genForm.year, month: genForm.month });
-        toast.success('Guruh uchun invoicelar yaratildi');
+        notify.success('Guruh uchun invoicelar yaratildi');
       } else {
-        if (!genForm.group_student_id) { toast.error("O'quvchini tanlang"); return; }
+        if (!genForm.group_student_id) { notify.error("O'quvchini tanlang"); return; }
         await billingInvoicesService.generate(genForm);
-        toast.success('Invoice yaratildi');
+        notify.success('Invoice yaratildi');
       }
       setGenerateModal(false);
       fetchInvoices();
       fetchSummary();
-    } catch (e) { toast.error(e.response?.data?.detail || e.response?.data?.error || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const viewDetail = async (id) => {
     try {
       const res = await billingInvoicesService.getById(id);
       setDetail(res.data);
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
   };
 
   return (
@@ -555,7 +555,7 @@ function ProfilesTab() {
     try {
       const res = await billingProfilesService.getAll();
       setProfiles(res.data.data || res.data.results || []);
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
     setLoading(false);
   };
 
@@ -589,23 +589,23 @@ function ProfilesTab() {
     try {
       if (editing) {
         await billingProfilesService.update(editing.id, form);
-        toast.success('Yangilandi');
+        notify.success('Yangilandi');
       } else {
         await billingProfilesService.create(form);
-        toast.success('Yaratildi');
+        notify.success('Yaratildi');
       }
       setModal(false);
       fetchProfiles();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const handleDelete = async (id) => {
     if (!confirm("O'chirilsinmi?")) return;
     try {
       await billingProfilesService.delete(id);
-      toast.success("O'chirildi");
+      notify.success("O'chirildi");
       fetchProfiles();
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
   };
 
   const F = (key, val) => setForm(p => ({ ...p, [key]: val }));
@@ -741,7 +741,7 @@ function LeavesTab() {
       const res = await billingLeavesService.getAll({ page });
       setLeaves(res.data.data || res.data.results || []);
       setTotalPages(res.data.meta?.total_pages || 1);
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
     setLoading(false);
   };
 
@@ -750,17 +750,17 @@ function LeavesTab() {
   const handleApprove = async (id) => {
     try {
       await billingLeavesService.approve(id);
-      toast.success('Tasdiqlandi');
+      notify.success('Tasdiqlandi');
       fetchLeaves();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const handleReject = async (id) => {
     try {
       await billingLeavesService.reject(id);
-      toast.success('Rad etildi');
+      notify.success('Rad etildi');
       fetchLeaves();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   return (
@@ -826,7 +826,7 @@ function DiscountsTab() {
     try {
       const res = await billingDiscountsService.getAll();
       setDiscounts(res.data.data || res.data.results || []);
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
     setLoading(false);
   };
 
@@ -835,19 +835,19 @@ function DiscountsTab() {
   const handleSave = async () => {
     try {
       await billingDiscountsService.create(form);
-      toast.success('Chegirma yaratildi');
+      notify.success('Chegirma yaratildi');
       setModal(false);
       fetchDiscounts();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Xato'); }
+    } catch (e) { notify.error(e); }
   };
 
   const handleDelete = async (id) => {
     if (!confirm("O'chirilsinmi?")) return;
     try {
       await billingDiscountsService.delete(id);
-      toast.success("O'chirildi");
+      notify.success("O'chirildi");
       fetchDiscounts();
-    } catch { toast.error('Xato'); }
+    } catch { notify.error('Xato'); }
   };
 
   const F = (key, val) => setForm(p => ({ ...p, [key]: val }));

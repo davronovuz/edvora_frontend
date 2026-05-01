@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faSearch, faEye, faEdit, faTrash, faPhone, faEnvelope,
@@ -423,7 +423,7 @@ export default function Students() {
       })
       .catch(() => {
         if (cancelled) return;
-        toast.error("Progress ma'lumotlarini olishda xato");
+        notify.error("Progress ma'lumotlarini olishda xato");
       })
       .finally(() => {
         if (!cancelled) setProgressLoading(false);
@@ -461,7 +461,7 @@ export default function Students() {
       const res = await studentsService.getAll(params);
       const data = res.data?.data || res.data?.results || res.data || [];
       if (!Array.isArray(data) || data.length === 0) {
-        toast.error("Eksport uchun ma'lumot topilmadi");
+        notify.error("Eksport uchun ma'lumot topilmadi");
         return;
       }
 
@@ -484,9 +484,9 @@ export default function Students() {
       a.download = `oqivchilar_${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('Eksport tayyor!');
+      notify.success('Eksport tayyor!');
     } catch {
-      toast.error('Eksport xatolik');
+      notify.error('Eksport xatolik');
     }
   };
 
@@ -572,10 +572,10 @@ export default function Students() {
     try {
       if (formMode === 'create') {
         await studentsService.create(data);
-        toast.success("O'quvchi muvaffaqiyatli qo'shildi!");
+        notify.success("O'quvchi muvaffaqiyatli qo'shildi!");
       } else {
         await studentsService.update(selectedStudent.id, data);
-        toast.success("O'quvchi yangilandi!");
+        notify.success("O'quvchi yangilandi!");
       }
       setIsFormOpen(false);
       fetchStudents();
@@ -598,7 +598,7 @@ export default function Students() {
         setErrors({ phone: Array.isArray(errData.phone) ? errData.phone[0] : errData.phone });
         return;
       }
-      toast.error(msg);
+      notify.error(msg);
     } finally {
       setFormLoading(false);
     }
@@ -608,12 +608,12 @@ export default function Students() {
     setDeleteLoading(true);
     try {
       await studentsService.delete(selectedStudent.id);
-      toast.success("O'quvchi o'chirildi!");
+      notify.success("O'quvchi o'chirildi!");
       setIsDeleteOpen(false);
       fetchStudents();
       fetchStats();
     } catch (err) {
-      toast.error(err.response?.data?.error?.message || "Xatolik yuz berdi");
+      notify.error(err);
     } finally {
       setDeleteLoading(false);
     }
@@ -653,13 +653,13 @@ export default function Students() {
       };
       if (freezeForm.end_date) payload.end_date = freezeForm.end_date;
       await studentsService.freeze(freezeStudent.id, payload);
-      toast.success(`${freezeStudent.first_name} muzlatildi`);
+      notify.success(`${freezeStudent.first_name} muzlatildi`);
       setIsFreezeOpen(false);
       setFreezeStudent(null);
       fetchStudents();
       fetchStats();
     } catch (err) {
-      toast.error(err.response?.data?.error?.message || "Xatolik yuz berdi");
+      notify.error(err);
     } finally {
       setFreezeLoading(false);
     }
@@ -669,11 +669,11 @@ export default function Students() {
     if (!window.confirm(`${student.first_name} ${student.last_name} ni muzlatishdan chiqarasizmi?`)) return;
     try {
       await studentsService.unfreeze(student.id);
-      toast.success(`${student.first_name} faollashtirildi`);
+      notify.success(`${student.first_name} faollashtirildi`);
       fetchStudents();
       fetchStats();
     } catch (err) {
-      toast.error(err.response?.data?.error?.message || "Xatolik yuz berdi");
+      notify.error(err);
     }
   };
 

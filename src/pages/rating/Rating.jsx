@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faStar, faSearch, faMedal, faTrophy, faAward } from '@fortawesome/free-solid-svg-icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -87,7 +87,7 @@ export default function Rating() {
       data.sort((a, b) => (b.score || 0) - (a.score || 0));
       setStudents(data);
     } catch {
-      toast.error("Ma'lumotlarni yuklashda xato");
+      notify.error("Ma'lumotlarni yuklashda xato");
     }
     setLoading(false);
   };

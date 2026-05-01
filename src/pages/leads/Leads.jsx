@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faSearch, faEdit, faTrash, faTimes, faPhone, faEnvelope,
@@ -77,7 +77,7 @@ export default function Leads() {
       if (filterPriority) params.priority = filterPriority;
       const res = await leadsService.getAll(params);
       setLeads(res.data?.data || res.data?.results || []);
-    } catch { toast.error("Leadlarni yuklashda xato"); }
+    } catch { notify.error("Leadlarni yuklashda xato"); }
     setLoading(false);
   };
 
@@ -98,21 +98,21 @@ export default function Leads() {
       const payload = { ...form };
       if (!payload.email) delete payload.email;
       if (!payload.interested_course) delete payload.interested_course;
-      if (editId) { await leadsService.update(editId, payload); toast.success("Lead yangilandi"); }
-      else { await leadsService.create(payload); toast.success("Lead qo'shildi"); }
+      if (editId) { await leadsService.update(editId, payload); notify.success("Lead yangilandi"); }
+      else { await leadsService.create(payload); notify.success("Lead qo'shildi"); }
       setShowForm(false); setEditId(null); setForm(emptyForm); fetchLeads();
-    } catch (e) { toast.error(e.response?.data?.error?.message || "Xato"); }
+    } catch (e) { notify.error(e); }
   };
 
   const handleDelete = async (id) => {
     if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
-    try { await leadsService.delete(id); toast.success("O'chirildi"); fetchLeads(); }
-    catch { toast.error("Xato"); }
+    try { await leadsService.delete(id); notify.success("O'chirildi"); fetchLeads(); }
+    catch { notify.error("Xato"); }
   };
 
   const handleStatusChange = async (id, status) => {
-    try { await leadsService.update(id, { status }); toast.success("Holat yangilandi"); fetchLeads(); }
-    catch { toast.error("Xato"); }
+    try { await leadsService.update(id, { status }); notify.success("Holat yangilandi"); fetchLeads(); }
+    catch { notify.error("Xato"); }
   };
 
   const openDetails = async (lead) => {
@@ -126,12 +126,12 @@ export default function Leads() {
   const handleAddActivity = async () => {
     try {
       await leadActivitiesService.create({ ...activityForm, lead: viewLead.id });
-      toast.success("Faoliyat qo'shildi");
+      notify.success("Faoliyat qo'shildi");
       setShowActivity(false);
       setActivityForm({ activity_type: 'call', description: '' });
       const res = await leadActivitiesService.getAll({ lead: viewLead.id });
       setActivities(res.data?.data || res.data?.results || []);
-    } catch { toast.error("Xato"); }
+    } catch { notify.error("Xato"); }
   };
 
   // Pipeline view grouped by status

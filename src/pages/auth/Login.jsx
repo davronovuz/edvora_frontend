@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import api from '@/services/api';
 import { motion } from 'framer-motion';
 import {
@@ -121,7 +121,7 @@ export default function Login() {
 
     if (!validatePhone()) return;
     if (password.length < 4) {
-      toast.error(t('auth.passwordTooShort') || 'Parol juda qisqa');
+      notify.error(t('auth.passwordTooShort') || 'Parol juda qisqa');
       return;
     }
 
@@ -129,7 +129,7 @@ export default function Login() {
     const success = await login(serverPhone, password);
 
     if (success) {
-      toast.success(t('auth.loginSuccess') || "Tizimga muvaffaqiyatli kirdingiz!");
+      notify.success(t('auth.loginSuccess') || "Tizimga muvaffaqiyatli kirdingiz!");
       navigate('/app', { replace: true });
     }
     // Xato bo'lsa — error state'da ko'rsatiladi (authStore.error)

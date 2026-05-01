@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faSearch, faEdit, faTrash, faTimes, faFileAlt, faClipboardList,
@@ -93,7 +93,7 @@ export default function Exams() {
         const res = await lessonPlansService.getAll(params);
         setLessonPlans(res.data?.data || res.data?.results || []);
       }
-    } catch { toast.error("Xato"); }
+    } catch { notify.error("Xato"); }
     setLoading(false);
   };
 
@@ -102,46 +102,46 @@ export default function Exams() {
   // Exam CRUD
   const handleSaveExam = async () => {
     try {
-      if (editId) { await examsService.update(editId, form); toast.success("Imtihon yangilandi"); }
-      else { await examsService.create(form); toast.success("Imtihon yaratildi"); }
+      if (editId) { await examsService.update(editId, form); notify.success("Imtihon yangilandi"); }
+      else { await examsService.create(form); notify.success("Imtihon yaratildi"); }
       setShowForm(false); setEditId(null); setForm(emptyExam); fetchData();
-    } catch (e) { toast.error(e.response?.data?.error?.message || "Xato"); }
+    } catch (e) { notify.error(e); }
   };
 
   const handleDeleteExam = async (id) => {
     if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
-    try { await examsService.delete(id); toast.success("O'chirildi"); fetchData(); }
-    catch { toast.error("Xato"); }
+    try { await examsService.delete(id); notify.success("O'chirildi"); fetchData(); }
+    catch { notify.error("Xato"); }
   };
 
   // Homework CRUD
   const handleSaveHomework = async () => {
     try {
-      if (hwEditId) { await homeworksService.update(hwEditId, hwForm); toast.success("Uy vazifasi yangilandi"); }
-      else { await homeworksService.create(hwForm); toast.success("Uy vazifasi yaratildi"); }
+      if (hwEditId) { await homeworksService.update(hwEditId, hwForm); notify.success("Uy vazifasi yangilandi"); }
+      else { await homeworksService.create(hwForm); notify.success("Uy vazifasi yaratildi"); }
       setShowHwForm(false); setHwEditId(null); setHwForm(emptyHomework); fetchData();
-    } catch (e) { toast.error(e.response?.data?.error?.message || "Xato"); }
+    } catch (e) { notify.error(e); }
   };
 
   const handleDeleteHomework = async (id) => {
     if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
-    try { await homeworksService.delete(id); toast.success("O'chirildi"); fetchData(); }
-    catch { toast.error("Xato"); }
+    try { await homeworksService.delete(id); notify.success("O'chirildi"); fetchData(); }
+    catch { notify.error("Xato"); }
   };
 
   // Lesson Plan CRUD
   const handleSaveLessonPlan = async () => {
     try {
-      if (lpEditId) { await lessonPlansService.update(lpEditId, lpForm); toast.success("Dars rejasi yangilandi"); }
-      else { await lessonPlansService.create(lpForm); toast.success("Dars rejasi yaratildi"); }
+      if (lpEditId) { await lessonPlansService.update(lpEditId, lpForm); notify.success("Dars rejasi yangilandi"); }
+      else { await lessonPlansService.create(lpForm); notify.success("Dars rejasi yaratildi"); }
       setShowLpForm(false); setLpEditId(null); setLpForm(emptyLessonPlan); fetchData();
-    } catch (e) { toast.error(e.response?.data?.error?.message || "Xato"); }
+    } catch (e) { notify.error(e); }
   };
 
   const handleDeleteLessonPlan = async (id) => {
     if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
-    try { await lessonPlansService.delete(id); toast.success("O'chirildi"); fetchData(); }
-    catch { toast.error("Xato"); }
+    try { await lessonPlansService.delete(id); notify.success("O'chirildi"); fetchData(); }
+    catch { notify.error("Xato"); }
   };
 
   // Results & Grading
@@ -166,9 +166,9 @@ export default function Exams() {
     try {
       const grades = bulkGrades.filter(g => g.score !== '' && g.score !== null);
       await examsService.bulkGrade(showBulkGrade.id, { results: grades });
-      toast.success("Natijalar saqlandi");
+      notify.success("Natijalar saqlandi");
       setShowBulkGrade(null);
-    } catch (e) { toast.error(e.response?.data?.error?.message || "Xato"); }
+    } catch (e) { notify.error(e); }
   };
 
   const viewSubmissions = async (hw) => {
@@ -182,9 +182,9 @@ export default function Exams() {
   const gradeSubmission = async (id, score, feedback) => {
     try {
       await homeworkSubmissionsService.grade(id, { score, feedback });
-      toast.success("Baholandi");
+      notify.success("Baholandi");
       viewSubmissions(showSubmissions);
-    } catch { toast.error("Xato"); }
+    } catch { notify.error("Xato"); }
   };
 
   const tabs = [

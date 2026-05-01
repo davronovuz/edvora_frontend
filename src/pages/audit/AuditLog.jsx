@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faHistory, faSearch, faPlus, faEdit, faTrash, faEye, faFilter,
@@ -33,7 +33,7 @@ export default function AuditLog() {
       const res = await auditService.getAll(params);
       setLogs(res.data?.data || res.data?.results || []);
       setTotalPages(res.data?.meta?.total_pages || Math.ceil((res.data?.count || 0) / 20) || 1);
-    } catch { toast.error("Xato"); }
+    } catch { notify.error("Xato"); }
     setLoading(false);
   };
 

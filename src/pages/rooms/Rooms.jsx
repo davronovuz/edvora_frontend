@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faSearch, faEdit, faTrash, faTimes, faDoorOpen, faUsers,
@@ -48,7 +48,7 @@ export default function Rooms() {
       if (filterStatus) params.status = filterStatus;
       const res = await roomsService.getAll(params);
       setRooms(res.data?.data || res.data?.results || []);
-    } catch { toast.error("Xonalarni yuklashda xato"); }
+    } catch { notify.error("Xonalarni yuklashda xato"); }
     setLoading(false);
   };
 
@@ -56,16 +56,16 @@ export default function Rooms() {
 
   const handleSave = async () => {
     try {
-      if (editId) { await roomsService.update(editId, form); toast.success("Xona yangilandi"); }
-      else { await roomsService.create(form); toast.success("Xona yaratildi"); }
+      if (editId) { await roomsService.update(editId, form); notify.success("Xona yangilandi"); }
+      else { await roomsService.create(form); notify.success("Xona yaratildi"); }
       setShowForm(false); setEditId(null); setForm(emptyForm); fetchRooms();
-    } catch (e) { toast.error(e.response?.data?.error?.message || "Xato"); }
+    } catch (e) { notify.error(e); }
   };
 
   const handleDelete = async (id) => {
     if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
-    try { await roomsService.delete(id); toast.success("O'chirildi"); fetchRooms(); }
-    catch { toast.error("Xato"); }
+    try { await roomsService.delete(id); notify.success("O'chirildi"); fetchRooms(); }
+    catch { notify.error("Xato"); }
   };
 
   const viewSchedule = async (room) => {
