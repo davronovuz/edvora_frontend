@@ -8,10 +8,15 @@ import {
   faArrowRight, faPhoneAlt, faSms, faHandshake, faClipboard, faStar
 } from '@fortawesome/free-solid-svg-icons';
 import { faTelegram, faInstagram } from '@fortawesome/free-brands-svg-icons';
-import { leadsService, leadActivitiesService } from '@/services/leads';
 import api from '@/services/api';
 import Modal from '@/components/ui/Modal';
 import { useConfirm } from '@/hooks/useConfirm';
+import { useUrlState } from '@/hooks/useUrlState';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import {
+  useLeadsList, useCreateLead, useUpdateLead, useDeleteLead,
+  useLeadActivities, useCreateLeadActivity,
+} from '@/hooks/queries/useLeads';
 
 const statusConfig = {
   new: { label: 'Yangi', color: '#3B82F6', bg: 'rgba(59,130,246,0.15)' },
@@ -49,40 +54,59 @@ const activityTypes = [
   { value: 'note', label: 'Eslatma', icon: faClipboard },
 ];
 
-const emptyForm = { first_name: '', last_name: '', phone: '', email: '', interested_course: '', source: 'phone', priority: 'medium', status: 'new', notes: '' };
+const emptyForm = {
+  first_name: '', last_name: '', phone: '', email: '',
+  interested_course: '', source: 'phone', priority: 'medium', status: 'new', notes: '',
+};
+
+const FILTER_DEFAULTS = { search: '', status: '', priority: '' };
 
 export default function Leads() {
   const { confirm, ConfirmDialog } = useConfirm();
   const { t } = useTranslation();
-  const [leads, setLeads] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterPriority, setFilterPriority] = useState('');
+
+  // ── URL state ──
+  const [filters, setFilters] = useUrlState(FILTER_DEFAULTS);
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
+
+  useEffect(() => {
+    setFilters({ search: debouncedSearch });
+  }, [debouncedSearch]);
+
+  // ── Data queries ──
+  const queryParams = {
+    ...(filters.search && { search: filters.search }),
+    ...(filters.status && { status: filters.status }),
+    ...(filters.priority && { priority: filters.priority }),
+  };
+  const { data, isLoading: loading } = useLeadsList(queryParams);
+  const leads = data?.items ?? [];
+
+  // Activities — only fetch when a lead detail is open
+  const [viewLead, setViewLead] = useState(null);
+  const { data: activities = [] } = useLeadActivities(
+    { lead: viewLead?.id ?? 0 },
+    { enabled: !!viewLead?.id },
+  );
+
+  // ── Mutations ──
+  const createLead = useCreateLead();
+  const updateLead = useUpdateLead();
+  const deleteLead = useDeleteLead();
+  const createActivity = useCreateLeadActivity();
+
+  // UI state
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [courses, setCourses] = useState([]);
   const [users, setUsers] = useState([]);
-  const [viewLead, setViewLead] = useState(null);
-  const [activities, setActivities] = useState([]);
   const [showActivity, setShowActivity] = useState(false);
   const [activityForm, setActivityForm] = useState({ activity_type: 'call', description: '' });
-  const [viewMode, setViewMode] = useState('table'); // table or pipeline
+  const [viewMode, setViewMode] = useState('table');
 
-  const fetchLeads = async () => {
-    setLoading(true);
-    try {
-      const params = {};
-      if (search) params.search = search;
-      if (filterStatus) params.status = filterStatus;
-      if (filterPriority) params.priority = filterPriority;
-      const res = await leadsService.getAll(params);
-      setLeads(res.data?.data || res.data?.results || []);
-    } catch { notify.error("Leadlarni yuklashda xato"); }
-    setLoading(false);
-  };
-
+  // Load courses + users on mount
   useEffect(() => {
     (async () => {
       try {
@@ -93,51 +117,43 @@ export default function Leads() {
     })();
   }, []);
 
-  useEffect(() => { fetchLeads(); }, [search, filterStatus, filterPriority]);
-
   const handleSave = async () => {
+    const payload = { ...form };
+    if (!payload.email) delete payload.email;
+    if (!payload.interested_course) delete payload.interested_course;
     try {
-      const payload = { ...form };
-      if (!payload.email) delete payload.email;
-      if (!payload.interested_course) delete payload.interested_course;
-      if (editId) { await leadsService.update(editId, payload); notify.success("Lead yangilandi"); }
-      else { await leadsService.create(payload); notify.success("Lead qo'shildi"); }
-      setShowForm(false); setEditId(null); setForm(emptyForm); fetchLeads();
-    } catch (e) { notify.error(e); }
+      if (editId) {
+        await updateLead.mutateAsync({ id: editId, data: payload });
+      } else {
+        await createLead.mutateAsync(payload);
+      }
+      setShowForm(false); setEditId(null); setForm(emptyForm);
+    } catch { /* hook handles notification */ }
   };
 
   const handleDelete = async (id) => {
-    const ok = await confirm({ title: "O'chirishni tasdiqlaysizmi?", variant: "danger", confirmText: "Ha, o'chirish" });
+    const ok = await confirm({ title: "O'chirishni tasdiqlaysizmi?", variant: 'danger', confirmText: "Ha, o'chirish" });
     if (!ok) return;
-    try { await leadsService.delete(id); notify.success("O'chirildi"); fetchLeads(); }
-    catch { notify.error("Xato"); }
+    deleteLead.mutate(id);
   };
 
   const handleStatusChange = async (id, status) => {
-    try { await leadsService.update(id, { status }); notify.success("Holat yangilandi"); fetchLeads(); }
-    catch { notify.error("Xato"); }
+    try {
+      await updateLead.mutateAsync({ id, data: { status } });
+      if (viewLead?.id === id) setViewLead((prev) => ({ ...prev, status }));
+    } catch { /* hook handles notification */ }
   };
 
-  const openDetails = async (lead) => {
-    setViewLead(lead);
-    try {
-      const res = await leadActivitiesService.getAll({ lead: lead.id });
-      setActivities(res.data?.data || res.data?.results || []);
-    } catch {}
-  };
+  const openDetails = (lead) => setViewLead(lead);
 
   const handleAddActivity = async () => {
     try {
-      await leadActivitiesService.create({ ...activityForm, lead: viewLead.id });
-      notify.success("Faoliyat qo'shildi");
+      await createActivity.mutateAsync({ ...activityForm, lead: viewLead.id });
       setShowActivity(false);
       setActivityForm({ activity_type: 'call', description: '' });
-      const res = await leadActivitiesService.getAll({ lead: viewLead.id });
-      setActivities(res.data?.data || res.data?.results || []);
-    } catch { notify.error("Xato"); }
+    } catch { /* hook handles notification */ }
   };
 
-  // Pipeline view grouped by status
   const pipelineStatuses = ['new', 'contacted', 'interested', 'trial', 'negotiation', 'converted', 'lost'];
 
   return (
@@ -149,10 +165,14 @@ export default function Leads() {
           <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Potensial o'quvchilarni boshqaring</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setViewMode(viewMode === 'table' ? 'pipeline' : 'table')} className="px-4 py-2.5 rounded-xl border font-medium text-sm" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+          <button onClick={() => setViewMode(viewMode === 'table' ? 'pipeline' : 'table')}
+            className="px-4 py-2.5 rounded-xl border font-medium text-sm"
+            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
             {viewMode === 'table' ? 'Pipeline' : 'Jadval'}
           </button>
-          <button onClick={() => { setForm(emptyForm); setEditId(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white font-medium" style={{ backgroundColor: 'var(--primary-600)' }}>
+          <button onClick={() => { setForm(emptyForm); setEditId(null); setShowForm(true); }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white font-medium"
+            style={{ backgroundColor: 'var(--primary-600)' }}>
             <FontAwesomeIcon icon={faPlus} /> Yangi lead
           </button>
         </div>
@@ -162,13 +182,20 @@ export default function Leads() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <FontAwesomeIcon icon={faSearch} className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Qidirish..." className="w-full h-11 pl-11 pr-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+          <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
+            placeholder="Qidirish..."
+            className="w-full h-11 pl-11 pr-4 rounded-xl border bg-transparent"
+            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
         </div>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+        <select value={filters.status} onChange={e => setFilters({ status: e.target.value })}
+          className="h-11 px-4 rounded-xl border bg-transparent"
+          style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
           <option value="">Barcha holatlar</option>
           {Object.entries(statusConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className="h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+        <select value={filters.priority} onChange={e => setFilters({ priority: e.target.value })}
+          className="h-11 px-4 rounded-xl border bg-transparent"
+          style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
           <option value="">Barcha muhimlik</option>
           {Object.entries(priorityConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
@@ -176,9 +203,11 @@ export default function Leads() {
 
       {/* Content */}
       {loading ? (
-        <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--primary-600)', borderTopColor: 'transparent' }} /></div>
+        <div className="flex items-center justify-center py-20">
+          <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
+            style={{ borderColor: 'var(--primary-600)', borderTopColor: 'transparent' }} />
+        </div>
       ) : viewMode === 'pipeline' ? (
-        /* Pipeline View */
         <div className="flex gap-4 overflow-x-auto pb-4">
           {pipelineStatuses.map(status => {
             const cfg = statusConfig[status];
@@ -192,7 +221,9 @@ export default function Leads() {
                 </div>
                 <div className="space-y-2">
                   {items.map(lead => (
-                    <div key={lead.id} onClick={() => openDetails(lead)} className="rounded-xl p-4 border cursor-pointer hover:shadow-md transition-all" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                    <div key={lead.id} onClick={() => openDetails(lead)}
+                      className="rounded-xl p-4 border cursor-pointer hover:shadow-md transition-all"
+                      style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{lead.first_name} {lead.last_name}</span>
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: priorityConfig[lead.priority]?.color }} />
@@ -208,32 +239,49 @@ export default function Leads() {
           })}
         </div>
       ) : (
-        /* Table View */
         <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
           <table className="w-full">
-            <thead><tr className="border-b" style={{ borderColor: 'var(--border-color)' }}>
-              {['Ism', 'Telefon', 'Kurs', 'Manba', 'Muhimlik', 'Holat', ''].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-medium uppercase" style={{ color: 'var(--text-muted)' }}>{h}</th>
-              ))}
-            </tr></thead>
+            <thead>
+              <tr className="border-b" style={{ borderColor: 'var(--border-color)' }}>
+                {['Ism', 'Telefon', 'Kurs', 'Manba', 'Muhimlik', 'Holat', ''].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-xs font-medium uppercase" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
               {leads.map(lead => (
-                <tr key={lead.id} className="border-b hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer" style={{ borderColor: 'var(--border-color)' }} onClick={() => openDetails(lead)}>
+                <tr key={lead.id} className="border-b hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                  style={{ borderColor: 'var(--border-color)' }} onClick={() => openDetails(lead)}>
                   <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{lead.first_name} {lead.last_name}</td>
                   <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.phone}</td>
                   <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.interested_course_name || '—'}</td>
                   <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-secondary)' }}>{sourceOptions.find(s => s.value === lead.source)?.label || lead.source}</td>
-                  <td className="px-4 py-3"><span style={{ color: priorityConfig[lead.priority]?.color, fontWeight: 600, fontSize: '13px' }}><FontAwesomeIcon icon={faFlag} className="mr-1" />{priorityConfig[lead.priority]?.label}</span></td>
-                  <td className="px-4 py-3"><span style={{ color: statusConfig[lead.status]?.color, backgroundColor: statusConfig[lead.status]?.bg, padding: '4px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: 500 }}>{statusConfig[lead.status]?.label}</span></td>
+                  <td className="px-4 py-3">
+                    <span style={{ color: priorityConfig[lead.priority]?.color, fontWeight: 600, fontSize: '13px' }}>
+                      <FontAwesomeIcon icon={faFlag} className="mr-1" />{priorityConfig[lead.priority]?.label}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span style={{ color: statusConfig[lead.status]?.color, backgroundColor: statusConfig[lead.status]?.bg, padding: '4px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: 500 }}>
+                      {statusConfig[lead.status]?.label}
+                    </span>
+                  </td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => { setForm({ first_name: lead.first_name, last_name: lead.last_name, phone: lead.phone, email: lead.email || '', interested_course: lead.interested_course || '', source: lead.source, priority: lead.priority, status: lead.status, notes: lead.notes || '' }); setEditId(lead.id); setShowForm(true); }} className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"><FontAwesomeIcon icon={faEdit} className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} /></button>
-                      <button onClick={() => handleDelete(lead.id)} className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"><FontAwesomeIcon icon={faTrash} className="w-4 h-4" style={{ color: '#EF4444' }} /></button>
+                      <button onClick={() => { setForm({ first_name: lead.first_name, last_name: lead.last_name, phone: lead.phone, email: lead.email || '', interested_course: lead.interested_course || '', source: lead.source, priority: lead.priority, status: lead.status, notes: lead.notes || '' }); setEditId(lead.id); setShowForm(true); }}
+                        className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5">
+                        <FontAwesomeIcon icon={faEdit} className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+                      </button>
+                      <button onClick={() => handleDelete(lead.id)} className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5">
+                        <FontAwesomeIcon icon={faTrash} className="w-4 h-4" style={{ color: '#EF4444' }} />
+                      </button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {leads.length === 0 && <tr><td colSpan={7} className="text-center py-12 text-sm" style={{ color: 'var(--text-muted)' }}>Leadlar topilmadi</td></tr>}
+              {leads.length === 0 && (
+                <tr><td colSpan={7} className="text-center py-12 text-sm" style={{ color: 'var(--text-muted)' }}>Leadlar topilmadi</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -245,26 +293,31 @@ export default function Leads() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Ism *</label>
-              <input value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+              <input value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })}
+                className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
             </div>
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Familiya *</label>
-              <input value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+              <input value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })}
+                className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Telefon *</label>
-              <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} placeholder="+998..." />
+              <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
+                className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} placeholder="+998..." />
             </div>
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Email</label>
-              <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+              <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
+                className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Qiziqtirayotgan kurs</label>
-            <select value={form.interested_course} onChange={e => setForm({ ...form, interested_course: e.target.value })} className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+            <select value={form.interested_course} onChange={e => setForm({ ...form, interested_course: e.target.value })}
+              className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
               <option value="">Tanlang</option>
               {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -272,30 +325,42 @@ export default function Leads() {
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Manba</label>
-              <select value={form.source} onChange={e => setForm({ ...form, source: e.target.value })} className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+              <select value={form.source} onChange={e => setForm({ ...form, source: e.target.value })}
+                className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
                 {sourceOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Muhimlik</label>
-              <select value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })} className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+              <select value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })}
+                className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
                 {Object.entries(priorityConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Holat</label>
-              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
+                className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
                 {Object.entries(statusConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Izoh</label>
-            <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} className="w-full px-4 py-3 rounded-xl border bg-transparent resize-none" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+            <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
+              rows={3} className="w-full px-4 py-3 rounded-xl border bg-transparent resize-none"
+              style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
           </div>
           <div className="flex gap-3 pt-2">
-            <button onClick={() => { setShowForm(false); setEditId(null); }} className="flex-1 h-11 rounded-xl border font-medium" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>Bekor</button>
-            <button onClick={handleSave} className="flex-1 h-11 rounded-xl text-white font-medium" style={{ backgroundColor: 'var(--primary-600)' }}>Saqlash</button>
+            <button onClick={() => { setShowForm(false); setEditId(null); }}
+              className="flex-1 h-11 rounded-xl border font-medium"
+              style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>Bekor</button>
+            <button onClick={handleSave}
+              disabled={createLead.isPending || updateLead.isPending}
+              className="flex-1 h-11 rounded-xl text-white font-medium disabled:opacity-50"
+              style={{ backgroundColor: 'var(--primary-600)' }}>
+              {createLead.isPending || updateLead.isPending ? '...' : 'Saqlash'}
+            </button>
           </div>
         </div>
       </Modal>
@@ -315,7 +380,11 @@ export default function Leads() {
               </div>
               <div>
                 <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Holat</div>
-                <div><span style={{ color: statusConfig[viewLead.status]?.color, backgroundColor: statusConfig[viewLead.status]?.bg, padding: '4px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: 500 }}>{statusConfig[viewLead.status]?.label}</span></div>
+                <div>
+                  <span style={{ color: statusConfig[viewLead.status]?.color, backgroundColor: statusConfig[viewLead.status]?.bg, padding: '4px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: 500 }}>
+                    {statusConfig[viewLead.status]?.label}
+                  </span>
+                </div>
               </div>
               <div>
                 <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Muhimlik</div>
@@ -323,12 +392,11 @@ export default function Leads() {
               </div>
             </div>
 
-            {/* Status Change Buttons */}
             <div>
               <div className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Holatni o'zgartirish</div>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(statusConfig).filter(([k]) => k !== viewLead.status).map(([k, v]) => (
-                  <button key={k} onClick={() => { handleStatusChange(viewLead.id, k); setViewLead({ ...viewLead, status: k }); }}
+                  <button key={k} onClick={() => handleStatusChange(viewLead.id, k)}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80"
                     style={{ color: v.color, backgroundColor: v.bg }}>
                     {v.label}
@@ -337,11 +405,12 @@ export default function Leads() {
               </div>
             </div>
 
-            {/* Activities */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Faoliyatlar</span>
-                <button onClick={() => setShowActivity(true)} className="text-xs px-3 py-1.5 rounded-lg font-medium" style={{ color: 'var(--primary-600)', backgroundColor: 'rgba(59,130,246,0.1)' }}>
+                <button onClick={() => setShowActivity(true)}
+                  className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                  style={{ color: 'var(--primary-600)', backgroundColor: 'rgba(59,130,246,0.1)' }}>
                   <FontAwesomeIcon icon={faPlus} className="mr-1" /> Qo'shish
                 </button>
               </div>
@@ -365,16 +434,26 @@ export default function Leads() {
               )}
             </div>
 
-            {/* Add Activity Form */}
             {showActivity && (
               <div className="border-t pt-4 space-y-3" style={{ borderColor: 'var(--border-color)' }}>
-                <select value={activityForm.activity_type} onChange={e => setActivityForm({ ...activityForm, activity_type: e.target.value })} className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+                <select value={activityForm.activity_type} onChange={e => setActivityForm({ ...activityForm, activity_type: e.target.value })}
+                  className="w-full h-11 px-4 rounded-xl border bg-transparent"
+                  style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
                   {activityTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
-                <textarea value={activityForm.description} onChange={e => setActivityForm({ ...activityForm, description: e.target.value })} rows={2} placeholder="Tavsif..." className="w-full px-4 py-3 rounded-xl border bg-transparent resize-none" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+                <textarea value={activityForm.description} onChange={e => setActivityForm({ ...activityForm, description: e.target.value })}
+                  rows={2} placeholder="Tavsif..."
+                  className="w-full px-4 py-3 rounded-xl border bg-transparent resize-none"
+                  style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
                 <div className="flex gap-2">
-                  <button onClick={() => setShowActivity(false)} className="px-4 py-2 rounded-xl border text-sm" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>Bekor</button>
-                  <button onClick={handleAddActivity} className="px-4 py-2 rounded-xl text-white text-sm font-medium" style={{ backgroundColor: 'var(--primary-600)' }}>Saqlash</button>
+                  <button onClick={() => setShowActivity(false)}
+                    className="px-4 py-2 rounded-xl border text-sm"
+                    style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>Bekor</button>
+                  <button onClick={handleAddActivity} disabled={createActivity.isPending}
+                    className="px-4 py-2 rounded-xl text-white text-sm font-medium disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--primary-600)' }}>
+                    {createActivity.isPending ? '...' : 'Saqlash'}
+                  </button>
                 </div>
               </div>
             )}

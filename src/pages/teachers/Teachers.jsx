@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -16,6 +17,9 @@ import { teachersService } from '@/services/teachers';
 import { useAuthStore } from '@/stores/authStore';
 import { formatMoney } from '@/utils/format';
 import Drawer from '@/components/ui/Drawer';
+import { useUrlState } from '@/hooks/useUrlState';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { teacherKeys, useTeachersList, useDeleteTeacher } from '@/hooks/queries/useTeachers';
 
 // ============================================
 // CONFIG
@@ -37,6 +41,8 @@ const salaryTypeOptions = [
   { value: 'hourly', label: 'Soatlik' },
   { value: 'percent', label: 'Foizli (guruhdan %)' },
 ];
+
+const FILTER_DEFAULTS = { search: '', status: '', sortField: '', sortDir: 'asc', page: 1 };
 
 // ============================================
 // REUSABLE COMPONENTS
@@ -182,21 +188,47 @@ const formatSalary = (type, amount, percent) => {
 export default function Teachers() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
+  const qc = useQueryClient();
 
-  const [teachers, setTeachers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // ── URL state ──
+  const [filters, setFilters] = useUrlState(FILTER_DEFAULTS);
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
 
-  // Server-side
-  const [search, setSearch] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [sortField, setSortField] = useState('');
-  const [sortDir, setSortDir] = useState('asc');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [meta, setMeta] = useState({ total: 0, total_pages: 1, per_page: 20 });
+  useEffect(() => {
+    setFilters({ search: debouncedSearch, page: 1 });
+  }, [debouncedSearch]);
 
-  // Stats (computed from meta or separate)
-  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, on_leave: 0 });
+  // ── Query params ──
+  const queryParams = {
+    page: filters.page,
+    per_page: 20,
+    ...(filters.search && { search: filters.search }),
+    ...(filters.status && { status: filters.status }),
+    ...(filters.sortField && { ordering: (filters.sortDir === 'desc' ? '-' : '') + filters.sortField }),
+  };
+
+  // ── Data queries ──
+  const { data, isLoading: loading } = useTeachersList(queryParams);
+  const teachers = data?.items ?? [];
+  const meta = data?.meta ?? { total: 0, total_pages: 1, per_page: 20 };
+
+  // Stats: 3 lightweight queries (per_page=1 → only meta.total needed)
+  const { data: allData } = useTeachersList({ per_page: 1 });
+  const { data: activeData } = useTeachersList({ per_page: 1, status: 'active' });
+  const { data: onLeaveData } = useTeachersList({ per_page: 1, status: 'on_leave' });
+  const totalCount = allData?.meta?.total ?? 0;
+  const activeCount = activeData?.meta?.total ?? 0;
+  const onLeaveCount = onLeaveData?.meta?.total ?? 0;
+  const stats = {
+    total: totalCount,
+    active: activeCount,
+    on_leave: onLeaveCount,
+    inactive: Math.max(0, totalCount - activeCount - onLeaveCount),
+  };
+
+  // ── Mutations ──
+  const deleteMutation = useDeleteTeacher();
 
   // UI states
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -207,7 +239,6 @@ export default function Teachers() {
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [formMode, setFormMode] = useState('create');
   const [formLoading, setFormLoading] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(false);
   const [actionDropdownId, setActionDropdownId] = useState(null);
   const actionRef = useRef(null);
 
@@ -233,86 +264,23 @@ export default function Teachers() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => { setSearch(searchInput); setCurrentPage(1); }, 400);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
-
-  // Fetch
-  useEffect(() => { fetchTeachers(); }, [currentPage, search, statusFilter, sortField, sortDir]);
-  useEffect(() => { fetchStats(); }, []);
-
-  const fetchTeachers = async () => {
-    setLoading(true);
-    try {
-      const params = { page: currentPage, per_page: 20 };
-      if (search) params.search = search;
-      if (statusFilter) params.status = statusFilter;
-      if (sortField) params.ordering = (sortDir === 'desc' ? '-' : '') + sortField;
-
-      const res = await teachersService.getAll(params);
-      const responseData = res.data;
-
-      if (responseData?.data && Array.isArray(responseData.data)) {
-        setTeachers(responseData.data);
-        if (responseData.meta) setMeta(responseData.meta);
-      } else if (Array.isArray(responseData?.results)) {
-        setTeachers(responseData.results);
-        setMeta({ total: responseData.count || 0, total_pages: Math.ceil((responseData.count || 0) / 20), per_page: 20 });
-      } else if (Array.isArray(responseData)) {
-        setTeachers(responseData);
-        setMeta({ total: responseData.length, total_pages: 1, per_page: 20 });
-      } else {
-        setTeachers([]);
-      }
-    } catch (err) {
-      notify.error(err);
-      setTeachers([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStats = async () => {
-    try {
-      // Har bir status uchun count olish (backend filterset_fields = ['status'])
-      const [allRes, activeRes, onLeaveRes] = await Promise.allSettled([
-        teachersService.getAll({ per_page: 1 }),
-        teachersService.getAll({ per_page: 1, status: 'active' }),
-        teachersService.getAll({ per_page: 1, status: 'on_leave' }),
-      ]);
-
-      const getCount = (r) => {
-        if (r.status !== 'fulfilled') return 0;
-        const d = r.value.data;
-        return d?.meta?.total || d?.count || (Array.isArray(d?.data) ? d.data.length : Array.isArray(d) ? d.length : 0);
-      };
-
-      const total = getCount(allRes);
-      const active = getCount(activeRes);
-      const on_leave = getCount(onLeaveRes);
-      setStats({ total, active, inactive: total - active - on_leave, on_leave });
-    } catch {
-      // Not critical
-    }
-  };
-
   // Sort
   const handleSort = (field) => {
-    if (sortField === field) {
-      if (sortDir === 'asc') setSortDir('desc');
-      else { setSortField(''); setSortDir('asc'); }
+    if (filters.sortField === field) {
+      if (filters.sortDir === 'asc') setFilters({ sortDir: 'desc', page: 1 });
+      else setFilters({ sortField: '', sortDir: 'asc', page: 1 });
     } else {
-      setSortField(field);
-      setSortDir('asc');
+      setFilters({ sortField: field, sortDir: 'asc', page: 1 });
     }
-    setCurrentPage(1);
   };
 
   const getSortIcon = (field) => {
-    if (sortField !== field) return faSort;
-    return sortDir === 'asc' ? faSortUp : faSortDown;
+    if (filters.sortField !== field) return faSort;
+    return filters.sortDir === 'asc' ? faSortUp : faSortDown;
+  };
+
+  const toggleStatFilter = (status) => {
+    setFilters({ status: filters.status === status ? '' : status, page: 1 });
   };
 
   // Export
@@ -331,7 +299,7 @@ export default function Teachers() {
         t.groups_count || 0,
         statusConfig[t.status]?.label || t.status,
       ]);
-      const csv = '\uFEFF' + [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const csv = '﻿' + [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -354,7 +322,6 @@ export default function Teachers() {
   };
 
   const openEdit = async (teacher) => {
-    // Detail dan to'liq ma'lumot olish
     let full = teacher;
     try {
       const res = await teachersService.getById(teacher.id);
@@ -384,7 +351,6 @@ export default function Teachers() {
   };
 
   const openView = async (teacher) => {
-    // Detail + groups
     try {
       const res = await teachersService.getById(teacher.id);
       setSelectedTeacher(res.data?.data || res.data);
@@ -393,7 +359,6 @@ export default function Teachers() {
     }
     setIsViewOpen(true);
 
-    // Guruhlarni yuklash
     setGroupsLoading(true);
     setTeacherGroups([]);
     try {
@@ -442,7 +407,6 @@ export default function Teachers() {
     if (form.hired_date) data.hired_date = form.hired_date;
     if (form.telegram_username?.trim()) data.telegram_username = form.telegram_username.trim();
 
-    // Salary
     if (form.salary_type === 'percent') {
       data.salary_percent = Number(form.salary_percent) || 0;
       data.salary_amount = 0;
@@ -461,8 +425,7 @@ export default function Teachers() {
         notify.success("O'qituvchi yangilandi!");
       }
       setIsFormOpen(false);
-      fetchTeachers();
-      fetchStats();
+      qc.invalidateQueries({ queryKey: teacherKeys.all });
     } catch (err) {
       const errData = err.response?.data;
       const msg = errData?.error?.message || errData?.detail || "Xatolik yuz berdi";
@@ -481,25 +444,10 @@ export default function Teachers() {
     }
   };
 
-  const handleDelete = async () => {
-    setDeleteLoading(true);
-    try {
-      await teachersService.delete(selectedTeacher.id);
-      notify.success("O'qituvchi o'chirildi!");
-      setIsDeleteOpen(false);
-      fetchTeachers();
-      fetchStats();
-    } catch (err) {
-      notify.error(err);
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
-  // Stat filter toggle
-  const toggleStatFilter = (status) => {
-    setStatusFilter(statusFilter === status ? '' : status);
-    setCurrentPage(1);
+  const handleDelete = () => {
+    deleteMutation.mutate(selectedTeacher.id, {
+      onSuccess: () => setIsDeleteOpen(false),
+    });
   };
 
   // ============================================
@@ -534,13 +482,13 @@ export default function Teachers() {
       {/* STATS CARDS */}
       <div className="flex gap-3 overflow-x-auto pb-1">
         <StatCard label="Jami o'qituvchilar" value={stats.total} icon={faChalkboardTeacher} color="#6366F1" bg="rgba(99, 102, 241, 0.08)"
-          onClick={() => { setStatusFilter(''); setCurrentPage(1); }} active={!statusFilter} />
+          onClick={() => setFilters({ status: '', page: 1 })} active={!filters.status} />
         <StatCard label="Faol" value={stats.active} icon={faUser} color="#22C55E" bg="rgba(34, 197, 94, 0.08)"
-          onClick={() => toggleStatFilter('active')} active={statusFilter === 'active'} />
+          onClick={() => toggleStatFilter('active')} active={filters.status === 'active'} />
         <StatCard label="Nofaol" value={stats.inactive} icon={faPause} color="#94A3B8" bg="rgba(148, 163, 184, 0.08)"
-          onClick={() => toggleStatFilter('inactive')} active={statusFilter === 'inactive'} />
+          onClick={() => toggleStatFilter('inactive')} active={filters.status === 'inactive'} />
         <StatCard label="Ta'tilda" value={stats.on_leave} icon={faClock} color="#F59E0B" bg="rgba(245, 158, 11, 0.08)"
-          onClick={() => toggleStatFilter('on_leave')} active={statusFilter === 'on_leave'} />
+          onClick={() => toggleStatFilter('on_leave')} active={filters.status === 'on_leave'} />
       </div>
 
       {/* SEARCH & FILTERS */}
@@ -562,8 +510,8 @@ export default function Teachers() {
               </button>
             )}
           </div>
-          <select value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+          <select value={filters.status}
+            onChange={(e) => setFilters({ status: e.target.value, page: 1 })}
             className="h-11 px-4 rounded-xl border bg-transparent cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500"
             style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)' }}>
             <option value="">Barcha status</option>
@@ -571,8 +519,8 @@ export default function Teachers() {
             <option value="inactive">Nofaol</option>
             <option value="on_leave">Ta'tilda</option>
           </select>
-          {(searchInput || statusFilter) && (
-            <button onClick={() => { setSearchInput(''); setStatusFilter(''); setCurrentPage(1); }}
+          {(searchInput || filters.status) && (
+            <button onClick={() => { setSearchInput(''); setFilters({ status: '', page: 1 }); }}
               className="h-11 px-4 rounded-xl font-medium transition-colors text-red-500"
               onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
@@ -582,21 +530,21 @@ export default function Teachers() {
         </div>
 
         {/* Active filters */}
-        {(statusFilter || search) && (
+        {(filters.status || filters.search) && (
           <div className="flex items-center gap-2 mt-3 pt-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Filtrlar:</span>
-            {statusFilter && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: statusConfig[statusFilter]?.bg, color: statusConfig[statusFilter]?.color }}>
-                {statusConfig[statusFilter]?.label}
-                <button onClick={() => { setStatusFilter(''); setCurrentPage(1); }} className="ml-1 opacity-60 hover:opacity-100">
+            {filters.status && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: statusConfig[filters.status]?.bg, color: statusConfig[filters.status]?.color }}>
+                {statusConfig[filters.status]?.label}
+                <button onClick={() => setFilters({ status: '', page: 1 })} className="ml-1 opacity-60 hover:opacity-100">
                   <FontAwesomeIcon icon={faTimes} className="w-2.5 h-2.5" />
                 </button>
               </span>
             )}
-            {search && (
+            {filters.search && (
               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(99, 102, 241, 0.12)', color: '#6366F1' }}>
-                "{search}"
-                <button onClick={() => { setSearchInput(''); setCurrentPage(1); }} className="ml-1 opacity-60 hover:opacity-100">
+                "{filters.search}"
+                <button onClick={() => setSearchInput('')} className="ml-1 opacity-60 hover:opacity-100">
                   <FontAwesomeIcon icon={faTimes} className="w-2.5 h-2.5" />
                 </button>
               </span>
@@ -618,12 +566,12 @@ export default function Teachers() {
               <FontAwesomeIcon icon={faChalkboardTeacher} className="w-10 h-10" style={{ color: 'var(--text-muted)' }} />
             </div>
             <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {search || statusFilter ? "Natija topilmadi" : "O'qituvchilar yo'q"}
+              {filters.search || filters.status ? "Natija topilmadi" : "O'qituvchilar yo'q"}
             </h3>
             <p className="mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>
-              {search || statusFilter ? "Filterni o'zgartirib ko'ring" : "Yangi o'qituvchi qo'shing"}
+              {filters.search || filters.status ? "Filterni o'zgartirib ko'ring" : "Yangi o'qituvchi qo'shing"}
             </p>
-            {canCreate && !search && !statusFilter && (
+            {canCreate && !filters.search && !filters.status && (
               <button onClick={openCreate} className="h-11 px-6 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-medium flex items-center gap-2 transition-colors">
                 <FontAwesomeIcon icon={faPlus} className="w-4 h-4" />
                 {t('teachers.addTeacher')}
@@ -638,7 +586,7 @@ export default function Teachers() {
                   <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                     <th className="p-4 text-left">
                       <button onClick={() => handleSort('first_name')} className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider"
-                        style={{ color: sortField === 'first_name' ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                        style={{ color: filters.sortField === 'first_name' ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                         O'qituvchi <FontAwesomeIcon icon={getSortIcon('first_name')} className="w-3 h-3" />
                       </button>
                     </th>
@@ -751,36 +699,36 @@ export default function Teachers() {
             {meta.total_pages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
                 <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                  {(currentPage - 1) * meta.per_page + 1}–{Math.min(currentPage * meta.per_page, meta.total)} / {meta.total}
+                  {(filters.page - 1) * meta.per_page + 1}–{Math.min(filters.page * meta.per_page, meta.total)} / {meta.total}
                 </p>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                  <button onClick={() => setFilters({ page: Math.max(1, filters.page - 1) })} disabled={filters.page === 1}
                     className="w-9 h-9 rounded-lg flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     style={{ color: 'var(--text-secondary)' }}
-                    onMouseEnter={e => { if (currentPage > 1) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
+                    onMouseEnter={e => { if (filters.page > 1) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                     <FontAwesomeIcon icon={faChevronLeft} className="w-4 h-4" />
                   </button>
                   {Array.from({ length: Math.min(5, meta.total_pages) }, (_, i) => {
                     let page;
                     if (meta.total_pages <= 5) page = i + 1;
-                    else if (currentPage <= 3) page = i + 1;
-                    else if (currentPage >= meta.total_pages - 2) page = meta.total_pages - 4 + i;
-                    else page = currentPage - 2 + i;
+                    else if (filters.page <= 3) page = i + 1;
+                    else if (filters.page >= meta.total_pages - 2) page = meta.total_pages - 4 + i;
+                    else page = filters.page - 2 + i;
                     return (
-                      <button key={page} onClick={() => setCurrentPage(page)}
-                        className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${currentPage === page ? 'bg-primary-600 text-white' : ''}`}
-                        style={currentPage !== page ? { color: 'var(--text-secondary)' } : {}}
-                        onMouseEnter={e => { if (currentPage !== page) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
-                        onMouseLeave={e => { if (currentPage !== page) e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                      <button key={page} onClick={() => setFilters({ page })}
+                        className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${filters.page === page ? 'bg-primary-600 text-white' : ''}`}
+                        style={filters.page !== page ? { color: 'var(--text-secondary)' } : {}}
+                        onMouseEnter={e => { if (filters.page !== page) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
+                        onMouseLeave={e => { if (filters.page !== page) e.currentTarget.style.backgroundColor = 'transparent'; }}>
                         {page}
                       </button>
                     );
                   })}
-                  <button onClick={() => setCurrentPage(p => Math.min(meta.total_pages, p + 1))} disabled={currentPage === meta.total_pages}
+                  <button onClick={() => setFilters({ page: Math.min(meta.total_pages, filters.page + 1) })} disabled={filters.page === meta.total_pages}
                     className="w-9 h-9 rounded-lg flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     style={{ color: 'var(--text-secondary)' }}
-                    onMouseEnter={e => { if (currentPage < meta.total_pages) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
+                    onMouseEnter={e => { if (filters.page < meta.total_pages) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                     <FontAwesomeIcon icon={faChevronRight} className="w-4 h-4" />
                   </button>
@@ -862,7 +810,6 @@ export default function Teachers() {
       <Drawer isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} title="O'qituvchi ma'lumotlari" width="580px">
         {selectedTeacher && (
           <div>
-            {/* Header */}
             <div className="p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold flex-shrink-0" style={{ backgroundColor: '#1B365D' }}>
@@ -885,7 +832,6 @@ export default function Teachers() {
                 </div>
               </div>
 
-              {/* Salary card */}
               <div className="mt-4 p-4 rounded-xl" style={{ backgroundColor: 'rgba(34, 197, 94, 0.08)' }}>
                 <div className="flex items-center justify-between">
                   <div>
@@ -904,7 +850,6 @@ export default function Teachers() {
               </div>
             </div>
 
-            {/* Stats row */}
             <div className="p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl text-center" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
@@ -918,7 +863,6 @@ export default function Teachers() {
               </div>
             </div>
 
-            {/* Contact info */}
             <div className="p-6 space-y-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
               <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-primary-100 dark:bg-primary-900/30">
@@ -975,7 +919,6 @@ export default function Teachers() {
               )}
             </div>
 
-            {/* Subjects */}
             {(selectedTeacher.subjects_data || []).length > 0 && (
               <div className="p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
                 <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>O'qitadigan fanlar</h4>
@@ -989,7 +932,6 @@ export default function Teachers() {
               </div>
             )}
 
-            {/* Groups */}
             <div className="p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
               <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>Faol guruhlar</h4>
               {groupsLoading ? (
@@ -1021,7 +963,6 @@ export default function Teachers() {
               )}
             </div>
 
-            {/* Bio */}
             {selectedTeacher.bio && (
               <div className="p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
                 <h4 className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>Bio</h4>
@@ -1029,7 +970,6 @@ export default function Teachers() {
               </div>
             )}
 
-            {/* Actions */}
             <div className="p-6">
               <div className="flex gap-3">
                 {canEdit && (
@@ -1046,7 +986,7 @@ export default function Teachers() {
 
       {/* DELETE MODAL */}
       <DeleteModal isOpen={isDeleteOpen} onClose={() => setIsDeleteOpen(false)} onConfirm={handleDelete}
-        name={`${selectedTeacher?.first_name} ${selectedTeacher?.last_name}`} loading={deleteLoading} />
+        name={`${selectedTeacher?.first_name} ${selectedTeacher?.last_name}`} loading={deleteMutation.isPending} />
     </div>
   );
 }

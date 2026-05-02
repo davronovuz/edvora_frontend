@@ -37,10 +37,11 @@ export function useLead(id) {
   });
 }
 
-export function useLeadActivities(params = {}) {
+export function useLeadActivities(params = {}, options = {}) {
   return useQuery({
     queryKey: leadKeys.activity(params),
     queryFn: async () => unwrapList(await leadActivitiesService.getAll(params)),
+    ...options,
   });
 }
 

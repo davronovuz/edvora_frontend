@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -12,6 +13,9 @@ import { subjectsService } from '@/services/subjects';
 import { useAuthStore } from '@/stores/authStore';
 import { formatMoney } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
+import { useUrlState } from '@/hooks/useUrlState';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { courseKeys, useCoursesList } from '@/hooks/queries/useCourses';
 
 // =========================
 // CONFIG
@@ -25,39 +29,21 @@ const levelConfig = {
 };
 
 const durationOptions = [1, 2, 3, 4, 6, 9, 12].map(v => ({ value: v, label: `${v} oy` }));
-
 const colorOptions = ['#3B82F6', '#22C55E', '#F97316', '#EF4444', '#EC4899', '#8B5CF6', '#06B6D4', '#F59E0B'];
-
 const PER_PAGE = 12;
 
-// =========================
-// HELPERS
-// =========================
+const FILTER_DEFAULTS = { search: '', status: 'all', level: '', subject: '', page: 1 };
+
 // =========================
 // SUB COMPONENTS
 // =========================
 function StatCard({ label, value, icon, color, bg, onClick, active }) {
   return (
-    <button
-      onClick={onClick}
+    <button onClick={onClick}
       className={`flex-1 min-w-[160px] p-4 rounded-2xl border-2 transition-all duration-200 text-left ${active ? 'shadow-md scale-[1.02]' : ''}`}
-      style={{
-        borderColor: active ? color : 'var(--border-color)',
-        backgroundColor: active ? bg : 'var(--bg-secondary)',
-      }}
-      onMouseEnter={(e) => {
-        if (!active) {
-          e.currentTarget.style.borderColor = color;
-          e.currentTarget.style.backgroundColor = bg;
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!active) {
-          e.currentTarget.style.borderColor = 'var(--border-color)';
-          e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
-        }
-      }}
-    >
+      style={{ borderColor: active ? color : 'var(--border-color)', backgroundColor: active ? bg : 'var(--bg-secondary)' }}
+      onMouseEnter={(e) => { if (!active) { e.currentTarget.style.borderColor = color; e.currentTarget.style.backgroundColor = bg; } }}
+      onMouseLeave={(e) => { if (!active) { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; } }}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{label}</span>
         <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: bg }}>
@@ -94,22 +80,51 @@ const inputStyle = (error) => ({
 // =========================
 export default function Courses() {
   const { user } = useAuthStore();
+  const qc = useQueryClient();
   const role = user?.role;
   const canManage = role === 'owner' || role === 'admin';
   const canDelete = role === 'owner';
 
-  const [courses, setCourses] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [meta, setMeta] = useState({ total: 0, page: 1, total_pages: 1 });
-  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
+  // ── URL state ──
+  const [filters, setFilters] = useUrlState(FILTER_DEFAULTS);
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
 
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('all'); // all|active|inactive
-  const [levelFilter, setLevelFilter] = useState('');
-  const [subjectFilter, setSubjectFilter] = useState('');
-  const debounceRef = useRef(null);
+  useEffect(() => {
+    setFilters({ search: debouncedSearch, page: 1 });
+  }, [debouncedSearch]);
+
+  // ── Subjects (local state — ensureSubject modifies it) ──
+  const [subjects, setSubjects] = useState([]);
+  useEffect(() => {
+    subjectsService.getAll({ per_page: 200 }).then((res) => {
+      const body = res?.data || res;
+      setSubjects(Array.isArray(body?.data) ? body.data : (Array.isArray(body?.results) ? body.results : []));
+    }).catch(() => {});
+  }, []);
+
+  // ── Query params ──
+  const queryParams = {
+    page: filters.page,
+    per_page: PER_PAGE,
+    ...(filters.search && { search: filters.search }),
+    ...(filters.status === 'active' && { is_active: true }),
+    ...(filters.status === 'inactive' && { is_active: false }),
+    ...(filters.level && { level: filters.level }),
+    ...(filters.subject && { subject: filters.subject }),
+  };
+
+  // ── Data queries ──
+  const { data, isLoading: loading } = useCoursesList(queryParams);
+  const courses = data?.items ?? [];
+  const meta = data?.meta ?? { total: 0, page: 1, total_pages: 1 };
+
+  // Stats: 2 lightweight queries
+  const { data: allData } = useCoursesList({ per_page: 1 });
+  const { data: activeData } = useCoursesList({ per_page: 1, is_active: true });
+  const statsTotal = allData?.meta?.total ?? 0;
+  const statsActive = activeData?.meta?.total ?? 0;
+  const stats = { total: statsTotal, active: statsActive, inactive: Math.max(0, statsTotal - statsActive) };
 
   // Modal states
   const [formOpen, setFormOpen] = useState(false);
@@ -121,96 +136,21 @@ export default function Courses() {
   const [openMenuId, setOpenMenuId] = useState(null);
 
   const initialForm = {
-    name: '',
-    subject_name: '',
-    description: '',
-    level: 'beginner',
-    duration_months: 3,
-    total_lessons: 24,
-    price: '',
-    color: '#3B82F6',
-    is_active: true,
+    name: '', subject_name: '', description: '', level: 'beginner',
+    duration_months: 3, total_lessons: 24, price: '', color: '#3B82F6', is_active: true,
   };
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
 
-  // ============== Fetch ==============
-  const fetchCourses = async (opts = {}) => {
-    setLoading(true);
-    try {
-      const params = {
-        page: opts.page ?? page,
-        per_page: PER_PAGE,
-      };
-      if (search) params.search = search;
-      if (statusFilter === 'active') params.is_active = true;
-      if (statusFilter === 'inactive') params.is_active = false;
-      if (levelFilter) params.level = levelFilter;
-      if (subjectFilter) params.subject = subjectFilter;
-
-      const res = await coursesService.getAll(params);
-      const body = res?.data || res;
-      const list = body?.data || body?.results || [];
-      const m = body?.meta || {};
-
-      setCourses(Array.isArray(list) ? list : []);
-      setMeta({
-        total: m.total ?? list.length ?? 0,
-        page: m.page ?? params.page,
-        total_pages: m.total_pages ?? 1,
-      });
-    } catch (e) {
-      notify.error("Kurslarni yuklashda xatolik");
-      setCourses([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchSubjects = async () => {
-    try {
-      const res = await subjectsService.getAll({ per_page: 200 });
-      const body = res?.data || res;
-      const list = body?.data || body?.results || [];
-      setSubjects(Array.isArray(list) ? list : []);
-    } catch {
-      setSubjects([]);
-    }
-  };
-
-  const fetchStats = async () => {
-    try {
-      const [allRes, activeRes] = await Promise.all([
-        coursesService.getAll({ per_page: 1 }),
-        coursesService.getAll({ per_page: 1, is_active: true }),
-      ]);
-      const total = allRes?.data?.meta?.total ?? 0;
-      const active = activeRes?.data?.meta?.total ?? 0;
-      setStats({ total, active, inactive: Math.max(0, total - active) });
-    } catch {
-      setStats({ total: 0, active: 0, inactive: 0 });
-    }
-  };
-
-  useEffect(() => { fetchSubjects(); fetchStats(); }, []);
-
-  // Debounced search effect
+  // Close menu on outside click
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setPage(1);
-      fetchCourses({ page: 1 });
-    }, 400);
-    return () => clearTimeout(debounceRef.current);
-    // eslint-disable-next-line
-  }, [search]);
+    if (!openMenuId) return;
+    const handler = () => setOpenMenuId(null);
+    setTimeout(() => document.addEventListener('click', handler), 0);
+    return () => document.removeEventListener('click', handler);
+  }, [openMenuId]);
 
-  useEffect(() => {
-    fetchCourses();
-    // eslint-disable-next-line
-  }, [page, statusFilter, levelFilter, subjectFilter]);
-
-  // ============== Form helpers ==============
+  // ── Form helpers ──
   const openCreate = () => {
     if (!canManage) return notify.error("Sizda ruxsat yo'q");
     setForm(initialForm);
@@ -240,12 +180,7 @@ export default function Courses() {
     setOpenMenuId(null);
   };
 
-  const openView = (c) => {
-    setSelected(c);
-    setViewOpen(true);
-    setOpenMenuId(null);
-  };
-
+  const openView = (c) => { setSelected(c); setViewOpen(true); setOpenMenuId(null); };
   const openDelete = (c) => {
     if (!canDelete) return notify.error("O'chirish faqat egasiga ruxsat etiladi");
     setSelected(c);
@@ -263,7 +198,6 @@ export default function Courses() {
     return Object.keys(e).length === 0;
   };
 
-  // Find or create subject
   const ensureSubject = async (name) => {
     const trimmed = name.trim();
     const existing = subjects.find(s => s.name.toLowerCase() === trimmed.toLowerCase());
@@ -293,7 +227,6 @@ export default function Courses() {
         price: Number(form.price),
         is_active: !!form.is_active,
       };
-
       if (formMode === 'create') {
         await coursesService.create(payload);
         notify.success("Kurs qo'shildi");
@@ -302,16 +235,14 @@ export default function Courses() {
         notify.success("Kurs yangilandi");
       }
       setFormOpen(false);
-      fetchCourses();
-      fetchStats();
+      qc.invalidateQueries({ queryKey: courseKeys.all });
     } catch (e) {
       const data = e.response?.data;
       const msg =
         data?.error?.message ||
         data?.detail ||
         (typeof data === 'object' ? Object.values(data || {}).flat().join(', ') : null) ||
-        e.message ||
-        'Xatolik';
+        e.message || 'Xatolik';
       notify.error(msg);
     } finally {
       setFormLoading(false);
@@ -323,8 +254,7 @@ export default function Courses() {
       await coursesService.delete(selected.id);
       notify.success("Kurs o'chirildi");
       setDeleteOpen(false);
-      fetchCourses();
-      fetchStats();
+      qc.invalidateQueries({ queryKey: courseKeys.all });
     } catch (e) {
       const data = e.response?.data;
       const msg = data?.error?.message || data?.detail || '';
@@ -340,17 +270,12 @@ export default function Courses() {
     if (!courses.length) return notify.info("Eksport uchun ma'lumot yo'q");
     const headers = ['Nomi', 'Fan', 'Daraja', 'Davomiyligi', 'Darslar', 'Narxi', 'Holat', 'Guruhlar'];
     const rows = courses.map((c) => [
-      c.name,
-      c.subject_name || '',
-      levelConfig[c.level]?.label || c.level || '',
-      `${c.duration_months || 0} oy`,
-      c.total_lessons || 0,
-      c.price || 0,
-      c.is_active ? 'Faol' : 'Nofaol',
-      c.groups_count || 0,
+      c.name, c.subject_name || '', levelConfig[c.level]?.label || c.level || '',
+      `${c.duration_months || 0} oy`, c.total_lessons || 0, c.price || 0,
+      c.is_active ? 'Faol' : 'Nofaol', c.groups_count || 0,
     ]);
     const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -360,22 +285,11 @@ export default function Courses() {
   };
 
   const clearFilters = () => {
-    setSearch('');
-    setStatusFilter('all');
-    setLevelFilter('');
-    setSubjectFilter('');
-    setPage(1);
+    setSearchInput('');
+    setFilters({ search: '', status: 'all', level: '', subject: '', page: 1 });
   };
 
-  const hasFilters = search || statusFilter !== 'all' || levelFilter || subjectFilter;
-
-  // Close menu on outside click
-  useEffect(() => {
-    if (!openMenuId) return;
-    const handler = () => setOpenMenuId(null);
-    setTimeout(() => document.addEventListener('click', handler), 0);
-    return () => document.removeEventListener('click', handler);
-  }, [openMenuId]);
+  const hasFilters = searchInput || filters.status !== 'all' || filters.level || filters.subject;
 
   // =========================
   // RENDER
@@ -391,24 +305,20 @@ export default function Courses() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={exportCSV}
+          <button onClick={exportCSV}
             className="h-10 px-4 rounded-xl border font-medium flex items-center gap-2 transition-all"
             style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-secondary)' }}
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; }}
-          >
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; }}>
             <FontAwesomeIcon icon={faFileExport} className="w-4 h-4" />
             <span className="hidden sm:inline">Eksport</span>
           </button>
           {canManage && (
-            <button
-              onClick={openCreate}
+            <button onClick={openCreate}
               className="h-10 px-5 rounded-xl text-white font-medium flex items-center gap-2 transition-all"
               style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}
               onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-            >
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}>
               <FontAwesomeIcon icon={faPlus} className="w-4 h-4" />
               Yangi kurs
             </button>
@@ -418,33 +328,12 @@ export default function Courses() {
 
       {/* STATS */}
       <div className="flex flex-wrap gap-3">
-        <StatCard
-          label="Jami kurslar"
-          value={stats.total}
-          icon={faBook}
-          color="#3B82F6"
-          bg="rgba(59, 130, 246, 0.12)"
-          active={statusFilter === 'all'}
-          onClick={() => { setStatusFilter('all'); setPage(1); }}
-        />
-        <StatCard
-          label="Faol"
-          value={stats.active}
-          icon={faCircleCheck}
-          color="#22C55E"
-          bg="rgba(34, 197, 94, 0.12)"
-          active={statusFilter === 'active'}
-          onClick={() => { setStatusFilter('active'); setPage(1); }}
-        />
-        <StatCard
-          label="Nofaol"
-          value={stats.inactive}
-          icon={faSlash}
-          color="#94A3B8"
-          bg="rgba(148, 163, 184, 0.12)"
-          active={statusFilter === 'inactive'}
-          onClick={() => { setStatusFilter('inactive'); setPage(1); }}
-        />
+        <StatCard label="Jami kurslar" value={stats.total} icon={faBook} color="#3B82F6" bg="rgba(59, 130, 246, 0.12)"
+          active={filters.status === 'all'} onClick={() => setFilters({ status: 'all', page: 1 })} />
+        <StatCard label="Faol" value={stats.active} icon={faCircleCheck} color="#22C55E" bg="rgba(34, 197, 94, 0.12)"
+          active={filters.status === 'active'} onClick={() => setFilters({ status: 'active', page: 1 })} />
+        <StatCard label="Nofaol" value={stats.inactive} icon={faSlash} color="#94A3B8" bg="rgba(148, 163, 184, 0.12)"
+          active={filters.status === 'inactive'} onClick={() => setFilters({ status: 'inactive', page: 1 })} />
       </div>
 
       {/* FILTERS */}
@@ -452,53 +341,36 @@ export default function Courses() {
         <div className="flex flex-col md:flex-row gap-3">
           <div className="flex-1 relative">
             <FontAwesomeIcon icon={faSearch} className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+            <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Kurs nomi yoki fan bo'yicha qidirish..."
               className="w-full h-11 pl-11 pr-10 rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-orange-400"
-              style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-primary)' }}
-            />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
+              style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-primary)' }} />
+            {searchInput && (
+              <button onClick={() => setSearchInput('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
-                style={{ color: 'var(--text-muted)' }}
-              >
+                style={{ color: 'var(--text-muted)' }}>
                 <FontAwesomeIcon icon={faXmark} className="w-3 h-3" />
               </button>
             )}
           </div>
-          <select
-            value={levelFilter}
-            onChange={(e) => { setLevelFilter(e.target.value); setPage(1); }}
+          <select value={filters.level} onChange={(e) => setFilters({ level: e.target.value, page: 1 })}
             className="h-11 px-4 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
-            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-primary)' }}
-          >
+            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-primary)' }}>
             <option value="">Barcha darajalar</option>
-            {Object.entries(levelConfig).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
-            ))}
+            {Object.entries(levelConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
-          <select
-            value={subjectFilter}
-            onChange={(e) => { setSubjectFilter(e.target.value); setPage(1); }}
+          <select value={filters.subject} onChange={(e) => setFilters({ subject: e.target.value, page: 1 })}
             className="h-11 px-4 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
-            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-primary)' }}
-          >
+            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-primary)' }}>
             <option value="">Barcha fanlar</option>
-            {subjects.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
+            {subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           {hasFilters && (
-            <button
-              onClick={clearFilters}
+            <button onClick={clearFilters}
               className="h-11 px-4 rounded-xl border font-medium flex items-center gap-2 transition-all"
               style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-primary)' }}
               onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-primary)'; }}
-            >
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-primary)'; }}>
               <FontAwesomeIcon icon={faXmark} className="w-3 h-3" />
               Tozalash
             </button>
@@ -512,10 +384,8 @@ export default function Courses() {
           <div className="w-10 h-10 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
         </div>
       ) : courses.length === 0 ? (
-        <div
-          className="rounded-2xl border flex flex-col items-center justify-center py-20"
-          style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
-        >
+        <div className="rounded-2xl border flex flex-col items-center justify-center py-20"
+          style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
           <div className="w-20 h-20 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
             <FontAwesomeIcon icon={faBook} className="w-10 h-10" style={{ color: 'var(--text-muted)' }} />
           </div>
@@ -524,11 +394,9 @@ export default function Courses() {
             {hasFilters ? "Filtrlarni o'zgartirib qaytadan urinib ko'ring" : "Birinchi kursni qo'shing"}
           </p>
           {!hasFilters && canManage && (
-            <button
-              onClick={openCreate}
+            <button onClick={openCreate}
               className="mt-5 h-11 px-6 rounded-xl text-white font-medium flex items-center gap-2"
-              style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}
-            >
+              style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
               <FontAwesomeIcon icon={faPlus} className="w-4 h-4" />
               Yangi kurs
             </button>
@@ -540,71 +408,47 @@ export default function Courses() {
             const lvl = levelConfig[c.level] || levelConfig.beginner;
             const accent = c.color || lvl.color;
             return (
-              <div
-                key={c.id}
-                onClick={() => openView(c)}
+              <div key={c.id} onClick={() => openView(c)}
                 className="rounded-2xl border p-5 cursor-pointer transition-all duration-200"
                 style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = accent;
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 10px 25px -10px rgba(0,0,0,0.15)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--border-color)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = accent; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 10px 25px -10px rgba(0,0,0,0.15)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}>
                 <div className="flex items-start justify-between mb-3">
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center"
-                    style={{ backgroundColor: `${accent}20` }}
-                  >
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${accent}20` }}>
                     <FontAwesomeIcon icon={faGraduationCap} className="w-6 h-6" style={{ color: accent }} />
                   </div>
                   <div className="relative" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id); }}
+                    <button onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id); }}
                       className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
                       style={{ color: 'var(--text-secondary)' }}
                       onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                    >
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
                       <FontAwesomeIcon icon={faEllipsisVertical} className="w-4 h-4" />
                     </button>
                     {openMenuId === c.id && (
-                      <div
-                        className="absolute right-0 top-10 z-20 w-44 rounded-xl border shadow-xl py-1"
-                        style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
-                      >
-                        <button
-                          onClick={() => openView(c)}
+                      <div className="absolute right-0 top-10 z-20 w-44 rounded-xl border shadow-xl py-1"
+                        style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
+                        <button onClick={() => openView(c)}
                           className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors"
                           style={{ color: 'var(--text-primary)' }}
                           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                        >
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
                           <FontAwesomeIcon icon={faEye} className="w-3.5 h-3.5" /> Ko'rish
                         </button>
                         {canManage && (
-                          <button
-                            onClick={() => openEdit(c)}
+                          <button onClick={() => openEdit(c)}
                             className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors"
                             style={{ color: 'var(--text-primary)' }}
                             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                          >
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
                             <FontAwesomeIcon icon={faEdit} className="w-3.5 h-3.5" /> Tahrirlash
                           </button>
                         )}
                         {canDelete && (
-                          <button
-                            onClick={() => openDelete(c)}
+                          <button onClick={() => openDelete(c)}
                             className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 text-red-500 transition-colors"
                             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                          >
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
                             <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" /> O'chirish
                           </button>
                         )}
@@ -613,56 +457,31 @@ export default function Courses() {
                   </div>
                 </div>
 
-                <h3 className="font-semibold text-base line-clamp-1 mb-1" style={{ color: 'var(--text-primary)' }}>
-                  {c.name}
-                </h3>
-
+                <h3 className="font-semibold text-base line-clamp-1 mb-1" style={{ color: 'var(--text-primary)' }}>{c.name}</h3>
                 {c.subject_name && (
-                  <span
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium mb-3"
-                    style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
-                  >
-                    <FontAwesomeIcon icon={faTags} className="w-2.5 h-2.5" />
-                    {c.subject_name}
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium mb-3"
+                    style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+                    <FontAwesomeIcon icon={faTags} className="w-2.5 h-2.5" />{c.subject_name}
                   </span>
                 )}
-
                 {c.description && (
-                  <p className="text-xs line-clamp-2 mb-4" style={{ color: 'var(--text-muted)' }}>
-                    {c.description}
-                  </p>
+                  <p className="text-xs line-clamp-2 mb-4" style={{ color: 'var(--text-muted)' }}>{c.description}</p>
                 )}
 
-                {/* Stats row */}
                 <div className="flex items-center justify-between text-xs mb-4 pb-4 border-b" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
-                  <span className="flex items-center gap-1">
-                    <FontAwesomeIcon icon={faClock} className="w-3 h-3" /> {c.duration_months} oy
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <FontAwesomeIcon icon={faBook} className="w-3 h-3" /> {c.total_lessons || 0}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <FontAwesomeIcon icon={faLayerGroup} className="w-3 h-3" /> {c.groups_count || 0}
-                  </span>
+                  <span className="flex items-center gap-1"><FontAwesomeIcon icon={faClock} className="w-3 h-3" /> {c.duration_months} oy</span>
+                  <span className="flex items-center gap-1"><FontAwesomeIcon icon={faBook} className="w-3 h-3" /> {c.total_lessons || 0}</span>
+                  <span className="flex items-center gap-1"><FontAwesomeIcon icon={faLayerGroup} className="w-3 h-3" /> {c.groups_count || 0}</span>
                 </div>
 
-                {/* Footer */}
                 <div className="flex items-center justify-between">
-                  <span className="text-base font-bold" style={{ color: accent }}>
-                    {formatMoney(c.price)}
-                  </span>
-                  <span
-                    className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide"
-                    style={{ backgroundColor: lvl.bg, color: lvl.color }}
-                  >
-                    {lvl.label}
-                  </span>
+                  <span className="text-base font-bold" style={{ color: accent }}>{formatMoney(c.price)}</span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide"
+                    style={{ backgroundColor: lvl.bg, color: lvl.color }}>{lvl.label}</span>
                 </div>
-
                 {!c.is_active && (
-                  <div className="mt-2 text-[10px] font-semibold uppercase text-center py-1 rounded-md" style={{ backgroundColor: 'rgba(148, 163, 184, 0.15)', color: '#94A3B8' }}>
-                    Nofaol
-                  </div>
+                  <div className="mt-2 text-[10px] font-semibold uppercase text-center py-1 rounded-md"
+                    style={{ backgroundColor: 'rgba(148, 163, 184, 0.15)', color: '#94A3B8' }}>Nofaol</div>
                 )}
               </div>
             );
@@ -672,32 +491,25 @@ export default function Courses() {
 
       {/* PAGINATION */}
       {!loading && courses.length > 0 && meta.total_pages > 1 && (
-        <div className="flex items-center justify-between rounded-2xl border p-4" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
+        <div className="flex items-center justify-between rounded-2xl border p-4"
+          style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
           <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {((meta.page - 1) * PER_PAGE) + 1}–{Math.min(meta.page * PER_PAGE, meta.total)} / <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{meta.total}</span>
+            {((filters.page - 1) * PER_PAGE) + 1}–{Math.min(filters.page * PER_PAGE, meta.total)} / <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{meta.total}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              disabled={page <= 1}
-              onClick={() => setPage(p => Math.max(1, p - 1))}
+            <button disabled={filters.page <= 1} onClick={() => setFilters({ page: Math.max(1, filters.page - 1) })}
               className="w-9 h-9 rounded-lg border flex items-center justify-center disabled:opacity-40 transition-colors"
               style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-            >
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
               <FontAwesomeIcon icon={faChevronLeft} className="w-3.5 h-3.5" />
             </button>
-            <span className="text-sm px-3" style={{ color: 'var(--text-primary)' }}>
-              {meta.page} / {meta.total_pages}
-            </span>
-            <button
-              disabled={page >= meta.total_pages}
-              onClick={() => setPage(p => Math.min(meta.total_pages, p + 1))}
+            <span className="text-sm px-3" style={{ color: 'var(--text-primary)' }}>{filters.page} / {meta.total_pages}</span>
+            <button disabled={filters.page >= meta.total_pages} onClick={() => setFilters({ page: Math.min(meta.total_pages, filters.page + 1) })}
               className="w-9 h-9 rounded-lg border flex items-center justify-center disabled:opacity-40 transition-colors"
               style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-            >
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
               <FontAwesomeIcon icon={faChevronRight} className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -705,148 +517,93 @@ export default function Courses() {
       )}
 
       {/* CREATE / EDIT FORM */}
-      <Modal
-        isOpen={formOpen}
-        onClose={() => setFormOpen(false)}
-        title={formMode === 'create' ? 'Yangi kurs' : 'Kursni tahrirlash'}
-      >
+      <Modal isOpen={formOpen} onClose={() => setFormOpen(false)} title={formMode === 'create' ? 'Yangi kurs' : 'Kursni tahrirlash'}>
         <div className="space-y-4">
           <Field label="Kurs nomi" required error={errors.name}>
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Masalan: General English Beginner"
               className="w-full h-12 px-4 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400"
-              style={inputStyle(errors.name)}
-            />
+              style={inputStyle(errors.name)} />
           </Field>
-
           <Field label="Fan" required error={errors.subject_name}>
-            <input
-              list="subjects-list"
-              value={form.subject_name}
+            <input list="subjects-list" value={form.subject_name}
               onChange={(e) => setForm({ ...form, subject_name: e.target.value })}
               placeholder="Ingliz tili, Matematika, Python..."
               className="w-full h-12 px-4 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400"
-              style={inputStyle(errors.subject_name)}
-            />
+              style={inputStyle(errors.subject_name)} />
             <datalist id="subjects-list">
               {subjects.map((s) => <option key={s.id} value={s.name} />)}
             </datalist>
-            <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-              Mavjud fan tanlang yoki yangi fan nomini yozing
-            </p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Mavjud fan tanlang yoki yangi fan nomini yozing</p>
           </Field>
-
           <Field label="Tavsif">
-            <textarea
-              rows={3}
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            <textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Kurs haqida qisqacha..."
               className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
-              style={inputStyle()}
-            />
+              style={inputStyle()} />
           </Field>
-
           <div className="grid grid-cols-2 gap-3">
             <Field label="Narxi" required error={errors.price}>
               <div className="relative">
-                <input
-                  type="number"
-                  value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                <input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })}
                   placeholder="500000"
                   className="w-full h-12 pl-4 pr-14 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400"
-                  style={inputStyle(errors.price)}
-                />
+                  style={inputStyle(errors.price)} />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs" style={{ color: 'var(--text-muted)' }}>so'm</span>
               </div>
             </Field>
             <Field label="Davomiyligi" required error={errors.duration_months}>
-              <select
-                value={form.duration_months}
-                onChange={(e) => setForm({ ...form, duration_months: e.target.value })}
+              <select value={form.duration_months} onChange={(e) => setForm({ ...form, duration_months: e.target.value })}
                 className="w-full h-12 px-4 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
-                style={inputStyle(errors.duration_months)}
-              >
+                style={inputStyle(errors.duration_months)}>
                 {durationOptions.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
               </select>
             </Field>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <Field label="Daraja">
-              <select
-                value={form.level}
-                onChange={(e) => setForm({ ...form, level: e.target.value })}
+              <select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}
                 className="w-full h-12 px-4 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
-                style={inputStyle()}
-              >
+                style={inputStyle()}>
                 {Object.entries(levelConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </Field>
             <Field label="Darslar soni">
-              <input
-                type="number"
-                value={form.total_lessons}
-                onChange={(e) => setForm({ ...form, total_lessons: e.target.value })}
+              <input type="number" value={form.total_lessons} onChange={(e) => setForm({ ...form, total_lessons: e.target.value })}
                 placeholder="24"
                 className="w-full h-12 px-4 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400"
-                style={inputStyle()}
-              />
+                style={inputStyle()} />
             </Field>
           </div>
-
           <Field label="Karta rangi">
             <div className="flex flex-wrap gap-2">
               {colorOptions.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => setForm({ ...form, color })}
+                <button key={color} type="button" onClick={() => setForm({ ...form, color })}
                   className={`w-10 h-10 rounded-xl transition-transform ${form.color === color ? 'ring-2 ring-offset-2 ring-orange-400 scale-110' : 'hover:scale-110'}`}
-                  style={{ backgroundColor: color }}
-                />
+                  style={{ backgroundColor: color }} />
               ))}
             </div>
           </Field>
-
           <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border" style={{ borderColor: 'var(--border-color)' }}>
-            <input
-              type="checkbox"
-              checked={form.is_active}
-              onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-              className="w-5 h-5 accent-orange-500"
-            />
-            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-              Faol kurs (yangi guruhlar uchun mavjud)
-            </span>
+            <input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+              className="w-5 h-5 accent-orange-500" />
+            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Faol kurs (yangi guruhlar uchun mavjud)</span>
           </label>
-
           <div className="flex gap-3 pt-2">
-            <button
-              onClick={() => setFormOpen(false)}
+            <button onClick={() => setFormOpen(false)}
               className="flex-1 h-12 rounded-xl border font-medium transition-colors"
               style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-            >
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
               Bekor qilish
             </button>
-            <button
-              onClick={handleSubmit}
-              disabled={formLoading}
+            <button onClick={handleSubmit} disabled={formLoading}
               className="flex-1 h-12 rounded-xl text-white font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-              style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}
-            >
+              style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
               {formLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                <>
-                  <FontAwesomeIcon icon={faCheck} className="w-4 h-4" />
-                  {formMode === 'create' ? "Qo'shish" : 'Saqlash'}
-                </>
+                <><FontAwesomeIcon icon={faCheck} className="w-4 h-4" />{formMode === 'create' ? "Qo'shish" : 'Saqlash'}</>
               )}
             </button>
           </div>
@@ -867,23 +624,18 @@ export default function Courses() {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>{selected.name}</h3>
                   {selected.subject_name && (
-                    <span className="inline-block mt-1 px-2 py-0.5 rounded-md text-xs font-medium" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-                      {selected.subject_name}
-                    </span>
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded-md text-xs font-medium"
+                      style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{selected.subject_name}</span>
                   )}
                 </div>
-                <span className="px-3 py-1 rounded-lg text-xs font-semibold" style={{ backgroundColor: lvl.bg, color: lvl.color }}>
-                  {lvl.label}
-                </span>
+                <span className="px-3 py-1 rounded-lg text-xs font-semibold" style={{ backgroundColor: lvl.bg, color: lvl.color }}>{lvl.label}</span>
               </div>
-
               {selected.description && (
                 <div>
                   <p className="text-xs uppercase font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Tavsif</p>
                   <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{selected.description}</p>
                 </div>
               )}
-
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Davomiyligi</p>
@@ -904,23 +656,18 @@ export default function Courses() {
                   </p>
                 </div>
               </div>
-
               <div className="rounded-xl p-4" style={{ backgroundColor: `${accent}15`, border: `1px solid ${accent}30` }}>
                 <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Narxi</p>
                 <p className="text-2xl font-bold mt-1" style={{ color: accent }}>{formatMoney(selected.price)}</p>
               </div>
-
               {canManage && (
                 <div className="flex gap-2 pt-2">
-                  <button
-                    onClick={() => { setViewOpen(false); openEdit(selected); }}
+                  <button onClick={() => { setViewOpen(false); openEdit(selected); }}
                     className="flex-1 h-11 rounded-xl border font-medium flex items-center justify-center gap-2 transition-colors"
                     style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                  >
-                    <FontAwesomeIcon icon={faEdit} className="w-4 h-4" />
-                    Tahrirlash
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                    <FontAwesomeIcon icon={faEdit} className="w-4 h-4" /> Tahrirlash
                   </button>
                 </div>
               )}
@@ -933,10 +680,8 @@ export default function Courses() {
       {deleteOpen && (
         <>
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={() => setDeleteOpen(false)} />
-          <div
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[95vw] max-w-md p-6 rounded-2xl shadow-2xl"
-            style={{ backgroundColor: 'var(--bg-secondary)' }}
-          >
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[95vw] max-w-md p-6 rounded-2xl shadow-2xl"
+            style={{ backgroundColor: 'var(--bg-secondary)' }}>
             <div className="text-center">
               <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
                 <FontAwesomeIcon icon={faTrash} className="w-7 h-7 text-red-500" />
@@ -947,19 +692,15 @@ export default function Courses() {
               </p>
             </div>
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setDeleteOpen(false)}
+              <button onClick={() => setDeleteOpen(false)}
                 className="flex-1 h-12 rounded-xl border font-medium transition-colors"
                 style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                 onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
                 Bekor qilish
               </button>
-              <button
-                onClick={handleDelete}
-                className="flex-1 h-12 rounded-xl bg-red-500 hover:bg-red-600 text-white font-medium transition-colors"
-              >
+              <button onClick={handleDelete}
+                className="flex-1 h-12 rounded-xl bg-red-500 hover:bg-red-600 text-white font-medium transition-colors">
                 O'chirish
               </button>
             </div>
