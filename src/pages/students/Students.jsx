@@ -24,6 +24,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useUrlState } from '@/hooks/useUrlState';
 import { useConfirm } from '@/hooks/useConfirm';
+import StudentSheet from '@/components/students/StudentSheet';
 import {
   useStudentsList,
   useStudentStatistics,
@@ -349,6 +350,7 @@ const FILTER_DEFAULTS = {
   sortField: '',
   sortDir: 'asc',
   page: 1,
+  student: '',
 };
 
 export default function Students() {
@@ -1002,7 +1004,7 @@ export default function Students() {
                       onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                       onClick={(e) => {
                         if (e.target.closest('input[type="checkbox"]') || e.target.closest('.actions-cell')) return;
-                        navigate(`/app/students/${s.id}`);
+                        setFilters({ student: String(s.id) });
                       }}
                     >
                       <td className="p-4" onClick={e => e.stopPropagation()}>
@@ -1578,6 +1580,14 @@ export default function Students() {
           </div>
         )}
       </Drawer>
+
+      {/* STUDENT SHEET */}
+      <StudentSheet
+        studentId={filters.student ? Number(filters.student) : null}
+        open={!!filters.student}
+        onClose={() => setFilters({ student: '' })}
+        onEdit={(student) => { setSelectedStudent(student); setForm({ ...initialForm, ...student, phone: student.phone?.replace(/\D/g, '').slice(-9) || '' }); setFormMode('edit'); setErrors({}); setIsFormOpen(true); }}
+      />
 
       {/* DELETE MODAL */}
       <DeleteModal
