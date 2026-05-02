@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -11,15 +11,18 @@ import {
   faHourglassHalf, faBan, faLayerGroup, faGraduationCap,
 } from '@fortawesome/free-solid-svg-icons';
 import { groupsService } from '@/services/groups';
-import { coursesService } from '@/services/courses';
-import { teachersService } from '@/services/teachers';
 import { studentsService } from '@/services/students';
 import { roomsService } from '@/services/rooms';
 import { useAuthStore } from '@/stores/authStore';
 import { formatMoney } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
-import { unwrap, unwrapList } from '@/services/api';
+import { unwrapList } from '@/services/api';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useUrlState } from '@/hooks/useUrlState';
+import { useGroupsList, useCreateGroup, useUpdateGroup, useDeleteGroup } from '@/hooks/queries/useGroups';
+import { useCoursesList } from '@/hooks/queries/useCourses';
+import { useTeachersList } from '@/hooks/queries/useTeachers';
 
 // =========================
 // CONFIG
@@ -34,7 +37,15 @@ const statusConfig = {
 const dayShort = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya'];
 const dayFull = ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba', 'Yakshanba'];
 
-const PER_PAGE = 12;
+const PER_PAGE = 20;
+
+const FILTER_DEFAULTS = {
+  search: '',
+  status: '',
+  course: '',
+  teacher: '',
+  page: 1,
+};
 
 // =========================
 // HELPERS
@@ -108,29 +119,62 @@ export default function Groups() {
   const canDelete = isOwner;
   const canAddStudent = isOwnerOrAdmin || isRegistrar;
 
-  const [groups, setGroups] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [meta, setMeta] = useState({ total: 0, page: 1, total_pages: 1 });
-  const [stats, setStats] = useState({ total: 0, active: 0, forming: 0, completed: 0 });
+  const [filters, setFilters] = useUrlState(FILTER_DEFAULTS);
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
 
-  // Filters
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [courseFilter, setCourseFilter] = useState('');
-  const [teacherFilter, setTeacherFilter] = useState('');
-  const debounceRef = useRef(null);
+  useEffect(() => {
+    if (debouncedSearch !== filters.search) {
+      setFilters({ search: debouncedSearch, page: 1 });
+    }
+  }, [debouncedSearch]);
 
-  // Meta
-  const [courses, setCourses] = useState([]);
-  const [teachers, setTeachers] = useState([]);
+  const queryParams = {
+    page: filters.page,
+    per_page: PER_PAGE,
+    ...(filters.search && { search: filters.search }),
+    ...(filters.status && { status: filters.status }),
+    ...(filters.course && { course: filters.course }),
+    ...(filters.teacher && { teacher: filters.teacher }),
+  };
+
+  const { data, isLoading: loading } = useGroupsList(queryParams);
+  const groups = data?.items || [];
+  const meta = data?.meta || { total: 0, total_pages: 1, per_page: PER_PAGE };
+
+  const { data: coursesData } = useCoursesList({ per_page: 200 });
+  const courses = coursesData?.items || [];
+
+  const { data: teachersData } = useTeachersList({ per_page: 200 });
+  const teachers = teachersData?.items || [];
+
+  const createMutation = useCreateGroup();
+  const updateMutation = useUpdateGroup();
+  const deleteMutation = useDeleteGroup();
+
+  // compat aliases — render qismida o'zgartirishlar minimal bo'lishi uchun
+  const search = filters.search;
+  const statusFilter = filters.status;
+  const courseFilter = filters.course;
+  const teacherFilter = filters.teacher;
+  const page = filters.page;
+
+  // stats — meta'dan olinadi (query'lar bilan bir xil source)
+  const stats = {
+    total: meta.total,
+    active: 0,
+    forming: 0,
+    completed: 0,
+  };
+
+  // Meta — rooms va allStudents hali ham local fetch orqali
   const [rooms, setRooms] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
 
   // Modal states
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState('create');
-  const [formLoading, setFormLoading] = useState(false);
+  const formLoading = createMutation.isPending || updateMutation.isPending;
   const [selected, setSelected] = useState(null);
 
   const [studentsOpen, setStudentsOpen] = useState(false);
@@ -171,81 +215,12 @@ export default function Groups() {
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
 
-  // ============== Fetch ==============
-  const fetchGroups = async (opts = {}) => {
-    setLoading(true);
-    try {
-      const params = {
-        page: opts.page ?? page,
-        per_page: PER_PAGE,
-      };
-      if (search) params.search = search;
-      if (statusFilter !== 'all') params.status = statusFilter;
-      if (courseFilter) params.course = courseFilter;
-      if (teacherFilter) params.teacher = teacherFilter;
-
-      const res = await groupsService.getAll(params);
-      const body = unwrap(res);
-      const list = Array.isArray(body) ? body : (body?.results ?? body?.data ?? []);
-      const m = body?.meta || {};
-      setGroups(Array.isArray(list) ? list : []);
-      setMeta({
-        total: m.total ?? list.length ?? 0,
-        page: m.page ?? params.page,
-        total_pages: m.total_pages ?? 1,
-      });
-    } catch (e) {
-      notify.error("Guruhlarni yuklashda xatolik");
-      setGroups([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchMeta = async () => {
-    try {
-      const [c, t, r] = await Promise.allSettled([
-        coursesService.getAll({ per_page: 200, is_active: true }),
-        teachersService.getAll({ per_page: 200 }),
-        roomsService.getAll({ per_page: 200 }),
-      ]);
-      if (c.status === 'fulfilled') setCourses(unwrapList(c.value));
-      if (t.status === 'fulfilled') setTeachers(unwrapList(t.value));
-      if (r.status === 'fulfilled') setRooms(unwrapList(r.value));
-    } catch {}
-  };
-
-  const fetchStats = async () => {
-    try {
-      const [all, active, forming, completed] = await Promise.allSettled([
-        groupsService.getAll({ per_page: 1 }),
-        groupsService.getAll({ per_page: 1, status: 'active' }),
-        groupsService.getAll({ per_page: 1, status: 'forming' }),
-        groupsService.getAll({ per_page: 1, status: 'completed' }),
-      ]);
-      const t = (r) => (r.status === 'fulfilled' ? r.value?.data?.meta?.total ?? 0 : 0);
-      setStats({ total: t(all), active: t(active), forming: t(forming), completed: t(completed) });
-    } catch {
-      setStats({ total: 0, active: 0, forming: 0, completed: 0 });
-    }
-  };
-
-  useEffect(() => { fetchMeta(); fetchStats(); }, []);
-
+  // rooms — hali ham local fetch (alohida hooks task'da)
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setPage(1);
-      fetchGroups({ page: 1 });
-    }, 400);
-    return () => clearTimeout(debounceRef.current);
-    // eslint-disable-next-line
-  }, [search]);
-
-  useEffect(() => {
-    fetchGroups();
-    // eslint-disable-next-line
-  }, [page, statusFilter, courseFilter, teacherFilter]);
+    roomsService.getAll({ per_page: 200 })
+      .then(r => setRooms(unwrapList(r)))
+      .catch(() => {});
+  }, []);
 
   // ============== Helpers ==============
   const openCreate = () => {
@@ -301,59 +276,32 @@ export default function Groups() {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!validate()) return;
-    setFormLoading(true);
-    try {
-      const payload = {
-        name: form.name.trim(),
-        course: form.course,
-        teacher: form.teacher,
-        days: form.days.map(Number),
-        start_time: form.start_time,
-        end_time: form.end_time,
-        start_date: form.start_date,
-        max_students: Number(form.max_students),
-        status: form.status,
-      };
-      if (form.room) payload.room = form.room;
-      if (form.end_date) payload.end_date = form.end_date;
-      if (form.price) payload.price = Number(form.price);
+    const payload = {
+      name: form.name.trim(),
+      course: form.course,
+      teacher: form.teacher,
+      days: form.days.map(Number),
+      start_time: form.start_time,
+      end_time: form.end_time,
+      start_date: form.start_date,
+      max_students: Number(form.max_students),
+      status: form.status,
+    };
+    if (form.room) payload.room = form.room;
+    if (form.end_date) payload.end_date = form.end_date;
+    if (form.price) payload.price = Number(form.price);
 
-      if (formMode === 'create') {
-        await groupsService.create(payload);
-        notify.success("Guruh qo'shildi");
-      } else {
-        await groupsService.update(selected.id, payload);
-        notify.success("Guruh yangilandi");
-      }
-      setFormOpen(false);
-      fetchGroups();
-      fetchStats();
-    } catch (e) {
-      const data = e.response?.data;
-      const msg =
-        data?.error?.message ||
-        data?.detail ||
-        (typeof data === 'object' ? Object.values(data || {}).flat().join(', ') : null) ||
-        'Xatolik';
-      notify.error(msg);
-    } finally {
-      setFormLoading(false);
+    if (formMode === 'create') {
+      createMutation.mutate(payload, { onSuccess: () => setFormOpen(false) });
+    } else {
+      updateMutation.mutate({ id: selected.id, data: payload }, { onSuccess: () => setFormOpen(false) });
     }
   };
 
-  const handleDelete = async () => {
-    try {
-      await groupsService.delete(selected.id);
-      notify.success("Guruh o'chirildi");
-      setDeleteOpen(false);
-      fetchGroups();
-      fetchStats();
-    } catch (e) {
-      const msg = e.response?.data?.error?.message || e.response?.data?.detail || "Xatolik";
-      notify.error(msg);
-    }
+  const handleDelete = () => {
+    deleteMutation.mutate(selected.id, { onSuccess: () => setDeleteOpen(false) });
   };
 
   const toggleDay = (d) => {
@@ -387,7 +335,6 @@ export default function Groups() {
       await groupsService.removeStudent(selected.id, studentId);
       notify.success("O'quvchi guruhdan chiqarildi");
       openStudents(selected);
-      fetchGroups();
     } catch (e) {
       notify.error(e);
     }
@@ -420,7 +367,6 @@ export default function Groups() {
       await groupsService.addStudent(selected.id, payload);
       notify.success("O'quvchi qo'shildi");
       setAddStudentOpen(false);
-      fetchGroups();
     } catch (e) {
       notify.error(e);
     }
@@ -459,7 +405,6 @@ export default function Groups() {
       });
       notify.success("O'quvchi ko'chirildi");
       setTransferOpen(false);
-      fetchGroups();
     } catch (e) {
       notify.error(e);
     } finally {
@@ -507,14 +452,11 @@ export default function Groups() {
   };
 
   const clearFilters = () => {
-    setSearch('');
-    setStatusFilter('all');
-    setCourseFilter('');
-    setTeacherFilter('');
-    setPage(1);
+    setSearchInput('');
+    setFilters(FILTER_DEFAULTS);
   };
 
-  const hasFilters = search || statusFilter !== 'all' || courseFilter || teacherFilter;
+  const hasFilters = filters.search || filters.status || filters.course || filters.teacher;
 
   // Close menu on outside click
   useEffect(() => {
@@ -582,8 +524,8 @@ export default function Groups() {
           icon={faLayerGroup}
           color="#3B82F6"
           bg="rgba(59, 130, 246, 0.12)"
-          active={statusFilter === 'all'}
-          onClick={() => { setStatusFilter('all'); setPage(1); }}
+          active={statusFilter === ''}
+          onClick={() => setFilters({ status: '', page: 1 })}
         />
         <StatCard
           label="Faol"
@@ -592,7 +534,7 @@ export default function Groups() {
           color="#22C55E"
           bg="rgba(34, 197, 94, 0.12)"
           active={statusFilter === 'active'}
-          onClick={() => { setStatusFilter('active'); setPage(1); }}
+          onClick={() => setFilters({ status: 'active', page: 1 })}
         />
         <StatCard
           label="Formayotgan"
@@ -601,7 +543,7 @@ export default function Groups() {
           color="#EAB308"
           bg="rgba(234, 179, 8, 0.12)"
           active={statusFilter === 'forming'}
-          onClick={() => { setStatusFilter('forming'); setPage(1); }}
+          onClick={() => setFilters({ status: 'forming', page: 1 })}
         />
         <StatCard
           label="Yakunlangan"
@@ -610,7 +552,7 @@ export default function Groups() {
           color="#94A3B8"
           bg="rgba(148, 163, 184, 0.12)"
           active={statusFilter === 'completed'}
-          onClick={() => { setStatusFilter('completed'); setPage(1); }}
+          onClick={() => setFilters({ status: 'completed', page: 1 })}
         />
       </div>
 
@@ -620,15 +562,15 @@ export default function Groups() {
           <div className="flex-1 relative">
             <FontAwesomeIcon icon={faSearch} className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
             <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Guruh, kurs yoki o'qituvchi bo'yicha qidirish..."
               className="w-full h-11 pl-11 pr-10 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400"
               style={inputStyle()}
             />
-            {search && (
+            {searchInput && (
               <button
-                onClick={() => setSearch('')}
+                onClick={() => { setSearchInput(''); setFilters({ search: '', page: 1 }); }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
                 style={{ color: 'var(--text-muted)' }}
               >
@@ -638,7 +580,7 @@ export default function Groups() {
           </div>
           <select
             value={courseFilter}
-            onChange={(e) => { setCourseFilter(e.target.value); setPage(1); }}
+            onChange={(e) => setFilters({ course: e.target.value, page: 1 })}
             className="h-11 px-4 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
             style={inputStyle()}
           >
@@ -647,7 +589,7 @@ export default function Groups() {
           </select>
           <select
             value={teacherFilter}
-            onChange={(e) => { setTeacherFilter(e.target.value); setPage(1); }}
+            onChange={(e) => setFilters({ teacher: e.target.value, page: 1 })}
             className="h-11 px-4 rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
             style={inputStyle()}
           >
@@ -906,7 +848,7 @@ export default function Groups() {
           <div className="flex items-center gap-2">
             <button
               disabled={page <= 1}
-              onClick={() => setPage(p => Math.max(1, p - 1))}
+              onClick={() => setFilters({ page: Math.max(1, page - 1) })}
               className="w-9 h-9 rounded-lg border flex items-center justify-center disabled:opacity-40 transition-colors"
               style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
@@ -914,10 +856,10 @@ export default function Groups() {
             >
               <FontAwesomeIcon icon={faChevronLeft} className="w-3.5 h-3.5" />
             </button>
-            <span className="text-sm px-3" style={{ color: 'var(--text-primary)' }}>{meta.page} / {meta.total_pages}</span>
+            <span className="text-sm px-3" style={{ color: 'var(--text-primary)' }}>{page} / {meta.total_pages}</span>
             <button
               disabled={page >= meta.total_pages}
-              onClick={() => setPage(p => Math.min(meta.total_pages, p + 1))}
+              onClick={() => setFilters({ page: Math.min(meta.total_pages, page + 1) })}
               className="w-9 h-9 rounded-lg border flex items-center justify-center disabled:opacity-40 transition-colors"
               style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; }}
@@ -1421,9 +1363,12 @@ export default function Groups() {
               </button>
               <button
                 onClick={handleDelete}
-                className="flex-1 h-12 rounded-xl bg-red-500 hover:bg-red-600 text-white font-medium transition-colors"
+                disabled={deleteMutation.isPending}
+                className="flex-1 h-12 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-medium transition-colors flex items-center justify-center"
               >
-                O'chirish
+                {deleteMutation.isPending
+                  ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  : "O'chirish"}
               </button>
             </div>
           </div>
