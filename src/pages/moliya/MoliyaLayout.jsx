@@ -1,13 +1,14 @@
 import { NavLink, Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMoneyBill, faFileInvoiceDollar, faWallet, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
+import { faMoneyBill, faFileInvoiceDollar, faWallet, faExclamationTriangle, faChartLine } from '@fortawesome/free-solid-svg-icons';
 
 const tabs = [
-  { path: 'debtors', label: 'Qarzdorlar', icon: faExclamationTriangle, permission: 'payments.view' },
-  { path: 'payments', label: "To'lovlar", icon: faMoneyBill, permission: 'payments.view' },
-  { path: 'billing', label: 'Hisob-kitob', icon: faFileInvoiceDollar, permission: 'finance.view' },
-  { path: 'finance', label: 'Xarajatlar & Ish haqi', icon: faWallet, permission: 'finance.view' },
+  { path: 'dashboard', label: 'Umumiy',           icon: faChartLine,          permission: 'payments.view' },
+  { path: 'debtors',   label: 'Qarzdorlar',        icon: faExclamationTriangle, permission: 'payments.view' },
+  { path: 'payments',  label: "To'lovlar",         icon: faMoneyBill,          permission: 'payments.view' },
+  { path: 'billing',   label: 'Hisob-kitob',       icon: faFileInvoiceDollar,  permission: 'finance.view'  },
+  { path: 'finance',   label: 'Xarajatlar & Ish haqi', icon: faWallet,         permission: 'finance.view'  },
 ];
 
 export default function MoliyaLayout() {
@@ -18,7 +19,7 @@ export default function MoliyaLayout() {
   // Agar /app/moliya da tursa — birinchi ruxsat etilgan tab ga redirect
   if (location.pathname === '/app/moliya' || location.pathname === '/app/moliya/') {
     const firstAllowed = tabs.find(t => isOwner || hasPermission(t.permission));
-    return <Navigate to={firstAllowed?.path || 'payments'} replace />;
+    return <Navigate to={firstAllowed?.path || 'dashboard'} replace />;
   }
 
   const visibleTabs = tabs.filter(t => isOwner || hasPermission(t.permission));

@@ -34,6 +34,7 @@ import Reminders from './pages/reminders/Reminders';
 import Billing from './pages/billing/Billing';
 import Debtors from './pages/moliya/Debtors';
 import MoliyaLayout from './pages/moliya/MoliyaLayout';
+import MoliyaDashboard from './pages/moliya/MoliyaDashboard';
 import HisobotlarLayout from './pages/hisobotlar/HisobotlarLayout';
 
 // Subdomen tekshirish — markazedu.uz yoki www.markazedu.uz bo'lmasa = tenant (o'quv markaz)
@@ -93,6 +94,7 @@ export default function App() {
 
           {/* Moliya — tabbed layout */}
           <Route path="moliya" element={<ProtectedRoute permission="payments.view"><MoliyaLayout /></ProtectedRoute>}>
+            <Route path="dashboard" element={<MoliyaDashboard />} />
             <Route path="payments" element={<Payments />} />
             <Route path="billing" element={<ProtectedRoute permission="finance.view"><Billing /></ProtectedRoute>} />
             <Route path="debtors" element={<Debtors />} />
