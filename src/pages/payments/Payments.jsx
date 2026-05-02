@@ -18,6 +18,7 @@ import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
 import StatCard from '@/components/ui/StatCard';
 import EmptyState from '@/components/ui/EmptyState';
+import { useConfirm } from '@/hooks/useConfirm';
 
 // ============================================
 // CONSTANTS
@@ -583,6 +584,7 @@ function PaymentFormModal({ open, onClose, onSuccess, editPayment }) {
 // MAIN PAGE
 // ============================================
 export default function Payments() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const now = new Date();
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -648,7 +650,8 @@ export default function Payments() {
   useEffect(() => { fetchPayments(); }, [debouncedSearch, filterStatus, filterMethod, page, filterYear, filterMonth]);
 
   const handleDelete = async (id) => {
-    if (!confirm("Bu to'lovni o'chirmoqchimisiz?")) return;
+    const ok = await confirm({ title: "To'lovni o'chirish", description: "Bu to'lov butunlay o'chiriladi.", variant: "danger", confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try {
       await paymentsService.delete(id);
       notify.success("To'lov o'chirildi");
@@ -660,7 +663,8 @@ export default function Payments() {
   };
 
   const handleRefund = async (id) => {
-    if (!confirm("To'lovni qaytarmoqchimisiz?")) return;
+    const ok = await confirm({ title: "To'lovni qaytarish", description: "To'lov summasi o'quvchi balansiga qaytariladi.", variant: "warning", confirmText: "Ha, qaytarish" });
+    if (!ok) return;
     try {
       await paymentsService.refund(id);
       notify.success("To'lov qaytarildi");
@@ -681,6 +685,7 @@ export default function Payments() {
 
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
       {/* Month Navigator */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

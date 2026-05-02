@@ -21,6 +21,7 @@ import { studentsService } from '@/services/students';
 import { useAuthStore } from '@/stores/authStore';
 import { formatMoney } from '@/utils/format';
 import { unwrap, unwrapList } from '@/services/api';
+import { useConfirm } from '@/hooks/useConfirm';
 
 // ─── Constants ───
 const statusColors = { present: '#22C55E', absent: '#EF4444', late: '#EAB308', excused: '#3B82F6' };
@@ -49,6 +50,7 @@ const Badge = ({ text, color, bg }) => (
 );
 
 export default function GroupDetail() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -368,7 +370,8 @@ export default function GroupDetail() {
   };
 
   const removeStudent = async (studentId) => {
-    if (!confirm("Talabani guruhdan chiqarishni tasdiqlaysizmi?")) return;
+    const ok = await confirm({ title: 'Talabani chiqarish', description: 'Talabani guruhdan chiqarishni tasdiqlaysizmi?', variant: 'danger' });
+    if (!ok) return;
     try { await groupsService.removeStudent(id, studentId); notify.success("Talaba chiqarildi"); fetchCore(); }
     catch { notify.error('Xato'); }
   };
@@ -448,7 +451,8 @@ export default function GroupDetail() {
   const unfreezeStudent = async (gs) => {
     const sid = getStudentId(gs);
     const name = getStudentName(gs);
-    if (!confirm(`${name} ni muzlatishdan chiqarasizmi?`)) return;
+    const ok = await confirm({ title: 'Muzlatishdan chiqarish', description: `${name} ni muzlatishdan chiqarasizmi?`, variant: 'warning' });
+    if (!ok) return;
     try {
       await studentsService.unfreeze(sid);
       notify.success(`${name} faollashtirildi`);
@@ -496,7 +500,8 @@ export default function GroupDetail() {
   };
 
   const deleteExam = async (examId) => {
-    if (!confirm("Imtihonni o'chirishni tasdiqlaysizmi?")) return;
+    const ok = await confirm({ title: "Imtihonni o'chirish", description: "Imtihonni o'chirishni tasdiqlaysizmi?", variant: 'danger' });
+    if (!ok) return;
     try { await examsService.delete(examId); notify.success("O'chirildi"); fetchExams(); }
     catch { notify.error('Xato'); }
   };
@@ -553,7 +558,8 @@ export default function GroupDetail() {
   };
 
   const deleteHw = async (hwId) => {
-    if (!confirm("Vazifani o'chirishni tasdiqlaysizmi?")) return;
+    const ok = await confirm({ title: "Vazifani o'chirish", description: "Vazifani o'chirishni tasdiqlaysizmi?", variant: 'danger' });
+    if (!ok) return;
     try { await homeworksService.delete(hwId); notify.success("O'chirildi"); fetchHomeworks(); }
     catch { notify.error('Xato'); }
   };
@@ -588,7 +594,8 @@ export default function GroupDetail() {
   };
 
   const deleteLp = async (lpId) => {
-    if (!confirm("Dars rejasini o'chirishni tasdiqlaysizmi?")) return;
+    const ok = await confirm({ title: "Dars rejasini o'chirish", description: "Dars rejasini o'chirishni tasdiqlaysizmi?", variant: 'danger' });
+    if (!ok) return;
     try { await lessonPlansService.delete(lpId); notify.success("O'chirildi"); fetchLessonPlans(); }
     catch { notify.error('Xato'); }
   };
@@ -617,6 +624,7 @@ export default function GroupDetail() {
 
   return (
     <div className="space-y-4">
+      {ConfirmDialog}
       {/* ─── Header ─── */}
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/app/groups')} className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5">

@@ -23,6 +23,7 @@ import { useUrlState } from '@/hooks/useUrlState';
 import { useGroupsList, useCreateGroup, useUpdateGroup, useDeleteGroup } from '@/hooks/queries/useGroups';
 import { useCoursesList } from '@/hooks/queries/useCourses';
 import { useTeachersList } from '@/hooks/queries/useTeachers';
+import { useConfirm } from '@/hooks/useConfirm';
 
 // =========================
 // CONFIG
@@ -112,6 +113,7 @@ const inputStyle = (error) => ({
 // MAIN
 // =========================
 export default function Groups() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { isOwner, isOwnerOrAdmin, isRegistrar } = usePermissions();
@@ -330,7 +332,8 @@ export default function Groups() {
   };
 
   const removeStudentFromGroup = async (studentId) => {
-    if (!confirm("O'quvchini guruhdan chiqarmoqchimisiz?")) return;
+    const ok = await confirm({ title: "O'quvchini guruhdan chiqarish", description: "O'quvchini guruhdan chiqarmoqchimisiz?", variant: 'danger' });
+    if (!ok) return;
     try {
       await groupsService.removeStudent(selected.id, studentId);
       notify.success("O'quvchi guruhdan chiqarildi");
@@ -471,6 +474,7 @@ export default function Groups() {
   // =========================
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

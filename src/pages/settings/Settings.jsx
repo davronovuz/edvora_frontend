@@ -15,6 +15,7 @@ import Modal from '@/components/ui/Modal';
 import { usersService } from '@/services/users';
 import { holidayService } from '@/services/attendance';
 import { authService } from '@/services/auth';
+import { useConfirm } from '@/hooks/useConfirm';
 
 // Lazy load embedded pages
 const RoomsPage = lazy(() => import('@/pages/rooms/Rooms'));
@@ -144,6 +145,7 @@ function OrangeButton({ onClick, disabled, loading, icon, children, fullWidth, v
 // MAIN COMPONENT
 // ============================================
 export default function Settings() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const { user, setUser } = useAuthStore();
   const isOwner = user?.role === 'owner';
 
@@ -264,7 +266,8 @@ export default function Settings() {
   };
 
   const handleDeleteHoliday = async (h) => {
-    if (!confirm(`"${h.name}" dam olish kunini o'chirishni tasdiqlaysizmi?`)) return;
+    const ok = await confirm({ title: `"${h.name}" dam olish kunini o'chirish`, description: "Bu amalni qaytarib bo'lmaydi.", variant: "danger", confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try {
       await holidayService.delete(h.id);
       notify.success("Dam olish kuni o'chirildi");
@@ -361,7 +364,8 @@ export default function Settings() {
   const handleDeleteUser = async (u) => {
     if (u.role === 'owner') { notify.error("Egani o'chirib bo'lmaydi"); return; }
     if (u.id === user?.id) { notify.error("O'zingizni o'chira olmaysiz"); return; }
-    if (!confirm(`${u.first_name} ${u.last_name} — bu foydalanuvchini o'chirishni tasdiqlaysizmi?`)) return;
+    const ok = await confirm({ title: `${u.first_name} ${u.last_name} o'chirilsinmi?`, description: "Foydalanuvchi tizimdan butunlay o'chiriladi.", variant: "danger", confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try {
       await usersService.delete(u.id);
       notify.success("Foydalanuvchi o'chirildi");
@@ -474,6 +478,7 @@ export default function Settings() {
   // ============================================
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Sozlamalar</h1>

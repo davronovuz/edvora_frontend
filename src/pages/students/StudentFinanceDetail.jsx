@@ -19,6 +19,7 @@ import { formatMoney, formatDate } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
+import { useConfirm } from '@/hooks/useConfirm';
 
 // ─────────────────────────────────────────────
 // CONSTANTS
@@ -628,6 +629,7 @@ function GroupMonthlyTable({ group, invoices, onPay, onGenerate, generating }) {
 // MAIN PAGE
 // ─────────────────────────────────────────────
 export default function StudentFinanceDetail() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -722,7 +724,8 @@ export default function StudentFinanceDetail() {
   };
 
   const handleRefund = async (payId) => {
-    if (!confirm("To'lovni qaytarmoqchimisiz?")) return;
+    const ok = await confirm({ title: "To'lovni qaytarish", description: "To'lovni qaytarmoqchimisiz?", variant: 'warning' });
+    if (!ok) return;
     try {
       await paymentsService.refund(payId);
       notify.success('Qaytarildi');
@@ -781,6 +784,7 @@ export default function StudentFinanceDetail() {
 
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
 
       {/* ─── HEADER ─── */}
       <div className="rounded-2xl border p-5"

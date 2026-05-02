@@ -11,6 +11,7 @@ import { faTelegram, faInstagram } from '@fortawesome/free-brands-svg-icons';
 import { leadsService, leadActivitiesService } from '@/services/leads';
 import api from '@/services/api';
 import Modal from '@/components/ui/Modal';
+import { useConfirm } from '@/hooks/useConfirm';
 
 const statusConfig = {
   new: { label: 'Yangi', color: '#3B82F6', bg: 'rgba(59,130,246,0.15)' },
@@ -51,6 +52,7 @@ const activityTypes = [
 const emptyForm = { first_name: '', last_name: '', phone: '', email: '', interested_course: '', source: 'phone', priority: 'medium', status: 'new', notes: '' };
 
 export default function Leads() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const { t } = useTranslation();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -105,7 +107,8 @@ export default function Leads() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
+    const ok = await confirm({ title: "O'chirishni tasdiqlaysizmi?", variant: "danger", confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try { await leadsService.delete(id); notify.success("O'chirildi"); fetchLeads(); }
     catch { notify.error("Xato"); }
   };
@@ -139,6 +142,7 @@ export default function Leads() {
 
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{t('nav.leads')}</h1>

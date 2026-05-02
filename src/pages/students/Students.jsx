@@ -23,6 +23,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useUrlState } from '@/hooks/useUrlState';
+import { useConfirm } from '@/hooks/useConfirm';
 import {
   useStudentsList,
   useStudentStatistics,
@@ -351,6 +352,7 @@ const FILTER_DEFAULTS = {
 };
 
 export default function Students() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const { t } = useTranslation();
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -699,8 +701,9 @@ export default function Students() {
     });
   };
 
-  const handleUnfreeze = (student) => {
-    if (!window.confirm(`${student.first_name} ${student.last_name} ni muzlatishdan chiqarasizmi?`)) return;
+  const handleUnfreeze = async (student) => {
+    const ok = await confirm({ title: 'Muzlatishdan chiqarish', description: `${student.first_name} ${student.last_name} ni muzlatishdan chiqarasizmi?`, variant: 'warning' });
+    if (!ok) return;
     unfreezeMutation.mutate(student.id);
   };
 
@@ -726,6 +729,7 @@ export default function Students() {
   // ============================================
   return (
     <div className="space-y-5 fade-up">
+      {ConfirmDialog}
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

@@ -9,6 +9,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { roomsService } from '@/services/rooms';
 import Modal from '@/components/ui/Modal';
+import { useConfirm } from '@/hooks/useConfirm';
 
 const statusConfig = {
   active: { label: 'Faol', color: '#22C55E', bg: 'rgba(34,197,94,0.15)', icon: faCheckCircle },
@@ -26,6 +27,7 @@ const typeConfig = {
 const emptyForm = { name: '', number: '', floor: 1, room_type: 'classroom', capacity: 20, status: 'active', has_projector: false, has_whiteboard: true, has_computers: false, has_air_conditioning: false, description: '' };
 
 export default function Rooms() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const { t } = useTranslation();
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +65,8 @@ export default function Rooms() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
+    const ok = await confirm({ title: "O'chirishni tasdiqlaysizmi?", variant: "danger", confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try { await roomsService.delete(id); notify.success("O'chirildi"); fetchRooms(); }
     catch { notify.error("Xato"); }
   };
@@ -87,6 +90,7 @@ export default function Rooms() {
 
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{t('nav.rooms')}</h1>

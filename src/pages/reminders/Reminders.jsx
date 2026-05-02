@@ -7,8 +7,10 @@ import {
   faCheck, faEdit, faTrash, faUser, faPhone, faBell,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/services/api';
+import { useConfirm } from '@/hooks/useConfirm';
 
 export default function Reminders() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [reminders, setReminders] = useState([]);
@@ -102,7 +104,8 @@ export default function Reminders() {
   };
 
   const deleteReminder = async (id) => {
-    if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
+    const ok = await confirm({ title: "O'chirishni tasdiqlaysizmi?", variant: "danger", confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try {
       await api.delete(`/notifications/${id}/`);
       notify.success("O'chirildi");
@@ -164,6 +167,7 @@ export default function Reminders() {
 
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>

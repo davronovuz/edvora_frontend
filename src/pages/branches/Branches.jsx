@@ -7,6 +7,7 @@ import {
   faClock, faUsers, faChalkboardTeacher, faDoorOpen, faLayerGroup, faStar, faChartBar
 } from '@fortawesome/free-solid-svg-icons';
 import { branchesService } from '@/services/branches';
+import { useConfirm } from '@/hooks/useConfirm';
 
 const statusConfig = {
   active: { color: '#22C55E', bg: 'rgba(34,197,94,0.15)' },
@@ -24,6 +25,7 @@ const emptyForm = {
 const dayNames = { uz: ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya'], ru: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] };
 
 export default function Branches() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const { t, i18n } = useTranslation();
   const days = dayNames[i18n.language] || dayNames.uz;
 
@@ -63,7 +65,8 @@ export default function Branches() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm(t('common.delete') + '?')) return;
+    const ok = await confirm({ title: t('common.delete') + '?', variant: 'danger', confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try { await branchesService.delete(id); notify.success(t('common.delete') + ' ✓'); fetchBranches(); }
     catch { notify.error('Xato'); }
   };
@@ -97,6 +100,7 @@ export default function Branches() {
 
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>

@@ -17,6 +17,7 @@ import { formatMoney, formatMonth } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
 import StatCard from '@/components/ui/StatCard';
+import { useConfirm } from '@/hooks/useConfirm';
 
 // ============================================
 // CONFIG
@@ -102,6 +103,7 @@ function Pagination({ page, totalPages, onPageChange }) {
 // TAB 1: INVOICES
 // ============================================
 function InvoicesTab() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const now = new Date();
   const [invoices, setInvoices] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -159,7 +161,8 @@ function InvoicesTab() {
   useEffect(() => { fetchSummary(); }, [filterYear, filterMonth]);
 
   const handleCancel = async (id) => {
-    if (!confirm('Invoice bekor qilinsinmi?')) return;
+    const ok = await confirm({ title: "Invoice bekor qilinsinmi?", description: "Invoice holati 'bekor qilingan' ga o'zgaradi.", variant: "warning", confirmText: "Ha, bekor qilish" });
+    if (!ok) return;
     try {
       await billingInvoicesService.cancel(id);
       notify.success('Invoice bekor qilindi');
@@ -530,6 +533,7 @@ function InvoicesTab() {
           </div>
         )}
       </Modal>
+      {ConfirmDialog}
     </div>
   );
 }
@@ -538,6 +542,7 @@ function InvoicesTab() {
 // TAB 2: PROFILES
 // ============================================
 function ProfilesTab() {
+  const { confirm, ConfirmDialog: ConfirmDialogProfiles } = useConfirm();
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
@@ -600,7 +605,8 @@ function ProfilesTab() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("O'chirilsinmi?")) return;
+    const ok = await confirm({ title: "To'lov profilini o'chirish", variant: "danger", confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try {
       await billingProfilesService.delete(id);
       notify.success("O'chirildi");
@@ -722,6 +728,7 @@ function ProfilesTab() {
           <button onClick={handleSave} className="btn btn-primary w-full">{editing ? 'Saqlash' : 'Yaratish'}</button>
         </div>
       </Modal>
+      {ConfirmDialogProfiles}
     </div>
   );
 }
@@ -816,6 +823,7 @@ function LeavesTab() {
 // TAB 4: DISCOUNTS
 // ============================================
 function DiscountsTab() {
+  const { confirm, ConfirmDialog: ConfirmDialogDiscounts } = useConfirm();
   const [discounts, setDiscounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
@@ -842,7 +850,8 @@ function DiscountsTab() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("O'chirilsinmi?")) return;
+    const ok = await confirm({ title: "Chegirmani o'chirish", variant: "danger", confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try {
       await billingDiscountsService.delete(id);
       notify.success("O'chirildi");
@@ -938,6 +947,7 @@ function DiscountsTab() {
           <button onClick={handleSave} className="btn btn-primary w-full">Yaratish</button>
         </div>
       </Modal>
+      {ConfirmDialogDiscounts}
     </div>
   );
 }
@@ -953,6 +963,7 @@ const tabs = [
 ];
 
 export default function Billing() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const [activeTab, setActiveTab] = useState('invoices');
 
   return (

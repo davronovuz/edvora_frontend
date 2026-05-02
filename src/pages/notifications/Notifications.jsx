@@ -9,6 +9,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { notificationsService, autoSmsService, remindersService, holidaysService } from '@/services/notifications';
 import Modal from '@/components/ui/Modal';
+import { useConfirm } from '@/hooks/useConfirm';
 
 const typeConfig = {
   payment: { color: '#22C55E', icon: faMoneyBill },
@@ -32,6 +33,7 @@ const emptyHoliday = { name: '', date: '', description: '', is_recurring: false 
 const emptyAutoSms = { name: '', trigger_event: 'payment_reminder', message_template: '', is_active: true, days_before: 3 };
 
 export default function Notifications() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const { t } = useTranslation();
 
   const [tab, setTab] = useState('notifications');
@@ -129,7 +131,8 @@ export default function Notifications() {
   };
 
   const handleDeleteReminder = async (id) => {
-    if (!confirm(t('common.delete') + '?')) return;
+    const ok = await confirm({ title: t('common.delete') + '?', variant: 'danger', confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try { await remindersService.delete(id); notify.success(t('common.delete') + ' ✓'); fetchReminders(); }
     catch { notify.error('Xato'); }
   };
@@ -150,7 +153,8 @@ export default function Notifications() {
   };
 
   const handleDeleteHoliday = async (id) => {
-    if (!confirm(t('common.delete') + '?')) return;
+    const ok = await confirm({ title: t('common.delete') + '?', variant: 'danger', confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try { await holidaysService.delete(id); notify.success(t('common.delete') + ' ✓'); fetchHolidays(); }
     catch { notify.error('Xato'); }
   };
@@ -166,7 +170,8 @@ export default function Notifications() {
   };
 
   const handleDeleteAutoSms = async (id) => {
-    if (!confirm(t('common.delete') + '?')) return;
+    const ok = await confirm({ title: t('common.delete') + '?', variant: 'danger', confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try { await autoSmsService.delete(id); notify.success(t('common.delete') + ' ✓'); fetchAutoSms(); }
     catch { notify.error('Xato'); }
   };
@@ -192,6 +197,7 @@ export default function Notifications() {
 
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{t('notifications.title')}</h1>

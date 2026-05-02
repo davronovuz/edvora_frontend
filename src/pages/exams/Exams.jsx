@@ -10,6 +10,7 @@ import {
 import { examsService, examResultsService, homeworksService, homeworkSubmissionsService, lessonPlansService } from '@/services/exams';
 import api from '@/services/api';
 import Modal from '@/components/ui/Modal';
+import { useConfirm } from '@/hooks/useConfirm';
 
 const examStatusConfig = {
   draft: { label: 'Qoralama', color: '#94A3B8', bg: 'rgba(148,163,184,0.15)' },
@@ -45,6 +46,7 @@ const emptyHomework = { group: '', title: '', description: '', max_score: 100, a
 const emptyLessonPlan = { group: '', lesson_number: '', title: '', description: '', objectives: '', materials: '', homework_description: '', date: '', duration_minutes: 90, status: 'draft', notes: '' };
 
 export default function Exams() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const { t } = useTranslation();
   const [tab, setTab] = useState('exams');
   const [exams, setExams] = useState([]);
@@ -109,7 +111,8 @@ export default function Exams() {
   };
 
   const handleDeleteExam = async (id) => {
-    if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
+    const ok = await confirm({ title: "Imtihonni o'chirishni tasdiqlaysizmi?", variant: "danger", confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try { await examsService.delete(id); notify.success("O'chirildi"); fetchData(); }
     catch { notify.error("Xato"); }
   };
@@ -124,7 +127,8 @@ export default function Exams() {
   };
 
   const handleDeleteHomework = async (id) => {
-    if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
+    const ok = await confirm({ title: "Uy vazifasini o'chirishni tasdiqlaysizmi?", variant: "danger", confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try { await homeworksService.delete(id); notify.success("O'chirildi"); fetchData(); }
     catch { notify.error("Xato"); }
   };
@@ -139,7 +143,8 @@ export default function Exams() {
   };
 
   const handleDeleteLessonPlan = async (id) => {
-    if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
+    const ok = await confirm({ title: "Dars rejasini o'chirishni tasdiqlaysizmi?", variant: "danger", confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try { await lessonPlansService.delete(id); notify.success("O'chirildi"); fetchData(); }
     catch { notify.error("Xato"); }
   };
@@ -195,6 +200,7 @@ export default function Exams() {
 
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{t('nav.exams')}</h1>

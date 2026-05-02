@@ -22,6 +22,7 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
+import { useConfirm } from '@/hooks/useConfirm';
 
 // ============================================
 // CONFIG
@@ -106,6 +107,7 @@ function StatCard({ label, value, subValue, icon, color, trend }) {
 const emptyExpense = { category: '', title: '', description: '', amount: '', expense_date: new Date().toISOString().split('T')[0], status: 'pending' };
 
 export default function Finance() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -239,7 +241,8 @@ export default function Finance() {
   };
 
   const handleDeleteExpense = async (id) => {
-    if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
+    const ok = await confirm({ title: "O'chirishni tasdiqlaysizmi?", variant: "danger", confirmText: "Ha, o'chirish" });
+    if (!ok) return;
     try { await expensesService.delete(id); notify.success("O'chirildi"); fetchData(); }
     catch { notify.error('Xatolik'); }
   };
@@ -258,6 +261,7 @@ export default function Finance() {
   // ============================================
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
