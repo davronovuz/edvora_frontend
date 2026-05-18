@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -10,6 +11,7 @@ import {
 import { roomsService } from '@/services/rooms';
 import Modal from '@/components/ui/Modal';
 import { useConfirm } from '@/hooks/useConfirm';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 const statusConfig = {
   active: { label: 'Faol', color: '#22C55E', bg: 'rgba(34,197,94,0.15)', icon: faCheckCircle },
@@ -29,57 +31,61 @@ const emptyForm = { name: '', number: '', floor: 1, room_type: 'classroom', capa
 export default function Rooms() {
   const { confirm, ConfirmDialog } = useConfirm();
   const { t } = useTranslation();
-  const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
+
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [showSchedule, setShowSchedule] = useState(null);
-  const [schedule, setSchedule] = useState([]);
   const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
 
-  const fetchRooms = async () => {
-    setLoading(true);
-    try {
+  const { data: rooms = [], isLoading } = useQuery({
+    queryKey: ['rooms', debouncedSearch, filterType, filterStatus],
+    queryFn: async () => {
       const params = {};
-      if (search) params.search = search;
+      if (debouncedSearch) params.search = debouncedSearch;
       if (filterType) params.room_type = filterType;
       if (filterStatus) params.status = filterStatus;
       const res = await roomsService.getAll(params);
-      setRooms(res.data?.data || res.data?.results || []);
-    } catch { notify.error("Xonalarni yuklashda xato"); }
-    setLoading(false);
-  };
+      return res.data?.data || res.data?.results || [];
+    },
+  });
 
-  useEffect(() => { fetchRooms(); }, [search, filterType, filterStatus]);
+  const { data: schedule = [], isFetching: loadingSchedule } = useQuery({
+    queryKey: ['rooms', 'schedule', showSchedule?.id, scheduleDate],
+    queryFn: async () => {
+      const res = await roomsService.getSchedule(showSchedule.id, scheduleDate);
+      return res.data?.data || res.data?.results || res.data || [];
+    },
+    enabled: !!showSchedule,
+  });
 
-  const handleSave = async () => {
-    try {
-      if (editId) { await roomsService.update(editId, form); notify.success("Xona yangilandi"); }
-      else { await roomsService.create(form); notify.success("Xona yaratildi"); }
-      setShowForm(false); setEditId(null); setForm(emptyForm); fetchRooms();
-    } catch (e) { notify.error(e); }
-  };
+  const saveRoom = useMutation({
+    mutationFn: (data) => editId ? roomsService.update(editId, data) : roomsService.create(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rooms'] });
+      notify.success(editId ? "Xona yangilandi" : "Xona yaratildi");
+      setShowForm(false); setEditId(null); setForm(emptyForm);
+    },
+    onError: (e) => notify.error(e),
+  });
+
+  const deleteRoom = useMutation({
+    mutationFn: (id) => roomsService.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rooms'] }); notify.success("O'chirildi"); },
+    onError: () => notify.error("Xato"),
+  });
 
   const handleDelete = async (id) => {
     const ok = await confirm({ title: "O'chirishni tasdiqlaysizmi?", variant: "danger", confirmText: "Ha, o'chirish" });
     if (!ok) return;
-    try { await roomsService.delete(id); notify.success("O'chirildi"); fetchRooms(); }
-    catch { notify.error("Xato"); }
+    deleteRoom.mutate(id);
   };
-
-  const viewSchedule = async (room) => {
-    setShowSchedule(room);
-    try {
-      const res = await roomsService.getSchedule(room.id, scheduleDate);
-      setSchedule(res.data?.data || res.data?.results || res.data || []);
-    } catch { setSchedule([]); }
-  };
-
-  useEffect(() => { if (showSchedule) viewSchedule(showSchedule); }, [scheduleDate]);
 
   const equipmentIcons = [
     { key: 'has_projector', label: 'Proyektor', icon: faProjectDiagram },
@@ -118,7 +124,7 @@ export default function Rooms() {
       </div>
 
       {/* Room Cards */}
-      {loading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--primary-600)', borderTopColor: 'transparent' }} /></div>
       ) : rooms.length === 0 ? (
         <div className="text-center py-20 text-sm" style={{ color: 'var(--text-muted)' }}>Xonalar topilmadi</div>
@@ -161,7 +167,7 @@ export default function Rooms() {
 
                 {/* Actions */}
                 <div className="flex gap-2 pt-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
-                  <button onClick={() => viewSchedule(room)} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ color: 'var(--primary-600)', backgroundColor: 'rgba(59,130,246,0.1)' }}>
+                  <button onClick={() => setShowSchedule(room)} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ color: 'var(--primary-600)', backgroundColor: 'rgba(59,130,246,0.1)' }}>
                     <FontAwesomeIcon icon={faCalendarAlt} className="mr-1" /> Jadval
                   </button>
                   <button onClick={() => { setForm({ name: room.name, number: room.number, floor: room.floor, room_type: room.room_type, capacity: room.capacity, status: room.status, has_projector: room.has_projector, has_whiteboard: room.has_whiteboard, has_computers: room.has_computers, has_air_conditioning: room.has_air_conditioning, description: room.description || '' }); setEditId(room.id); setShowForm(true); }} className="py-2 px-3 rounded-lg text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -224,7 +230,7 @@ export default function Rooms() {
           </div>
           <div className="flex gap-3 pt-2">
             <button onClick={() => { setShowForm(false); setEditId(null); }} className="flex-1 h-11 rounded-xl border font-medium" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>Bekor</button>
-            <button onClick={handleSave} className="flex-1 h-11 rounded-xl text-white font-medium" style={{ backgroundColor: 'var(--primary-600)' }}>Saqlash</button>
+            <button onClick={() => saveRoom.mutate(form)} disabled={saveRoom.isPending} className="flex-1 h-11 rounded-xl text-white font-medium" style={{ backgroundColor: 'var(--primary-600)' }}>Saqlash</button>
           </div>
         </div>
       </Modal>
@@ -233,7 +239,9 @@ export default function Rooms() {
       <Modal isOpen={!!showSchedule} onClose={() => setShowSchedule(null)} title={`${showSchedule?.name} - Jadval`}>
         <div className="space-y-4">
           <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="w-full h-11 px-4 rounded-xl border bg-transparent" style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
-          {schedule.length > 0 ? (
+          {loadingSchedule ? (
+            <div className="flex items-center justify-center py-8"><div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--primary-600)', borderTopColor: 'transparent' }} /></div>
+          ) : schedule.length > 0 ? (
             <div className="space-y-2">
               {schedule.map((s, i) => (
                 <div key={i} className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { notify } from '@/lib/notify';
@@ -10,15 +10,15 @@ import {
   faFileInvoice, faHandHoldingUsd, faCreditCard, faMobileAlt, faMoneyBill,
   faExchangeAlt, faFilter, faEye, faClock, faUsers, faChartLine, faChartBar,
 } from '@fortawesome/free-solid-svg-icons';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   expenseCategoriesService, expensesService, transactionsService,
   salariesService, financeDashboardService,
 } from '@/services/finance';
 import { paymentsService } from '@/services/payments';
 import { billingInvoicesService } from '@/services/billing';
-import { unwrapList } from '@/services/api';
 import { formatMoney, formatMonth } from '@/utils/format';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useUrlState } from '@/hooks/useUrlState';
 import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
@@ -106,51 +106,61 @@ function StatCard({ label, value, subValue, icon, color, trend }) {
 // ============================================
 const emptyExpense = { category: '', title: '', description: '', amount: '', expense_date: new Date().toISOString().split('T')[0], status: 'pending' };
 
+const URL_DEFAULTS = { tab: 'dashboard', page: 1, search: '', txFilter: 'all', expenseFilter: 'all', salaryFilter: 'all' };
+
 export default function Finance() {
   const { confirm, ConfirmDialog } = useConfirm();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const qc = useQueryClient();
 
-  const [tab, setTab] = useState('dashboard');
-  const [dashboard, setDashboard] = useState(null);
-  const [monthlyData, setMonthlyData] = useState([]);
-  const [debtors, setDebtors] = useState([]);
-  const [upcomingInvoices, setUpcomingInvoices] = useState([]);
-  const [paymentStats, setPaymentStats] = useState(null);
-  const [expenses, setExpenses] = useState([]);
-  const [transactions, setTransactions] = useState([]);
-  const [salaries, setSalaries] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  // ============================================
+  // URL STATE (tab + filters persist in URL)
+  // ============================================
+  const [filters, setFilters] = useUrlState(URL_DEFAULTS);
+  const { tab, page, search, txFilter, expenseFilter, salaryFilter } = filters;
+
+  // UI-only state (not persisted in URL)
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(emptyExpense);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [txFilter, setTxFilter] = useState('all');
-  const [expenseFilter, setExpenseFilter] = useState('all');
-  const [salaryFilter, setSalaryFilter] = useState('all');
-  const [detailModal, setDetailModal] = useState(null);
+
+  // Helpers to update individual filter fields
+  const setTab = (val) => setFilters({ tab: val, page: 1, search: '', txFilter: 'all', expenseFilter: 'all', salaryFilter: 'all' });
+  const setPage = (val) => setFilters(prev => ({ ...prev, page: typeof val === 'function' ? val(prev.page) : val }));
+  const setSearch = (val) => setFilters(prev => ({ ...prev, search: val, page: 1 }));
+  const setTxFilter = (val) => setFilters(prev => ({ ...prev, txFilter: val, page: 1 }));
+  const setExpenseFilter = (val) => setFilters(prev => ({ ...prev, expenseFilter: val, page: 1 }));
+  const setSalaryFilter = (val) => setFilters(prev => ({ ...prev, salaryFilter: val, page: 1 }));
 
   // ============================================
-  // DATA FETCHING
+  // QUERIES — Dashboard (parallel)
   // ============================================
-  const fetchDashboard = async () => {
-    try {
-      const [dashRes, monthRes, debtRes, statsRes, invRes] = await Promise.all([
-        financeDashboardService.summary().catch(() => null),
-        financeDashboardService.monthlyReport().catch(() => null),
-        billingInvoicesService.debtors().catch(() => null),
-        paymentsService.statistics().catch(() => null),
-        billingInvoicesService.getAll({ page_size: 100 }).catch(() => null),
-      ]);
-      setDashboard(dashRes?.data?.data || dashRes?.data || {});
-      const mData = monthRes?.data?.data || monthRes?.data?.monthly_data || monthRes?.data || [];
-      setMonthlyData(Array.isArray(mData) ? mData : []);
-      // billing/invoices/debtors/ shape: [{student__id, student__first_name, student__last_name, total_debt, invoice_count}]
-      const dRaw = debtRes?.data?.data || debtRes?.data?.results || debtRes?.data || [];
-      const dData = (Array.isArray(dRaw) ? dRaw : []).map(d => ({
+  const { data: dashboard = {}, isLoading: loadingDashboard } = useQuery({
+    queryKey: ['finance', 'dashboard', 'summary'],
+    queryFn: async () => {
+      const res = await financeDashboardService.summary().catch(() => null);
+      return res?.data?.data || res?.data || {};
+    },
+    enabled: tab === 'dashboard',
+  });
+
+  const { data: monthlyData = [] } = useQuery({
+    queryKey: ['finance', 'dashboard', 'monthly'],
+    queryFn: async () => {
+      const res = await financeDashboardService.monthlyReport().catch(() => null);
+      const mData = res?.data?.data || res?.data?.monthly_data || res?.data || [];
+      return Array.isArray(mData) ? mData : [];
+    },
+    enabled: tab === 'dashboard',
+  });
+
+  const { data: debtors = [] } = useQuery({
+    queryKey: ['finance', 'dashboard', 'debtors'],
+    queryFn: async () => {
+      const res = await billingInvoicesService.debtors().catch(() => null);
+      const dRaw = res?.data?.data || res?.data?.results || res?.data || [];
+      return (Array.isArray(dRaw) ? dRaw : []).map(d => ({
         student_id: d.student__id ?? d.student_id ?? d.id,
         student_name: d.student__first_name
           ? `${d.student__first_name} ${d.student__last_name || ''}`.trim()
@@ -158,93 +168,163 @@ export default function Finance() {
         debt: Number(d.total_debt ?? d.balance ?? d.debt ?? 0),
         invoice_count: d.invoice_count || 0,
       }));
-      setDebtors(dData);
-      setPaymentStats(statsRes?.data?.data || statsRes?.data || null);
+    },
+    enabled: tab === 'dashboard',
+  });
 
-      // Compute upcoming / overdue invoices
-      const invRaw = invRes?.data?.data || invRes?.data?.results || invRes?.data || [];
+  const { data: paymentStats = null } = useQuery({
+    queryKey: ['finance', 'dashboard', 'paymentStats'],
+    queryFn: async () => {
+      const res = await paymentsService.statistics().catch(() => null);
+      return res?.data?.data || res?.data || null;
+    },
+    enabled: tab === 'dashboard',
+  });
+
+  const { data: upcomingInvoices = [] } = useQuery({
+    queryKey: ['finance', 'dashboard', 'upcomingInvoices'],
+    queryFn: async () => {
+      const res = await billingInvoicesService.getAll({ page_size: 100 }).catch(() => null);
+      const invRaw = res?.data?.data || res?.data?.results || res?.data || [];
       const today = new Date();
-      const upcoming = (Array.isArray(invRaw) ? invRaw : [])
+      return (Array.isArray(invRaw) ? invRaw : [])
         .filter(i => i.status !== 'paid' && i.status !== 'cancelled' && i.due_date)
         .map(i => {
           const days = Math.ceil((new Date(i.due_date) - today) / (1000 * 60 * 60 * 24));
           return { ...i, daysLeft: days };
         })
-        .filter(i => i.daysLeft <= 7) // overdue or due within 7 days
+        .filter(i => i.daysLeft <= 7)
         .sort((a, b) => a.daysLeft - b.daysLeft);
-      setUpcomingInvoices(upcoming);
-    } catch {}
-    setLoading(false);
-  };
+    },
+    enabled: tab === 'dashboard',
+  });
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const params = { page, page_size: 20 };
-      if (search) params.search = search;
+  // ============================================
+  // QUERIES — Categories (always needed for expense form)
+  // ============================================
+  const { data: categories = [] } = useQuery({
+    queryKey: ['finance', 'categories'],
+    queryFn: async () => {
+      const res = await expenseCategoriesService.getAll();
+      return res.data?.data || res.data?.results || [];
+    },
+  });
 
-      if (tab === 'expenses') {
-        if (expenseFilter !== 'all') params.status = expenseFilter;
-        const res = await expensesService.getAll(params);
-        const data = res.data?.data || res.data?.results || [];
-        setExpenses(Array.isArray(data) ? data : []);
-        setTotalPages(res.data?.meta?.total_pages || Math.ceil((res.data?.count || 0) / 20) || 1);
-      } else if (tab === 'transactions') {
-        if (txFilter !== 'all') params.transaction_type = txFilter;
-        const res = await transactionsService.getAll(params);
-        const data = res.data?.data || res.data?.results || [];
-        setTransactions(Array.isArray(data) ? data : []);
-        setTotalPages(res.data?.meta?.total_pages || Math.ceil((res.data?.count || 0) / 20) || 1);
-      } else if (tab === 'salaries') {
-        if (salaryFilter !== 'all') params.status = salaryFilter;
-        const res = await salariesService.getAll(params);
-        const data = res.data?.data || res.data?.results || [];
-        setSalaries(Array.isArray(data) ? data : []);
-        setTotalPages(res.data?.meta?.total_pages || Math.ceil((res.data?.count || 0) / 20) || 1);
-      }
-    } catch { notify.error('Ma\'lumotlarni yuklashda xatolik'); }
-    setLoading(false);
-  };
+  // ============================================
+  // QUERIES — Expenses tab
+  // ============================================
+  const expenseParams = { page, page_size: 20, ...(search ? { search } : {}), ...(expenseFilter !== 'all' ? { status: expenseFilter } : {}) };
+  const { data: expensesData, isLoading: loadingExpenses } = useQuery({
+    queryKey: ['finance', 'expenses', page, search, expenseFilter],
+    queryFn: async () => {
+      const res = await expensesService.getAll(expenseParams);
+      const data = res.data?.data || res.data?.results || [];
+      const totalPages = res.data?.meta?.total_pages || Math.ceil((res.data?.count || 0) / 20) || 1;
+      return { items: Array.isArray(data) ? data : [], totalPages };
+    },
+    enabled: tab === 'expenses',
+  });
+  const expenses = expensesData?.items ?? [];
+  const expensesTotalPages = expensesData?.totalPages ?? 1;
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await expenseCategoriesService.getAll();
-        setCategories(res.data?.data || res.data?.results || []);
-      } catch {}
-    })();
-  }, []);
+  // ============================================
+  // QUERIES — Transactions tab
+  // ============================================
+  const txParams = { page, page_size: 20, ...(search ? { search } : {}), ...(txFilter !== 'all' ? { transaction_type: txFilter } : {}) };
+  const { data: transactionsData, isLoading: loadingTransactions } = useQuery({
+    queryKey: ['finance', 'transactions', page, search, txFilter],
+    queryFn: async () => {
+      const res = await transactionsService.getAll(txParams);
+      const data = res.data?.data || res.data?.results || [];
+      const totalPages = res.data?.meta?.total_pages || Math.ceil((res.data?.count || 0) / 20) || 1;
+      return { items: Array.isArray(data) ? data : [], totalPages };
+    },
+    enabled: tab === 'transactions',
+  });
+  const transactions = transactionsData?.items ?? [];
+  const transactionsTotalPages = transactionsData?.totalPages ?? 1;
 
-  useEffect(() => {
-    if (tab === 'dashboard') fetchDashboard();
-    else fetchData();
-  }, [tab, search, page, txFilter, expenseFilter, salaryFilter]);
+  // ============================================
+  // QUERIES — Salaries tab
+  // ============================================
+  const salaryParams = { page, page_size: 20, ...(search ? { search } : {}), ...(salaryFilter !== 'all' ? { status: salaryFilter } : {}) };
+  const { data: salariesData, isLoading: loadingSalaries } = useQuery({
+    queryKey: ['finance', 'salaries', page, search, salaryFilter],
+    queryFn: async () => {
+      const res = await salariesService.getAll(salaryParams);
+      const data = res.data?.data || res.data?.results || [];
+      const totalPages = res.data?.meta?.total_pages || Math.ceil((res.data?.count || 0) / 20) || 1;
+      return { items: Array.isArray(data) ? data : [], totalPages };
+    },
+    enabled: tab === 'salaries',
+  });
+  const salaries = salariesData?.items ?? [];
+  const salariesTotalPages = salariesData?.totalPages ?? 1;
+
+  // Unified loading / totalPages for current tab
+  const loading = tab === 'dashboard' ? loadingDashboard
+    : tab === 'expenses' ? loadingExpenses
+    : tab === 'transactions' ? loadingTransactions
+    : tab === 'salaries' ? loadingSalaries
+    : false;
+
+  const totalPages = tab === 'expenses' ? expensesTotalPages
+    : tab === 'transactions' ? transactionsTotalPages
+    : tab === 'salaries' ? salariesTotalPages
+    : 1;
+
+  // ============================================
+  // MUTATIONS
+  // ============================================
+  const createExpense = useMutation({
+    mutationFn: (data) => expensesService.create(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['finance', 'expenses'] });
+      qc.invalidateQueries({ queryKey: ['finance', 'dashboard'] });
+      notify.success("Chiqim qo'shildi");
+      setShowForm(false); setEditId(null); setForm(emptyExpense);
+    },
+    onError: (e) => notify.error(e),
+  });
+
+  const updateExpense = useMutation({
+    mutationFn: ({ id, data }) => expensesService.update(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['finance', 'expenses'] });
+      qc.invalidateQueries({ queryKey: ['finance', 'dashboard'] });
+      notify.success("Chiqim yangilandi");
+      setShowForm(false); setEditId(null); setForm(emptyExpense);
+    },
+    onError: (e) => notify.error(e),
+  });
+
+  const deleteExpense = useMutation({
+    mutationFn: (id) => expensesService.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['finance', 'expenses'] });
+      qc.invalidateQueries({ queryKey: ['finance', 'dashboard'] });
+      notify.success("O'chirildi");
+    },
+    onError: () => notify.error('Xatolik'),
+  });
 
   // ============================================
   // HANDLERS
   // ============================================
-  const handleSaveExpense = async () => {
+  const handleSaveExpense = () => {
     if (!form.title.trim() || !form.amount) { notify.error('Maydonlarni to\'ldiring'); return; }
-    try {
-      const payload = { ...form, amount: parseFloat(form.amount) };
-      if (editId) {
-        await expensesService.update(editId, payload);
-        notify.success("Chiqim yangilandi");
-      } else {
-        await expensesService.create(payload);
-        notify.success("Chiqim qo'shildi");
-      }
-      setShowForm(false); setEditId(null); setForm(emptyExpense); fetchData();
-    } catch (e) {
-      notify.error(e);
+    const payload = { ...form, amount: parseFloat(form.amount) };
+    if (editId) {
+      updateExpense.mutate({ id: editId, data: payload });
+    } else {
+      createExpense.mutate(payload);
     }
   };
 
   const handleDeleteExpense = async (id) => {
     const ok = await confirm({ title: "O'chirishni tasdiqlaysizmi?", variant: "danger", confirmText: "Ha, o'chirish" });
     if (!ok) return;
-    try { await expensesService.delete(id); notify.success("O'chirildi"); fetchData(); }
-    catch { notify.error('Xatolik'); }
+    deleteExpense.mutate(id);
   };
 
   const tabs = [
@@ -253,8 +333,6 @@ export default function Finance() {
     { key: 'transactions', label: 'Tranzaksiyalar', icon: faExchangeAlt },
     { key: 'salaries', label: 'Oyliklar', icon: faUserTie },
   ];
-
-  const currentYear = new Date().getFullYear();
 
   // ============================================
   // RENDER
@@ -285,7 +363,7 @@ export default function Finance() {
       {/* Tabs */}
       <div className="flex gap-1 p-1 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
         {tabs.map(tb => (
-          <button key={tb.key} onClick={() => { setTab(tb.key); setPage(1); setSearch(''); }}
+          <button key={tb.key} onClick={() => setTab(tb.key)}
             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${tab === tb.key ? 'shadow-sm' : ''}`}
             style={{
               backgroundColor: tab === tb.key ? 'var(--bg-secondary)' : 'transparent',
@@ -419,7 +497,7 @@ export default function Finance() {
                     <FontAwesomeIcon icon={faExchangeAlt} className="mr-2 w-4 h-4" style={{ color: '#3B82F6' }} />
                     So'nggi tranzaksiyalar
                   </h3>
-                  <button onClick={() => { setTab('transactions'); setPage(1); }} className="text-xs font-medium" style={{ color: '#F97316' }}>Barchasi</button>
+                  <button onClick={() => setTab('transactions')} className="text-xs font-medium" style={{ color: '#F97316' }}>Barchasi</button>
                 </div>
                 <div className="space-y-2">
                   {(dashboard?.recent_transactions || []).slice(0, 8).map((tx, i) => {
@@ -839,11 +917,14 @@ export default function Finance() {
               Bekor qilish
             </button>
             <button onClick={handleSaveExpense}
-              className="flex-1 h-11 rounded-xl text-white font-medium text-sm flex items-center justify-center gap-2 transition-opacity"
+              disabled={createExpense.isPending || updateExpense.isPending}
+              className="flex-1 h-11 rounded-xl text-white font-medium text-sm flex items-center justify-center gap-2 transition-opacity disabled:opacity-60"
               style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}
               onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
               onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
-              <FontAwesomeIcon icon={faCheck} className="w-4 h-4" />
+              {(createExpense.isPending || updateExpense.isPending)
+                ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                : <FontAwesomeIcon icon={faCheck} className="w-4 h-4" />}
               {editId ? 'Saqlash' : "Qo'shish"}
             </button>
           </div>

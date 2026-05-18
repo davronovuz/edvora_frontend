@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { paymentsService } from '@/services/payments';
+import { billingInvoicesService } from '@/services/billing';
 import { unwrap, unwrapList } from '@/services/api';
 import { notify } from '@/lib/notify';
 import { studentKeys } from './useStudents';
+import { billingKeys } from './useBilling';
 
 export const paymentKeys = {
   all: ['payments'],
@@ -13,6 +15,21 @@ export const paymentKeys = {
   statistics: (params) => [...paymentKeys.all, 'statistics', params],
   byStudent: (studentId) => [...paymentKeys.all, 'by-student', studentId],
 };
+
+export const debtorKeys = {
+  all: ['debtors'],
+  list: (params) => [...debtorKeys.all, 'list', params],
+};
+
+// To'lov o'zgarganda butun Moliya bo'limini sinxron yangilash —
+// to'lovlar, hisob-fakturalar, qarzdorlar, kassa, o'quvchi balansi.
+function invalidateFinance(qc) {
+  qc.invalidateQueries({ queryKey: paymentKeys.all });
+  qc.invalidateQueries({ queryKey: billingKeys.all });
+  qc.invalidateQueries({ queryKey: debtorKeys.all });
+  qc.invalidateQueries({ queryKey: studentKeys.all });
+  qc.invalidateQueries({ queryKey: ['finance'] });
+}
 
 export function usePaymentsList(params = {}) {
   return useQuery({
@@ -58,8 +75,7 @@ export function useCreatePayment() {
   return useMutation({
     mutationFn: (data) => paymentsService.create(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: paymentKeys.all });
-      qc.invalidateQueries({ queryKey: studentKeys.all });
+      invalidateFinance(qc);
       notify.success("To'lov qabul qilindi");
     },
     onError: (e) => notify.error(e),
@@ -71,9 +87,8 @@ export function useUpdatePayment() {
   return useMutation({
     mutationFn: ({ id, data }) => paymentsService.update(id, data),
     onSuccess: (_, { id }) => {
-      qc.invalidateQueries({ queryKey: paymentKeys.all });
+      invalidateFinance(qc);
       qc.invalidateQueries({ queryKey: paymentKeys.detail(id) });
-      qc.invalidateQueries({ queryKey: studentKeys.all });
       notify.success("To'lov yangilandi");
     },
     onError: (e) => notify.error(e),
@@ -85,8 +100,7 @@ export function useDeletePayment() {
   return useMutation({
     mutationFn: (id) => paymentsService.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: paymentKeys.all });
-      qc.invalidateQueries({ queryKey: studentKeys.all });
+      invalidateFinance(qc);
       notify.success("To'lov o'chirildi");
     },
     onError: (e) => notify.error(e),
@@ -98,10 +112,31 @@ export function useRefundPayment() {
   return useMutation({
     mutationFn: (id) => paymentsService.refund(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: paymentKeys.all });
-      qc.invalidateQueries({ queryKey: studentKeys.all });
+      invalidateFinance(qc);
       notify.success("To'lov qaytarildi");
     },
     onError: (e) => notify.error(e),
+  });
+}
+
+export function useDebtorsList(params = {}) {
+  return useQuery({
+    queryKey: debtorKeys.list(params),
+    queryFn: async () => {
+      const raw = unwrapList(await billingInvoicesService.debtors(params));
+      return raw.map(d => ({
+        student_id: d.student__id ?? d.student_id ?? d.id,
+        student_name: d.student__first_name
+          ? `${d.student__first_name} ${d.student__last_name || ''}`.trim()
+          : (d.student_name || '—'),
+        student_phone: d.student_phone || null,
+        parent_phone: d.parent_phone || null,
+        groups: d.groups || [],
+        total_debt: Number(d.total_debt ?? 0),
+        invoice_count: d.invoice_count || 0,
+        earliest_due_date: d.earliest_due_date || null,
+        overdue_count: d.overdue_count || 0,
+      }));
+    },
   });
 }

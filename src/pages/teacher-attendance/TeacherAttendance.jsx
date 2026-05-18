@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faChevronRight, faCheck, faTimes, faCalendarAlt } from '@fortawesome/free-solid-svg-icons';
 import api from '@/services/api';
@@ -9,41 +9,30 @@ const dayNames = ['Ya', 'Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha'];
 
 export default function TeacherAttendance() {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(true);
-  const [teachers, setTeachers] = useState([]);
-  const [attendance, setAttendance] = useState({});
-  const [activeTab, setActiveTab] = useState('attendance'); // attendance | schedule
+  const [activeTab, setActiveTab] = useState('attendance');
   const [currentMonth, setCurrentMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  useEffect(() => {
-    fetchData();
-  }, [currentMonth]);
+  const [year, month] = currentMonth.split('-').map(Number);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [year, month] = currentMonth.split('-');
+  const { data, isLoading } = useQuery({
+    queryKey: ['teacher-attendance', currentMonth],
+    queryFn: async () => {
       const [teachersRes] = await Promise.all([
         api.get('/teachers/', { params: { page_size: 100 } }),
       ]);
+      const teachers = teachersRes.data?.data || teachersRes.data?.results || [];
 
-      const allTeachers = teachersRes.data?.data || teachersRes.data?.results || [];
-      setTeachers(allTeachers);
-
-      // Try to fetch teacher attendance data
+      let attMap = {};
       try {
         const attRes = await api.get('/attendance/', { params: {
-          date_from: `${year}-${month}-01`,
-          date_to: `${year}-${month}-${new Date(year, month, 0).getDate()}`,
+          date_from: `${year}-${String(month).padStart(2, '0')}-01`,
+          date_to: `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`,
           page_size: 1000,
         }});
         const attData = attRes.data?.data || attRes.data?.results || [];
-
-        // Build attendance map: { teacherId: { dayNumber: status } }
-        const attMap = {};
         attData.forEach(a => {
           const teacherId = a.teacher || a.teacher_id;
           if (!teacherId) return;
@@ -51,17 +40,15 @@ export default function TeacherAttendance() {
           if (!attMap[teacherId]) attMap[teacherId] = {};
           attMap[teacherId][day] = a.status || 'present';
         });
-        setAttendance(attMap);
-      } catch {
-        setAttendance({});
-      }
-    } catch {
-      notify.error("Ma'lumotlarni yuklashda xato");
-    }
-    setLoading(false);
-  };
+      } catch {}
 
-  const [year, month] = currentMonth.split('-').map(Number);
+      return { teachers, attMap };
+    },
+  });
+
+  const teachers = data?.teachers ?? [];
+  const attendance = data?.attMap ?? {};
+
   const daysInMonth = new Date(year, month, 0).getDate();
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
@@ -82,10 +69,7 @@ export default function TeacherAttendance() {
     return dayNames[d.getDay()];
   };
 
-  const isWeekend = (day) => {
-    const d = new Date(year, month - 1, day);
-    return d.getDay() === 0; // Sunday
-  };
+  const isWeekend = (day) => new Date(year, month - 1, day).getDay() === 0;
 
   const isToday = (day) => {
     const today = new Date();
@@ -116,18 +100,14 @@ export default function TeacherAttendance() {
       <div className="flex gap-1">
         <button
           onClick={() => setActiveTab('attendance')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            activeTab === 'attendance' ? 'bg-primary-600 text-white' : ''
-          }`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'attendance' ? 'bg-primary-600 text-white' : ''}`}
           style={activeTab !== 'attendance' ? { color: 'var(--text-secondary)', backgroundColor: 'var(--bg-secondary)' } : {}}
         >
           Ustozlar davomati
         </button>
         <button
           onClick={() => setActiveTab('schedule')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            activeTab === 'schedule' ? 'bg-primary-600 text-white' : ''
-          }`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'schedule' ? 'bg-primary-600 text-white' : ''}`}
           style={activeTab !== 'schedule' ? { color: 'var(--text-secondary)', backgroundColor: 'var(--bg-secondary)' } : {}}
         >
           Ustozlar ish jadvali
@@ -158,7 +138,7 @@ export default function TeacherAttendance() {
       </div>
 
       {/* Calendar Grid */}
-      {loading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--primary-600)', borderTopColor: 'transparent' }} />
         </div>

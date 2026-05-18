@@ -7,7 +7,7 @@ import {
   faCalendarAlt, faCheckCircle, faClock, faTimes, faUndo, faPercent, faPlus,
   faReceipt, faGraduationCap, faCreditCard, faMobileAlt,
   faExchangeAlt, faMoneyBill, faPrint, faCheck, faHourglassHalf, faGift,
-  faBan, faUser,
+  faBan, faUser, faSnowflake,
 } from '@fortawesome/free-solid-svg-icons';
 import { studentsService } from '@/services/students';
 import { paymentsService } from '@/services/payments';
@@ -488,6 +488,14 @@ function GroupMonthlyTable({ group, invoices, onPay, onGenerate, generating }) {
   );
   const totalPaid = useMemo(() => months.reduce((s, row) => s + row.paid, 0), [months]);
 
+  // Bu guruh uchun keyingi to'lov muddati
+  const nextDue = useMemo(() => {
+    const open = groupInvoices
+      .filter(inv => ['unpaid', 'partial', 'overdue'].includes(inv.status) && inv.due_date)
+      .sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+    return open[0] || null;
+  }, [groupInvoices]);
+
   return (
     <>
       <div className="rounded-2xl border overflow-hidden"
@@ -529,6 +537,12 @@ function GroupMonthlyTable({ group, invoices, onPay, onGenerate, generating }) {
               <div className="text-right">
                 <div className="text-xs" style={{ color: 'var(--text-muted)' }}>To'langan</div>
                 <div className="text-sm font-bold" style={{ color: '#22C55E' }}>{fm(totalPaid)}</div>
+              </div>
+            )}
+            {nextDue && (
+              <div className="text-right">
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Keyingi to'lov</div>
+                <div className="text-sm font-bold" style={{ color: '#F97316' }}>{fd(nextDue.due_date)}</div>
               </div>
             )}
             <button onClick={() => onPay(group.id, null, null)}
@@ -699,6 +713,21 @@ export default function StudentFinanceDetail() {
     [invoices],
   );
 
+  // Keyingi to'lov — eng yaqin to'lanmagan invoice muddati
+  const nextPayment = useMemo(() => {
+    const open = invoices
+      .filter(inv => ['unpaid', 'partial', 'overdue'].includes(inv.status) && inv.due_date)
+      .sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+    return open[0] || null;
+  }, [invoices]);
+
+  const daysToNext = useMemo(() => {
+    if (!nextPayment) return null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const due = new Date(nextPayment.due_date); due.setHours(0, 0, 0, 0);
+    return Math.round((due - today) / 86400000);
+  }, [nextPayment]);
+
   const monthlyTotal = useMemo(
     () => groups.reduce((s, g) => s + Number(g.monthly_price || 0), 0),
     [groups],
@@ -847,6 +876,25 @@ export default function StudentFinanceDetail() {
         </div>
       </div>
 
+      {/* ─── MUZLATILGAN ─── */}
+      {(student.status === 'frozen' || student.is_frozen) && (
+        <div className="rounded-2xl p-4 flex flex-wrap items-center gap-3 border"
+          style={{ borderColor: '#06B6D440', backgroundColor: 'rgba(6,182,212,0.06)' }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: 'rgba(6,182,212,0.14)' }}>
+            <FontAwesomeIcon icon={faSnowflake} className="w-5 h-5" style={{ color: '#06B6D4' }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-bold" style={{ color: '#0891B2' }}>O'quvchi muzlatilgan</div>
+            <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+              {student.freeze_start_date ? fd(student.freeze_start_date) : ''}
+              {student.freeze_end_date ? ` — ${fd(student.freeze_end_date)}` : ' dan boshlab (muddatsiz)'}
+              {student.freeze_reason ? ` • ${student.freeze_reason}` : ''}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── OVERDUE ALERT ─── */}
       {overdueCount > 0 && (
         <div className="rounded-2xl p-4 flex items-center gap-3 border"
@@ -884,6 +932,38 @@ export default function StudentFinanceDetail() {
           color="#8B5CF6"
         />
       </div>
+
+      {/* ─── KEYINGI TO'LOV ─── */}
+      {nextPayment && (
+        <div className="rounded-2xl p-4 flex flex-wrap items-center gap-3 border"
+          style={{
+            borderColor: daysToNext < 0 ? '#EF444440' : daysToNext <= 3 ? '#F9731640' : 'var(--border-color)',
+            backgroundColor: daysToNext < 0 ? 'rgba(239,68,68,0.05)' : daysToNext <= 3 ? 'rgba(249,115,22,0.05)' : 'var(--bg-secondary)',
+          }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: daysToNext < 0 ? 'rgba(239,68,68,0.12)' : 'rgba(249,115,22,0.12)' }}>
+            <FontAwesomeIcon icon={faCalendarAlt} className="w-5 h-5"
+              style={{ color: daysToNext < 0 ? '#EF4444' : '#F97316' }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+              Keyingi to'lov muddati: {fd(nextPayment.due_date)}
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {nextPayment.group_name || 'Guruh'} • {MONTHS[(nextPayment.period_month || 1) - 1]} {nextPayment.period_year} • Qoldiq: {fm(nextPayment.remaining)}
+            </div>
+          </div>
+          <div className="px-3 py-1.5 rounded-lg text-xs font-bold flex-shrink-0"
+            style={{
+              backgroundColor: daysToNext < 0 ? 'rgba(239,68,68,0.12)' : daysToNext <= 3 ? 'rgba(249,115,22,0.12)' : 'rgba(34,197,94,0.12)',
+              color: daysToNext < 0 ? '#EF4444' : daysToNext <= 3 ? '#F97316' : '#22C55E',
+            }}>
+            {daysToNext < 0
+              ? `${Math.abs(daysToNext)} kun kechikkan`
+              : daysToNext === 0 ? 'Bugun' : `${daysToNext} kun qoldi`}
+          </div>
+        </div>
+      )}
 
       {/* ─── GURUH BO'YICHA OYLIK JADVAL ─── */}
       <div>

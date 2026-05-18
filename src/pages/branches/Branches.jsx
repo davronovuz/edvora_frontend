@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -8,6 +9,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { branchesService } from '@/services/branches';
 import { useConfirm } from '@/hooks/useConfirm';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 const statusConfig = {
   active: { color: '#22C55E', bg: 'rgba(34,197,94,0.15)' },
@@ -27,48 +29,53 @@ const dayNames = { uz: ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya'], ru: ['Пн'
 export default function Branches() {
   const { confirm, ConfirmDialog } = useConfirm();
   const { t, i18n } = useTranslation();
+  const qc = useQueryClient();
   const days = dayNames[i18n.language] || dayNames.uz;
 
-  const [branches, setBranches] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [showStats, setShowStats] = useState(null);
-  const [stats, setStats] = useState(null);
+  const [statsData, setStatsData] = useState(null);
 
-  const fetchBranches = async () => {
-    setLoading(true);
-    try {
+  const { data: branches = [], isLoading } = useQuery({
+    queryKey: ['branches', debouncedSearch],
+    queryFn: async () => {
       const params = {};
-      if (search) params.search = search;
+      if (debouncedSearch) params.search = debouncedSearch;
       const res = await branchesService.getAll(params);
-      setBranches(res.data?.data || res.data?.results || []);
-    } catch { notify.error('Xato'); }
-    setLoading(false);
-  };
+      return res.data?.data || res.data?.results || [];
+    },
+  });
 
-  useEffect(() => { fetchBranches(); }, []);
-  useEffect(() => { fetchBranches(); }, [search]);
-
-  const handleSave = async () => {
-    try {
-      const payload = { ...form };
+  const saveBranch = useMutation({
+    mutationFn: (data) => {
+      const payload = { ...data };
       if (!payload.latitude) delete payload.latitude;
       if (!payload.longitude) delete payload.longitude;
       if (!payload.landmark) delete payload.landmark;
-      if (editId) { await branchesService.update(editId, payload); notify.success(t('branches.title') + ' ' + t('common.updated')); }
-      else { await branchesService.create(payload); notify.success(t('branches.title') + ' ' + t('common.created')); }
-      setShowForm(false); setEditId(null); setForm(emptyForm); fetchBranches();
-    } catch (e) { notify.error(e); }
-  };
+      return editId ? branchesService.update(editId, payload) : branchesService.create(payload);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['branches'] });
+      notify.success(editId ? t('branches.title') + ' ' + t('common.updated') : t('branches.title') + ' ' + t('common.created'));
+      setShowForm(false); setEditId(null); setForm(emptyForm);
+    },
+    onError: (e) => notify.error(e),
+  });
+
+  const deleteBranch = useMutation({
+    mutationFn: (id) => branchesService.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['branches'] }); notify.success(t('common.delete') + ' ✓'); },
+    onError: () => notify.error('Xato'),
+  });
 
   const handleDelete = async (id) => {
     const ok = await confirm({ title: t('common.delete') + '?', variant: 'danger', confirmText: "Ha, o'chirish" });
     if (!ok) return;
-    try { await branchesService.delete(id); notify.success(t('common.delete') + ' ✓'); fetchBranches(); }
-    catch { notify.error('Xato'); }
+    deleteBranch.mutate(id);
   };
 
   const handleEdit = (b) => {
@@ -86,7 +93,7 @@ export default function Branches() {
   const viewStats = async (branch) => {
     try {
       const res = await branchesService.getStatistics(branch.id);
-      setStats(res.data?.data || res.data);
+      setStatsData(res.data?.data || res.data);
       setShowStats(branch);
     } catch { notify.error('Xato'); }
   };
@@ -119,7 +126,7 @@ export default function Branches() {
       </div>
 
       {/* Branch Cards */}
-      {loading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--primary-600)', borderTopColor: 'transparent' }} /></div>
       ) : branches.length === 0 ? (
         <div className="text-center py-20 rounded-2xl border" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
@@ -269,7 +276,7 @@ export default function Branches() {
                 <input type="checkbox" checked={form.is_main} onChange={e => setForm({ ...form, is_main: e.target.checked })} className="w-4 h-4 rounded" />
                 <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{t('branches.mainBranch')}</span>
               </label>
-              <button onClick={handleSave} className="w-full py-2.5 rounded-lg text-white font-medium" style={{ backgroundColor: 'var(--primary-600)' }}>
+              <button onClick={() => saveBranch.mutate(form)} disabled={saveBranch.isPending} className="w-full py-2.5 rounded-lg text-white font-medium" style={{ backgroundColor: 'var(--primary-600)' }}>
                 {editId ? t('common.save') : t('branches.addBranch')}
               </button>
             </div>
@@ -278,7 +285,7 @@ export default function Branches() {
       )}
 
       {/* Statistics Modal */}
-      {showStats && stats && (
+      {showStats && statsData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowStats(null)}>
           <div className="w-full max-w-md mx-4 rounded-2xl p-6" style={{ backgroundColor: 'var(--bg-secondary)' }} onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
@@ -287,10 +294,10 @@ export default function Branches() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: t('groups.title'), value: stats.groups_count || 0, icon: faLayerGroup, color: '#3B82F6' },
-                { label: t('students.title'), value: stats.students_count || 0, icon: faUsers, color: '#22C55E' },
-                { label: t('teachers.title'), value: stats.teachers_count || 0, icon: faChalkboardTeacher, color: '#F97316' },
-                { label: t('nav.rooms'), value: stats.rooms_count || 0, icon: faDoorOpen, color: '#8B5CF6' },
+                { label: t('groups.title'), value: statsData.groups_count || 0, icon: faLayerGroup, color: '#3B82F6' },
+                { label: t('students.title'), value: statsData.students_count || 0, icon: faUsers, color: '#22C55E' },
+                { label: t('teachers.title'), value: statsData.teachers_count || 0, icon: faChalkboardTeacher, color: '#F97316' },
+                { label: t('nav.rooms'), value: statsData.rooms_count || 0, icon: faDoorOpen, color: '#8B5CF6' },
               ].map(s => (
                 <div key={s.label} className="rounded-xl p-4 border text-center" style={{ borderColor: 'var(--border-color)' }}>
                   <FontAwesomeIcon icon={s.icon} className="w-5 h-5 mb-2" style={{ color: s.color }} />

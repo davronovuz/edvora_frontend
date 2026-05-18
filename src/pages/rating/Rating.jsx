@@ -1,19 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faStar, faSearch, faMedal, faTrophy, faAward } from '@fortawesome/free-solid-svg-icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import api from '@/services/api';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 export default function Rating() {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('table'); // table | chart
-  const [students, setStudents] = useState([]);
-  const [groups, setGroups] = useState([]);
+  const [viewMode, setViewMode] = useState('table');
   const [filterGroup, setFilterGroup] = useState('');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -21,50 +20,36 @@ export default function Rating() {
   });
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
 
-  useEffect(() => {
-    fetchGroups();
-  }, []);
-
-  useEffect(() => {
-    fetchRating();
-  }, [filterGroup, dateFrom, dateTo]);
-
-  const fetchGroups = async () => {
-    try {
+  const { data: groups = [] } = useQuery({
+    queryKey: ['groups', 'for-rating'],
+    queryFn: async () => {
       const res = await api.get('/groups/', { params: { status: 'active', page_size: 100 } });
-      setGroups(res.data?.data || res.data?.results || []);
-    } catch {}
-  };
+      return res.data?.data || res.data?.results || [];
+    },
+  });
 
-  const fetchRating = async () => {
-    setLoading(true);
-    try {
+  const { data: students = [], isLoading } = useQuery({
+    queryKey: ['rating', filterGroup, dateFrom, dateTo],
+    queryFn: async () => {
       const params = { date_from: dateFrom, date_to: dateTo };
       if (filterGroup) params.group = filterGroup;
 
-      // Try rating endpoint first, fallback to students with exam scores
       let data = [];
       try {
         const res = await api.get('/analytics/reports/student_rating/', { params });
         data = res.data?.data || res.data?.results || [];
       } catch {
-        // Fallback: get students and their exam results
         const studentsRes = await api.get('/students/', { params: { page_size: 100 } });
         const allStudents = studentsRes.data?.data || studentsRes.data?.results || [];
-
-        // Try to get exam results
         try {
           const examsRes = await api.get('/exams/results/', { params: { page_size: 500 } });
           const results = examsRes.data?.data || examsRes.data?.results || [];
-
-          // Calculate average score per student
           const scoreMap = {};
           results.forEach(r => {
             if (!scoreMap[r.student]) scoreMap[r.student] = { total: 0, count: 0 };
             scoreMap[r.student].total += Number(r.score || 0);
             scoreMap[r.student].count += 1;
           });
-
           data = allStudents.map(s => ({
             id: s.id,
             name: `${s.first_name} ${s.last_name}`,
@@ -83,17 +68,13 @@ export default function Rating() {
         }
       }
 
-      // Sort by score descending
       data.sort((a, b) => (b.score || 0) - (a.score || 0));
-      setStudents(data);
-    } catch {
-      notify.error("Ma'lumotlarni yuklashda xato");
-    }
-    setLoading(false);
-  };
+      return data;
+    },
+  });
 
   const filtered = students.filter(s => {
-    if (search && !s.name?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (debouncedSearch && !s.name?.toLowerCase().includes(debouncedSearch.toLowerCase())) return false;
     return true;
   });
 
@@ -111,7 +92,6 @@ export default function Rating() {
     return '#EF4444';
   };
 
-  // Chart data (top 20)
   const chartData = filtered.slice(0, 20).map(s => ({
     name: s.name?.split(' ')[0] || '',
     score: s.score || 0,
@@ -166,7 +146,7 @@ export default function Rating() {
       </div>
 
       {/* Content */}
-      {loading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--primary-600)', borderTopColor: 'transparent' }} />
         </div>

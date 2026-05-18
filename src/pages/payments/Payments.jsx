@@ -9,9 +9,9 @@ import {
   faMobileAlt, faExchangeAlt, faUserGraduate, faUsers,
   faArrowRight, faCheck, faFileInvoiceDollar,
 } from '@fortawesome/free-solid-svg-icons';
-import { paymentsService } from '@/services/payments';
 import { billingInvoicesService } from '@/services/billing';
-import api, { unwrapList } from '@/services/api';
+import { studentsService } from '@/services/students';
+import api, { unwrap, unwrapList } from '@/services/api';
 import { formatMoney, formatMonth } from '@/utils/format';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import Modal from '@/components/ui/Modal';
@@ -19,6 +19,15 @@ import Badge from '@/components/ui/Badge';
 import StatCard from '@/components/ui/StatCard';
 import EmptyState from '@/components/ui/EmptyState';
 import { useConfirm } from '@/hooks/useConfirm';
+import { useUrlState } from '@/hooks/useUrlState';
+import {
+  usePaymentsList,
+  usePaymentStatistics,
+  useCreatePayment,
+  useUpdatePayment,
+  useDeletePayment,
+  useRefundPayment,
+} from '@/hooks/queries/usePayments';
 
 // ============================================
 // CONSTANTS
@@ -133,6 +142,8 @@ function PaymentFormModal({ open, onClose, onSuccess, editPayment }) {
   const searchTimer = useRef(null);
 
   const isEdit = !!editPayment;
+  const createPayment = useCreatePayment();
+  const updatePayment = useUpdatePayment();
 
   useEffect(() => {
     if (open && editPayment) {
@@ -171,7 +182,7 @@ function PaymentFormModal({ open, onClose, onSuccess, editPayment }) {
     try {
       const res = await api.get('/students/', { params: { search: query, page_size: 10 } });
       setSearchResults(unwrapList(res));
-    } catch (e) {
+    } catch {
       notify.error("Qidirishda xato");
       setSearchResults([]);
     }
@@ -190,12 +201,12 @@ function PaymentFormModal({ open, onClose, onSuccess, editPayment }) {
     setLoadingGroups(true);
     try {
       const [groupsRes, invoicesRes] = await Promise.all([
-        api.get('/groups/', { params: { student_id: student.id, page_size: 50 } }),
-        billingInvoicesService.getAll({ student_id: student.id, status: 'unpaid,partial,overdue', page_size: 50 }),
+        studentsService.getGroups(student.id),
+        billingInvoicesService.getAll({ student: student.id, status: 'unpaid,partial,overdue', ordering: 'due_date', page_size: 50 }),
       ]);
-      setStudentGroups(unwrapList(groupsRes));
+      setStudentGroups(unwrap(groupsRes) || []);
       setStudentInvoices(unwrapList(invoicesRes));
-    } catch (e) {
+    } catch {
       notify.error("Ma'lumotlarni yuklashda xato");
       setStudentGroups([]);
       setStudentInvoices([]);
@@ -219,36 +230,30 @@ function PaymentFormModal({ open, onClose, onSuccess, editPayment }) {
   };
 
   const handleSubmit = async () => {
+    if (!selectedStudent?.id) { notify.error("O'quvchini tanlang"); return; }
     if (!amount || Number(amount) <= 0) { notify.error("Summani kiriting"); return; }
     setSaving(true);
     try {
       const payload = {
         student: selectedStudent.id,
-        group: selectedGroup?.id || '',
         amount: parseFloat(amount),
         payment_method: method,
         payment_type: 'tuition',
         period_month: periodMonth,
         period_year: periodYear,
         note,
-        status: 'completed',
+        ...(selectedGroup?.id ? { group: selectedGroup.id } : {}),
       };
 
       if (isEdit) {
-        await paymentsService.update(editPayment.id, payload);
-        notify.success("To'lov yangilandi");
+        await updatePayment.mutateAsync({ id: editPayment.id, data: payload });
       } else {
-        await paymentsService.create(payload);
-        notify.success("To'lov qabul qilindi!");
+        await createPayment.mutateAsync(payload);
       }
       handleClose();
       onSuccess();
-    } catch (e) {
-      const msg = e.response?.data?.error?.message
-        || e.response?.data?.detail
-        || e.response?.data?.non_field_errors?.[0]
-        || "Xato yuz berdi";
-      notify.error(msg);
+    } catch {
+      // useCreatePayment / useUpdatePayment hook'lari xatoni o'zi ko'rsatadi
     }
     setSaving(false);
   };
@@ -583,96 +588,66 @@ function PaymentFormModal({ open, onClose, onSuccess, editPayment }) {
 // ============================================
 // MAIN PAGE
 // ============================================
+const now = new Date();
+const PAYMENT_DEFAULTS = {
+  search: '',
+  status: '',
+  method: '',
+  month: now.getMonth() + 1,
+  year: now.getFullYear(),
+  page: 1,
+};
+
 export default function Payments() {
   const { confirm, ConfirmDialog } = useConfirm();
-  const now = new Date();
-  const [payments, setPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const debouncedSearch = useDebouncedValue(search, 300);
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterMethod, setFilterMethod] = useState('');
-  const [filterYear, setFilterYear] = useState(now.getFullYear());
-  const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [stats, setStats] = useState(null);
+  const [filters, setFilters] = useUrlState(PAYMENT_DEFAULTS);
+  const debouncedSearch = useDebouncedValue(filters.search, 300);
+
   const [showForm, setShowForm] = useState(false);
   const [editPayment, setEditPayment] = useState(null);
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
 
+  const startDate = `${filters.year}-${String(filters.month).padStart(2, '0')}-01`;
+  const lastDay = new Date(filters.year, filters.month, 0).getDate();
+  const endDate = `${filters.year}-${String(filters.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  const queryParams = {
+    page: filters.page,
+    start_date: startDate,
+    end_date: endDate,
+    ...(debouncedSearch && { search: debouncedSearch }),
+    ...(filters.status && { status: filters.status }),
+    ...(filters.method && { payment_method: filters.method }),
+  };
+
+  const { data, isLoading } = usePaymentsList(queryParams);
+  const { data: stats } = usePaymentStatistics({ period: 'custom', start_date: startDate, end_date: endDate });
+
+  const deletePayment = useDeletePayment();
+  const refundPayment = useRefundPayment();
+
+  const payments = data?.items ?? [];
+  const totalPages = data?.meta?.total_pages ?? 1;
+
   const goMonth = (dir) => {
-    let m = filterMonth + dir;
-    let y = filterYear;
+    let m = filters.month + dir;
+    let y = filters.year;
     if (m < 1) { m = 12; y--; }
     if (m > 12) { m = 1; y++; }
-    setFilterMonth(m);
-    setFilterYear(y);
-    setPage(1);
+    setFilters({ month: m, year: y, page: 1 });
   };
-
-  const fetchPayments = async () => {
-    setLoading(true);
-    try {
-      const params = { page };
-      if (debouncedSearch) params.search = debouncedSearch;
-      if (filterStatus) params.status = filterStatus;
-      if (filterMethod) params.payment_method = filterMethod;
-      const startDate = `${filterYear}-${String(filterMonth).padStart(2, '0')}-01`;
-      const lastDay = new Date(filterYear, filterMonth, 0).getDate();
-      const endDate = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      params.start_date = startDate;
-      params.end_date = endDate;
-      const res = await paymentsService.getAll(params);
-      const body = res.data?.data || res.data;
-      setPayments(Array.isArray(body) ? body : (body?.results || []));
-      setTotalPages(res.data?.meta?.total_pages || Math.ceil((res.data?.count || body?.count || 0) / 20) || 1);
-    } catch (e) {
-      notify.error("To'lovlarni yuklashda xato");
-    }
-    setLoading(false);
-  };
-
-  const fetchStats = async () => {
-    try {
-      const startDate = `${filterYear}-${String(filterMonth).padStart(2, '0')}-01`;
-      const lastDay = new Date(filterYear, filterMonth, 0).getDate();
-      const endDate = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      const res = await paymentsService.statistics({ period: 'custom', start_date: startDate, end_date: endDate });
-      setStats(res.data?.data || res.data);
-    } catch (e) {
-      notify.error("Statistika yuklashda xato");
-    }
-  };
-
-  useEffect(() => { fetchStats(); }, [filterYear, filterMonth]);
-  useEffect(() => { fetchPayments(); }, [debouncedSearch, filterStatus, filterMethod, page, filterYear, filterMonth]);
 
   const handleDelete = async (id) => {
     const ok = await confirm({ title: "To'lovni o'chirish", description: "Bu to'lov butunlay o'chiriladi.", variant: "danger", confirmText: "Ha, o'chirish" });
     if (!ok) return;
-    try {
-      await paymentsService.delete(id);
-      notify.success("To'lov o'chirildi");
-      fetchPayments();
-      fetchStats();
-    } catch (e) {
-      notify.error(e);
-    }
+    deletePayment.mutate(id);
   };
 
   const handleRefund = async (id) => {
     const ok = await confirm({ title: "To'lovni qaytarish", description: "To'lov summasi o'quvchi balansiga qaytariladi.", variant: "warning", confirmText: "Ha, qaytarish" });
     if (!ok) return;
-    try {
-      await paymentsService.refund(id);
-      notify.success("To'lov qaytarildi");
-      fetchPayments();
-      fetchStats();
-    } catch (e) {
-      notify.error(e);
-    }
+    refundPayment.mutate(id);
   };
 
   const displayStats = stats || {
@@ -696,10 +671,10 @@ export default function Payments() {
           </button>
           <div className="min-w-[160px] text-center">
             <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
-              {formatMonth(filterMonth)}
+              {formatMonth(filters.month)}
             </span>
             <span className="text-lg font-medium ml-2" style={{ color: 'var(--text-muted)' }}>
-              {filterYear}
+              {filters.year}
             </span>
           </div>
           <button onClick={() => goMonth(1)}
@@ -708,8 +683,8 @@ export default function Payments() {
             <FontAwesomeIcon icon={faChevronRight} className="w-3.5 h-3.5" style={{ color: 'var(--text-secondary)' }} />
           </button>
         </div>
-        {(filterYear !== now.getFullYear() || filterMonth !== now.getMonth() + 1) && (
-          <button onClick={() => { setFilterYear(now.getFullYear()); setFilterMonth(now.getMonth() + 1); setPage(1); }}
+        {(filters.year !== now.getFullYear() || filters.month !== now.getMonth() + 1) && (
+          <button onClick={() => setFilters({ year: now.getFullYear(), month: now.getMonth() + 1, page: 1 })}
             className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
             style={{ color: '#F97316', backgroundColor: 'rgba(249,115,22,0.1)' }}>
             Joriy oy
@@ -719,29 +694,29 @@ export default function Payments() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Jami yig'ilgan" value={formatMoney(displayStats.total_collected)} icon={faWallet} tone="success" loading={loading} />
+        <StatCard label="Jami yig'ilgan" value={formatMoney(displayStats.total_collected)} icon={faWallet} tone="success" loading={isLoading} />
         <StatCard label="Kutilayotgan" value={formatMoney(displayStats.total_pending)} icon={faClock} tone="warning"
-          hint={displayStats.pending_count > 0 ? `${displayStats.pending_count} ta` : undefined} loading={loading} />
-        <StatCard label="Bu oy" value={formatMoney(displayStats.this_month)} icon={faCalendarAlt} tone="info" loading={loading} />
-        <StatCard label="Jami to'lovlar" value={displayStats.total_count} icon={faReceipt} tone="primary" loading={loading} />
+          hint={displayStats.pending_count > 0 ? `${displayStats.pending_count} ta` : undefined} loading={isLoading} />
+        <StatCard label="Bu oy" value={formatMoney(displayStats.this_month)} icon={faCalendarAlt} tone="info" loading={isLoading} />
+        <StatCard label="Jami to'lovlar" value={displayStats.total_count} icon={faReceipt} tone="primary" loading={isLoading} />
       </div>
 
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <FontAwesomeIcon icon={faSearch} className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+          <input value={filters.search} onChange={e => setFilters({ search: e.target.value, page: 1 })}
             placeholder="O'quvchi yoki guruh bo'yicha qidirish..."
             className="w-full h-11 pl-11 pr-4 rounded-xl border bg-transparent text-sm"
             style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
         </div>
-        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
+        <select value={filters.status} onChange={e => setFilters({ status: e.target.value, page: 1 })}
           className="h-11 px-4 rounded-xl border bg-transparent text-sm"
           style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
           <option value="">Barcha holatlar</option>
           {Object.entries(PAYMENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <select value={filterMethod} onChange={e => { setFilterMethod(e.target.value); setPage(1); }}
+        <select value={filters.method} onChange={e => setFilters({ method: e.target.value, page: 1 })}
           className="h-11 px-4 rounded-xl border bg-transparent text-sm"
           style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
           <option value="">Barcha usullar</option>
@@ -756,16 +731,16 @@ export default function Payments() {
 
       {/* Payments Table */}
       <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-        {loading ? (
+        {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <div className="w-10 h-10 border-3 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#F97316', borderTopColor: 'transparent' }} />
             <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Yuklanmoqda...</span>
           </div>
         ) : payments.length === 0 ? (
           <EmptyState
-            icon={search || filterStatus || filterMethod ? faSearch : faMoneyBill}
+            icon={filters.search || filters.status || filters.method ? faSearch : faMoneyBill}
             title="To'lovlar topilmadi"
-            description={search || filterStatus || filterMethod ? "Filtrlarni o'zgartiring" : "Birinchi to'lovni qabul qiling"}
+            description={filters.search || filters.status || filters.method ? "Filtrlarni o'zgartiring" : "Birinchi to'lovni qabul qiling"}
           />
         ) : (
           <div className="overflow-x-auto">
@@ -849,7 +824,7 @@ export default function Payments() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-3">
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+          <button onClick={() => setFilters({ page: Math.max(1, filters.page - 1) })} disabled={filters.page === 1}
             className="w-10 h-10 rounded-xl border flex items-center justify-center disabled:opacity-30 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
             style={{ borderColor: 'var(--border-color)' }}>
             <FontAwesomeIcon icon={faChevronLeft} className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
@@ -858,22 +833,22 @@ export default function Payments() {
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               let pageNum;
               if (totalPages <= 5) pageNum = i + 1;
-              else if (page <= 3) pageNum = i + 1;
-              else if (page >= totalPages - 2) pageNum = totalPages - 4 + i;
-              else pageNum = page - 2 + i;
+              else if (filters.page <= 3) pageNum = i + 1;
+              else if (filters.page >= totalPages - 2) pageNum = totalPages - 4 + i;
+              else pageNum = filters.page - 2 + i;
               return (
-                <button key={pageNum} onClick={() => setPage(pageNum)}
+                <button key={pageNum} onClick={() => setFilters({ page: pageNum })}
                   className="w-10 h-10 rounded-xl text-sm font-medium transition-colors"
                   style={{
-                    backgroundColor: page === pageNum ? '#F97316' : 'transparent',
-                    color: page === pageNum ? 'white' : 'var(--text-secondary)'
+                    backgroundColor: filters.page === pageNum ? '#F97316' : 'transparent',
+                    color: filters.page === pageNum ? 'white' : 'var(--text-secondary)'
                   }}>
                   {pageNum}
                 </button>
               );
             })}
           </div>
-          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+          <button onClick={() => setFilters({ page: Math.min(totalPages, filters.page + 1) })} disabled={filters.page === totalPages}
             className="w-10 h-10 rounded-xl border flex items-center justify-center disabled:opacity-30 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
             style={{ borderColor: 'var(--border-color)' }}>
             <FontAwesomeIcon icon={faChevronRight} className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
@@ -885,7 +860,7 @@ export default function Payments() {
       <PaymentFormModal
         open={showForm}
         onClose={() => { setShowForm(false); setEditPayment(null); }}
-        onSuccess={() => { fetchPayments(); fetchStats(); }}
+        onSuccess={() => {}}
         editPayment={editPayment}
       />
 

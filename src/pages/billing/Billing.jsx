@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -8,16 +9,23 @@ import {
   faCog, faGift, faUmbrella, faBan, faWallet, faFilter,
   faArrowUp, faArrowDown, faUserGraduate, faLayerGroup,
 } from '@fortawesome/free-solid-svg-icons';
-import {
-  billingProfilesService, billingInvoicesService,
-  billingLeavesService, billingDiscountsService,
-} from '@/services/billing';
+import { billingInvoicesService, billingLeavesService } from '@/services/billing';
 import { groupsService } from '@/services/groups';
+import { unwrapList } from '@/services/api';
 import { formatMoney, formatMonth } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
 import StatCard from '@/components/ui/StatCard';
 import { useConfirm } from '@/hooks/useConfirm';
+import { useUrlState } from '@/hooks/useUrlState';
+import {
+  useBillingInvoiceList, useBillingInvoiceSummary,
+  useGenerateInvoices, useGenerateGroupInvoices, useCancelInvoice,
+  useBillingProfileList, useBillingModes,
+  useCreateBillingProfile, useUpdateBillingProfile, useDeleteBillingProfile,
+  useBillingLeaveList, useApproveBillingLeave,
+  useBillingDiscountList, useCreateBillingDiscount, useDeleteBillingDiscount,
+} from '@/hooks/queries/useBilling';
 
 // ============================================
 // CONFIG
@@ -105,11 +113,7 @@ function Pagination({ page, totalPages, onPageChange }) {
 function InvoicesTab() {
   const { confirm, ConfirmDialog } = useConfirm();
   const now = new Date();
-  const [invoices, setInvoices] = useState([]);
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [filterYear, setFilterYear] = useState(now.getFullYear());
@@ -120,13 +124,35 @@ function InvoicesTab() {
   const [genMode, setGenMode] = useState('single'); // 'single' | 'group'
   const [genGroupId, setGenGroupId] = useState('');
   const [selectedGroup, setSelectedGroup] = useState(null);
-  const [groups, setGroups] = useState([]);
   const [groupStudents, setGroupStudents] = useState([]);
   const [groupSearch, setGroupSearch] = useState('');
-  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
 
   const monthLabels = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
+
+  // ── Data queries ──────────────────────────────────────────────────────
+  const invoiceParams = { page, search, period_year: filterYear, period_month: filterMonth, ...(statusFilter ? { status: statusFilter } : {}) };
+  const { data: invoiceData, isLoading: loading } = useBillingInvoiceList(invoiceParams);
+  const invoices = invoiceData?.items ?? [];
+  const totalPages = invoiceData?.meta?.total_pages ?? 1;
+
+  const { data: summary } = useBillingInvoiceSummary({ year: filterYear, month: filterMonth });
+
+  // Groups — only fetched when the generate modal is open
+  const { data: groups = [], isLoading: loadingGroups } = useQuery({
+    queryKey: ['groups', 'for-billing', groupSearch],
+    queryFn: async () => {
+      const r = await groupsService.getAll({ search: groupSearch, page_size: 50 });
+      return unwrapList(r);
+    },
+    enabled: generateModal,
+  });
+
+  // ── Mutations ─────────────────────────────────────────────────────────
+  const cancelInvoice = useCancelInvoice();
+  const generateInvoice = useGenerateInvoices();
+  const generateGroupInvoice = useGenerateGroupInvoices();
 
   const goMonth = (dir) => {
     let m = filterMonth + dir;
@@ -138,46 +164,10 @@ function InvoicesTab() {
     setPage(1);
   };
 
-  const fetchInvoices = async () => {
-    setLoading(true);
-    try {
-      const params = { page, search, period_year: filterYear, period_month: filterMonth };
-      if (statusFilter) params.status = statusFilter;
-      const res = await billingInvoicesService.getAll(params);
-      setInvoices(res.data.data || res.data.results || []);
-      setTotalPages(res.data.meta?.total_pages || Math.ceil((res.data.meta?.total || 0) / 20) || 1);
-    } catch { notify.error('Invoice yuklashda xato'); }
-    setLoading(false);
-  };
-
-  const fetchSummary = async () => {
-    try {
-      const res = await billingInvoicesService.summary({ year: filterYear, month: filterMonth });
-      setSummary(res.data);
-    } catch {}
-  };
-
-  useEffect(() => { fetchInvoices(); }, [page, statusFilter, search, filterYear, filterMonth]);
-  useEffect(() => { fetchSummary(); }, [filterYear, filterMonth]);
-
   const handleCancel = async (id) => {
     const ok = await confirm({ title: "Invoice bekor qilinsinmi?", description: "Invoice holati 'bekor qilingan' ga o'zgaradi.", variant: "warning", confirmText: "Ha, bekor qilish" });
     if (!ok) return;
-    try {
-      await billingInvoicesService.cancel(id);
-      notify.success('Invoice bekor qilindi');
-      fetchInvoices();
-      fetchSummary();
-    } catch (e) { notify.error(e); }
-  };
-
-  const fetchGroups = async (q = '') => {
-    setLoadingGroups(true);
-    try {
-      const res = await groupsService.getAll({ search: q, page_size: 50 });
-      setGroups(res.data.data || res.data.results || []);
-    } catch { setGroups([]); }
-    setLoadingGroups(false);
+    cancelInvoice.mutate(id);
   };
 
   const fetchGroupStudents = async (groupId) => {
@@ -197,25 +187,21 @@ function InvoicesTab() {
     setGenForm({ group_student_id: '', year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
     setGroupStudents([]);
     setGroupSearch('');
+    setGroupDropdownOpen(true);
     setGenerateModal(true);
-    fetchGroups();
   };
 
   const handleGenerate = async () => {
-    try {
-      if (genMode === 'group') {
-        if (!genGroupId) { notify.error('Guruhni tanlang'); return; }
-        await billingInvoicesService.generateGroup({ group_id: genGroupId, year: genForm.year, month: genForm.month });
-        notify.success('Guruh uchun invoicelar yaratildi');
-      } else {
-        if (!genForm.group_student_id) { notify.error("O'quvchini tanlang"); return; }
-        await billingInvoicesService.generate(genForm);
-        notify.success('Invoice yaratildi');
-      }
-      setGenerateModal(false);
-      fetchInvoices();
-      fetchSummary();
-    } catch (e) { notify.error(e); }
+    if (genMode === 'group') {
+      if (!genGroupId) { notify.error('Guruhni tanlang'); return; }
+      generateGroupInvoice.mutate(
+        { group_id: genGroupId, year: genForm.year, month: genForm.month },
+        { onSuccess: () => setGenerateModal(false) },
+      );
+    } else {
+      if (!genForm.group_student_id) { notify.error("O'quvchini tanlang"); return; }
+      generateInvoice.mutate(genForm, { onSuccess: () => setGenerateModal(false) });
+    }
   };
 
   const viewDetail = async (id) => {
@@ -352,10 +338,11 @@ function InvoicesTab() {
             <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Guruh</label>
             <div className="relative">
               <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-              <input value={groupSearch} onChange={e => { setGroupSearch(e.target.value); fetchGroups(e.target.value); }}
+              <input value={groupSearch}
+                onChange={e => { setGroupSearch(e.target.value); setGroupDropdownOpen(true); setSelectedGroup(null); }}
                 placeholder="Guruh qidirish..." className="input pl-9 w-full" />
             </div>
-            {loadingGroups ? (
+            {groupDropdownOpen && (loadingGroups ? (
               <div className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Yuklanmoqda...</div>
             ) : groups.length > 0 ? (
               <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border space-y-0.5 p-1" style={{ borderColor: 'var(--border-color)' }}>
@@ -365,7 +352,7 @@ function InvoicesTab() {
                     setSelectedGroup(g);
                     fetchGroupStudents(g.id);
                     setGroupSearch(g.name);
-                    setGroups([]);
+                    setGroupDropdownOpen(false);
                   }}
                     className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-[var(--bg-tertiary)]"
                     style={{ color: 'var(--text-primary)' }}>
@@ -383,7 +370,7 @@ function InvoicesTab() {
                   </button>
                 ))}
               </div>
-            ) : null}
+            ) : null)}
           </div>
 
           {/* Student selector (only for single mode) */}
@@ -543,11 +530,8 @@ function InvoicesTab() {
 // ============================================
 function ProfilesTab() {
   const { confirm, ConfirmDialog: ConfirmDialogProfiles } = useConfirm();
-  const [profiles, setProfiles] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [modes, setModes] = useState([]);
   const [form, setForm] = useState({
     name: '', mode: 'monthly_flat', billing_day: 1, due_days: 10,
     grace_period_days: 3, leave_policy: 'prorate_days', is_default: false,
@@ -555,23 +539,14 @@ function ProfilesTab() {
     price_per_lesson: '', price_per_hour: '',
   });
 
-  const fetchProfiles = async () => {
-    setLoading(true);
-    try {
-      const res = await billingProfilesService.getAll();
-      setProfiles(res.data.data || res.data.results || []);
-    } catch { notify.error('Xato'); }
-    setLoading(false);
-  };
+  // ── Data queries ──────────────────────────────────────────────────────
+  const { data: profiles = [], isLoading: loading } = useBillingProfileList();
+  const { data: modes = [] } = useBillingModes();
 
-  const fetchModes = async () => {
-    try {
-      const res = await billingProfilesService.modes();
-      setModes(res.data);
-    } catch {}
-  };
-
-  useEffect(() => { fetchProfiles(); fetchModes(); }, []);
+  // ── Mutations ─────────────────────────────────────────────────────────
+  const createProfile = useCreateBillingProfile();
+  const updateProfile = useUpdateBillingProfile();
+  const deleteProfile = useDeleteBillingProfile();
 
   const openCreate = () => {
     setEditing(null);
@@ -590,28 +565,18 @@ function ProfilesTab() {
     setModal(true);
   };
 
-  const handleSave = async () => {
-    try {
-      if (editing) {
-        await billingProfilesService.update(editing.id, form);
-        notify.success('Yangilandi');
-      } else {
-        await billingProfilesService.create(form);
-        notify.success('Yaratildi');
-      }
-      setModal(false);
-      fetchProfiles();
-    } catch (e) { notify.error(e); }
+  const handleSave = () => {
+    if (editing) {
+      updateProfile.mutate({ id: editing.id, data: form }, { onSuccess: () => setModal(false) });
+    } else {
+      createProfile.mutate(form, { onSuccess: () => setModal(false) });
+    }
   };
 
   const handleDelete = async (id) => {
     const ok = await confirm({ title: "To'lov profilini o'chirish", variant: "danger", confirmText: "Ha, o'chirish" });
     if (!ok) return;
-    try {
-      await billingProfilesService.delete(id);
-      notify.success("O'chirildi");
-      fetchProfiles();
-    } catch { notify.error('Xato'); }
+    deleteProfile.mutate(id);
   };
 
   const F = (key, val) => setForm(p => ({ ...p, [key]: val }));
@@ -737,38 +702,27 @@ function ProfilesTab() {
 // TAB 3: LEAVES
 // ============================================
 function LeavesTab() {
-  const [leaves, setLeaves] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
 
-  const fetchLeaves = async () => {
-    setLoading(true);
-    try {
-      const res = await billingLeavesService.getAll({ page });
-      setLeaves(res.data.data || res.data.results || []);
-      setTotalPages(res.data.meta?.total_pages || 1);
-    } catch { notify.error('Xato'); }
-    setLoading(false);
-  };
+  // ── Data queries ──────────────────────────────────────────────────────
+  const { data: leaveData, isLoading: loading } = useBillingLeaveList({ page });
+  const leaves = leaveData?.items ?? [];
+  const totalPages = leaveData?.meta?.total_pages ?? 1;
 
-  useEffect(() => { fetchLeaves(); }, [page]);
-
-  const handleApprove = async (id) => {
-    try {
-      await billingLeavesService.approve(id);
-      notify.success('Tasdiqlandi');
-      fetchLeaves();
-    } catch (e) { notify.error(e); }
-  };
-
-  const handleReject = async (id) => {
-    try {
-      await billingLeavesService.reject(id);
+  // ── Mutations ─────────────────────────────────────────────────────────
+  const qc = useQueryClient();
+  const approveLeave = useApproveBillingLeave();
+  const rejectLeave = useMutation({
+    mutationFn: (id) => billingLeavesService.reject(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['billing', 'leaves'] });
       notify.success('Rad etildi');
-      fetchLeaves();
-    } catch (e) { notify.error(e); }
-  };
+    },
+    onError: (e) => notify.error(e),
+  });
+
+  const handleApprove = (id) => approveLeave.mutate(id);
+  const handleReject = (id) => rejectLeave.mutate(id);
 
   return (
     <div className="space-y-4">
@@ -824,39 +778,24 @@ function LeavesTab() {
 // ============================================
 function DiscountsTab() {
   const { confirm, ConfirmDialog: ConfirmDialogDiscounts } = useConfirm();
-  const [discounts, setDiscounts] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ name: '', kind: 'student_percent', value_type: 'percent', value: '', start_date: '', code: '' });
 
-  const fetchDiscounts = async () => {
-    setLoading(true);
-    try {
-      const res = await billingDiscountsService.getAll();
-      setDiscounts(res.data.data || res.data.results || []);
-    } catch { notify.error('Xato'); }
-    setLoading(false);
-  };
+  // ── Data queries ──────────────────────────────────────────────────────
+  const { data: discounts = [], isLoading: loading } = useBillingDiscountList();
 
-  useEffect(() => { fetchDiscounts(); }, []);
+  // ── Mutations ─────────────────────────────────────────────────────────
+  const createDiscount = useCreateBillingDiscount();
+  const deleteDiscount = useDeleteBillingDiscount();
 
-  const handleSave = async () => {
-    try {
-      await billingDiscountsService.create(form);
-      notify.success('Chegirma yaratildi');
-      setModal(false);
-      fetchDiscounts();
-    } catch (e) { notify.error(e); }
+  const handleSave = () => {
+    createDiscount.mutate(form, { onSuccess: () => setModal(false) });
   };
 
   const handleDelete = async (id) => {
     const ok = await confirm({ title: "Chegirmani o'chirish", variant: "danger", confirmText: "Ha, o'chirish" });
     if (!ok) return;
-    try {
-      await billingDiscountsService.delete(id);
-      notify.success("O'chirildi");
-      fetchDiscounts();
-    } catch { notify.error('Xato'); }
+    deleteDiscount.mutate(id);
   };
 
   const F = (key, val) => setForm(p => ({ ...p, [key]: val }));
@@ -962,9 +901,13 @@ const tabs = [
   { key: 'discounts', label: 'Chegirmalar', icon: faGift },
 ];
 
+const _now = new Date();
+const TAB_DEFAULTS = { tab: 'invoices' };
+
 export default function Billing() {
-  const { confirm, ConfirmDialog } = useConfirm();
-  const [activeTab, setActiveTab] = useState('invoices');
+  const [filters, setFilters] = useUrlState(TAB_DEFAULTS);
+  const activeTab = filters.tab;
+  const setActiveTab = (tab) => setFilters({ tab });
 
   return (
     <div className="space-y-6">

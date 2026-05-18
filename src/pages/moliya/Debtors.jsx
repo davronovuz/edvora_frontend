@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { notify } from '@/lib/notify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -7,16 +8,16 @@ import {
   faCreditCard, faMobileAlt, faExchangeAlt, faUserGraduate,
   faEye, faFileInvoiceDollar,
 } from '@fortawesome/free-solid-svg-icons';
-import { paymentsService } from '@/services/payments';
 import { billingInvoicesService } from '@/services/billing';
 import { unwrapList } from '@/services/api';
-import { formatMoney, formatMonth } from '@/utils/format';
+import { formatMoney, formatMonth, formatDate } from '@/utils/format';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import StatCard from '@/components/ui/StatCard';
 import EmptyState from '@/components/ui/EmptyState';
+import { useDebtorsList, debtorKeys, useCreatePayment } from '@/hooks/queries/usePayments';
 
 const METHOD_CONFIG = {
   cash:     { label: 'Naqd',      icon: faMoneyBillWave, color: '#22C55E' },
@@ -26,15 +27,23 @@ const METHOD_CONFIG = {
   click:    { label: 'Click',     icon: faMobileAlt,     color: '#F97316' },
 };
 
+// ─── Muddat ma'lumoti ──────────────────────────────────
+function dueInfo(dateStr) {
+  if (!dateStr) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const due = new Date(dateStr); due.setHours(0, 0, 0, 0);
+  return { days: Math.round((due - today) / 86400000), date: dateStr };
+}
+
 // ─── Quick Pay Modal ───────────────────────────────────
 function QuickPayModal({ open, onClose, debtor, onSuccess }) {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('cash');
   const [note, setNote] = useState('');
-  const [saving, setSaving] = useState(false);
   const [invoices, setInvoices] = useState([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState(null);
+  const createPayment = useCreatePayment();
 
   useEffect(() => {
     if (!open || !debtor) return;
@@ -42,30 +51,24 @@ function QuickPayModal({ open, onClose, debtor, onSuccess }) {
     setMethod('cash');
     setNote('');
     setSelectedGroup(debtor.groups?.[0] || null);
-    loadInvoices();
-  }, [open, debtor]);
 
-  const loadInvoices = async () => {
-    if (!debtor) return;
+    let cancelled = false;
     setLoadingInvoices(true);
-    try {
-      const res = await billingInvoicesService.getAll({
-        student: debtor.student_id,
-        status: 'unpaid,partial,overdue',
-        page_size: 50,
-        ordering: 'period_year,period_month',
-      });
-      setInvoices(unwrapList(res));
-    } catch {
-      setInvoices([]);
-    }
-    setLoadingInvoices(false);
-  };
+    billingInvoicesService.getAll({
+      student: debtor.student_id,
+      status: 'unpaid,partial,overdue',
+      page_size: 50,
+      ordering: 'period_year,period_month',
+    })
+      .then(res => { if (!cancelled) setInvoices(unwrapList(res)); })
+      .catch(() => { if (!cancelled) setInvoices([]); })
+      .finally(() => { if (!cancelled) setLoadingInvoices(false); });
+    return () => { cancelled = true; };
+  }, [open, debtor]);
 
   const handleSubmit = async () => {
     const num = parseFloat(amount);
     if (!num || num <= 0) { notify.error("Summani kiriting"); return; }
-    setSaving(true);
     try {
       const now = new Date();
       const payload = {
@@ -76,22 +79,15 @@ function QuickPayModal({ open, onClose, debtor, onSuccess }) {
         period_month: now.getMonth() + 1,
         period_year: now.getFullYear(),
         note: note || "Qarzdorlar sahifasidan to'lov",
-        status: 'completed',
       };
       if (selectedGroup) payload.group = selectedGroup.id;
 
-      await paymentsService.create(payload);
-      notify.success("To'lov qabul qilindi!");
+      await createPayment.mutateAsync(payload);
       onClose();
       onSuccess?.();
-    } catch (e) {
-      const msg = e.response?.data?.error?.message
-        || e.response?.data?.detail
-        || e.response?.data?.non_field_errors?.[0]
-        || "To'lov qabul qilinmadi";
-      notify.error(msg);
+    } catch {
+      // useCreatePayment hook'i xatoni o'zi ko'rsatadi
     }
-    setSaving(false);
   };
 
   if (!debtor) return null;
@@ -231,10 +227,10 @@ function QuickPayModal({ open, onClose, debtor, onSuccess }) {
           <Button variant="secondary" onClick={onClose} className="flex-1 h-12 rounded-xl">
             Bekor qilish
           </Button>
-          <button onClick={handleSubmit} disabled={saving}
+          <button onClick={handleSubmit} disabled={createPayment.isPending}
             className="flex-1 h-12 rounded-xl text-white font-semibold text-sm shadow-lg shadow-orange-500/25 transition-all hover:shadow-orange-500/40 disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}>
-            {saving ? 'Saqlanmoqda...' : "To'lovni qabul qilish"}
+            {createPayment.isPending ? 'Saqlanmoqda...' : "To'lovni qabul qilish"}
           </button>
         </div>
       </div>
@@ -257,68 +253,28 @@ function InvoiceStatusBadge({ status }) {
 // ─── Main Debtors Page ─────────────────────────────────
 export default function Debtors() {
   const navigate = useNavigate();
-  const [debtors, setDebtors] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 300);
-  const [totalDebt, setTotalDebt] = useState(0);
   const [payDebtor, setPayDebtor] = useState(null);
-
   const [expandedId, setExpandedId] = useState(null);
-  const [expandedInvoices, setExpandedInvoices] = useState([]);
-  const [loadingInvoices, setLoadingInvoices] = useState(false);
 
-  const fetchDebtors = async () => {
-    setLoading(true);
-    try {
-      const res = await billingInvoicesService.debtors();
-      const raw = unwrapList(res);
-      const list = raw.map(d => ({
-        student_id: d.student__id ?? d.student_id ?? d.id,
-        student_name: d.student__first_name
-          ? `${d.student__first_name} ${d.student__last_name || ''}`.trim()
-          : (d.student_name || '—'),
-        student_phone: d.student_phone || null,
-        parent_phone: d.parent_phone || null,
-        groups: d.groups || [],
-        total_debt: Number(d.total_debt ?? 0),
-        invoice_count: d.invoice_count || 0,
-      }));
-      setDebtors(list);
-      setTotalDebt(list.reduce((s, d) => s + d.total_debt, 0));
-    } catch (e) {
-      notify.error(e, "Qarzdorlarni yuklashda xato");
-    }
-    setLoading(false);
-  };
+  const { data: debtors = [], isLoading } = useDebtorsList();
+  const totalDebt = debtors.reduce((s, d) => s + d.total_debt, 0);
 
-  useEffect(() => { fetchDebtors(); }, []);
-
-  const fetchStudentInvoices = async (studentId) => {
-    setLoadingInvoices(true);
-    try {
-      const res = await billingInvoicesService.getAll({
-        student: studentId,
-        status: 'unpaid,partial,overdue',
-        page_size: 50,
-        ordering: 'period_year,period_month',
-      });
-      setExpandedInvoices(unwrapList(res));
-    } catch (e) {
-      notify.error("Invoice yuklashda xato");
-      setExpandedInvoices([]);
-    }
-    setLoadingInvoices(false);
-  };
+  const { data: expandedInvoices = [], isFetching: loadingInvoices } = useQuery({
+    queryKey: ['billing', 'invoices', 'student-debt', expandedId],
+    queryFn: async () => unwrapList(await billingInvoicesService.getAll({
+      student: expandedId,
+      status: 'unpaid,partial,overdue',
+      page_size: 50,
+      ordering: 'period_year,period_month',
+    })),
+    enabled: !!expandedId,
+  });
 
   const toggleExpand = (studentId) => {
-    if (expandedId === studentId) {
-      setExpandedId(null);
-      setExpandedInvoices([]);
-    } else {
-      setExpandedId(studentId);
-      fetchStudentInvoices(studentId);
-    }
+    setExpandedId(prev => prev === studentId ? null : studentId);
   };
 
   const filtered = debouncedSearch
@@ -330,16 +286,29 @@ export default function Debtors() {
       )
     : debtors;
 
+  // Shoshilinchlik bo'yicha saralash — kechikkanlar tepada, keyin muddat yaqinligi
+  const FAR = 8640000000000000;
+  const sorted = [...filtered].sort((a, b) => {
+    const ao = a.overdue_count > 0 ? 0 : 1;
+    const bo = b.overdue_count > 0 ? 0 : 1;
+    if (ao !== bo) return ao - bo;
+    const ad = a.earliest_due_date ? new Date(a.earliest_due_date).getTime() : FAR;
+    const bd = b.earliest_due_date ? new Date(b.earliest_due_date).getTime() : FAR;
+    return ad - bd;
+  });
+
+  const overdueTotal = debtors.filter(d => d.overdue_count > 0).length;
+
   return (
     <div className="space-y-6">
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           label="Jami qarz summasi"
           value={formatMoney(totalDebt)}
           icon={faExclamationTriangle}
           tone="danger"
-          loading={loading}
+          loading={isLoading}
         />
         <StatCard
           label="Qarzdor o'quvchilar"
@@ -347,7 +316,15 @@ export default function Debtors() {
           hint={debtors.length > 0 ? `O'rtacha: ${formatMoney(totalDebt / debtors.length)}` : undefined}
           icon={faUserGraduate}
           tone="warning"
-          loading={loading}
+          loading={isLoading}
+        />
+        <StatCard
+          label="Muddati o'tganlar"
+          value={overdueTotal}
+          hint={overdueTotal > 0 ? 'Tezroq aloqaga chiqing' : "Kechikkanlar yo'q"}
+          icon={faExclamationTriangle}
+          tone={overdueTotal > 0 ? 'danger' : 'success'}
+          loading={isLoading}
         />
       </div>
 
@@ -362,7 +339,7 @@ export default function Debtors() {
 
       {/* Debtors Table */}
       <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-        {loading ? (
+        {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <div className="w-10 h-10 border-3 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#F97316', borderTopColor: 'transparent' }} />
             <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Yuklanmoqda...</span>
@@ -378,13 +355,13 @@ export default function Debtors() {
             <table className="w-full">
               <thead>
                 <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                  {["O'quvchi", 'Telefon', 'Guruh(lar)', 'Invoicelar', 'Qarz', ''].map(h => (
+                  {["O'quvchi", 'Telefon', 'Guruh(lar)', 'Invoicelar', 'Muddat', 'Qarz', ''].map(h => (
                     <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(d => (
+                {sorted.map(d => (
                   <Fragment key={d.student_id}>
                     <tr
                       className="border-b transition-colors cursor-pointer"
@@ -427,6 +404,23 @@ export default function Debtors() {
                         <Badge variant="danger" size="sm">{d.invoice_count} ta</Badge>
                       </td>
                       <td className="px-5 py-4">
+                        {(() => {
+                          const di = dueInfo(d.earliest_due_date);
+                          if (!di) return <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>;
+                          const late = di.days < 0;
+                          const soon = di.days >= 0 && di.days <= 3;
+                          const color = late ? '#EF4444' : soon ? '#F97316' : '#22C55E';
+                          return (
+                            <div>
+                              <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{formatDate(di.date)}</div>
+                              <div className="text-xs font-semibold" style={{ color }}>
+                                {late ? `${Math.abs(di.days)} kun kechikkan` : di.days === 0 ? 'Bugun' : `${di.days} kun qoldi`}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      <td className="px-5 py-4">
                         <span className="text-sm font-bold" style={{ color: '#EF4444' }}>{formatMoney(d.total_debt)}</span>
                       </td>
                       <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
@@ -452,7 +446,7 @@ export default function Debtors() {
                     {/* Expanded invoices */}
                     {expandedId === d.student_id && (
                       <tr>
-                        <td colSpan={6} className="px-5 py-4" style={{ backgroundColor: 'rgba(239,68,68,0.02)' }}>
+                        <td colSpan={7} className="px-5 py-4" style={{ backgroundColor: 'rgba(239,68,68,0.02)' }}>
                           {loadingInvoices ? (
                             <div className="text-center py-4">
                               <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin mx-auto" style={{ borderColor: '#F97316', borderTopColor: 'transparent' }} />
@@ -518,7 +512,7 @@ export default function Debtors() {
         open={!!payDebtor}
         onClose={() => setPayDebtor(null)}
         debtor={payDebtor}
-        onSuccess={fetchDebtors}
+        onSuccess={() => qc.invalidateQueries({ queryKey: debtorKeys.all })}
       />
     </div>
   );

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/authStore';
@@ -363,18 +364,6 @@ function TeacherDashboard({ stats, navigate, greeting, user }) {
 // MAIN DASHBOARD
 // ============================================
 export default function Dashboard() {
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [recentActivity, setRecentActivity] = useState([]);
-  const [topGroups, setTopGroups] = useState([]);
-  const [financeChart, setFinanceChart] = useState([]);
-  const [attendanceChart, setAttendanceChart] = useState([]);
-  const [financeStats, setFinanceStats] = useState(null);
-  const [debtorsSummary, setDebtorsSummary] = useState(null);
-  const [leadsData, setLeadsData] = useState(null);
-  const [groups, setGroups] = useState([]);
-  const [rooms, setRooms] = useState([]);
   const [activeTab, setActiveTab] = useState('timetable');
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -382,83 +371,91 @@ export default function Dashboard() {
 
   const { isOwnerOrAdmin, isTeacher } = usePermissions();
 
-  useEffect(() => { fetchDashboard(); }, []);
+  const qc = useQueryClient();
 
-  const fetchDashboard = async () => {
-    try {
-      if (isTeacher) {
-        const res = await analyticsService.getSummary();
-        setStats(unwrap(res) || {});
-        setLoading(false);
-        return;
-      }
+  const { data: stats, isLoading: loadingStats, isError: isErrorStats } = useQuery({
+    queryKey: ['analytics', 'summary'],
+    queryFn: async () => unwrap(await analyticsService.getSummary()) || {},
+  });
 
-      const results = await Promise.allSettled([
-        analyticsService.getSummary(),
-        groupsService.getAll({ status: 'active', page_size: 100 }),
-        roomsService.getAll({ page_size: 50 }),
-        isOwnerOrAdmin ? analyticsService.getFinanceChart() : Promise.resolve(),
-        isOwnerOrAdmin ? analyticsService.getTopGroups() : Promise.resolve(),
-        isOwnerOrAdmin ? analyticsService.getRecentActivity() : Promise.resolve(),
-        analyticsService.getAttendanceChart(),
-        isOwnerOrAdmin ? analyticsService.getDebtorsSummary() : Promise.resolve(),
-        isOwnerOrAdmin ? analyticsService.getLeadsChart() : Promise.resolve(),
-        isOwnerOrAdmin ? financeDashboardService.summary() : Promise.resolve(),
-      ]);
+  const { data: groups = [] } = useQuery({
+    queryKey: ['analytics', 'groups'],
+    queryFn: async () => unwrapList(await groupsService.getAll({ status: 'active', page_size: 100 })),
+    enabled: !isTeacher,
+  });
 
-      if (results[0].status === 'fulfilled') {
-        setStats(unwrap(results[0].value) || {});
-      } else {
-        setError("Ma'lumotlarni yuklashda xatolik");
-      }
+  const { data: rooms = [] } = useQuery({
+    queryKey: ['analytics', 'rooms'],
+    queryFn: async () => unwrapList(await roomsService.getAll({ page_size: 50 })),
+    enabled: !isTeacher,
+  });
 
-      if (results[1].status === 'fulfilled') {
-        setGroups(unwrapList(results[1].value));
+  const { data: financeChart = [] } = useQuery({
+    queryKey: ['analytics', 'financeChart'],
+    queryFn: async () => {
+      const fData = unwrap(await analyticsService.getFinanceChart());
+      if (fData?.labels && fData?.datasets) {
+        return fData.labels.map((label, i) => ({
+          month: MONTH_NAMES_UZ[parseInt(label.split('/')[0]) - 1] || label,
+          income: fData.datasets[0]?.data?.[i] || 0,
+          expense: fData.datasets[1]?.data?.[i] || 0,
+        }));
       }
-      if (results[2].status === 'fulfilled') {
-        setRooms(unwrapList(results[2].value));
+      return [];
+    },
+    enabled: isOwnerOrAdmin,
+  });
+
+  const { data: topGroups = [] } = useQuery({
+    queryKey: ['analytics', 'topGroups'],
+    queryFn: async () => unwrapList(await analyticsService.getTopGroups()),
+    enabled: isOwnerOrAdmin,
+  });
+
+  const { data: recentActivity = [] } = useQuery({
+    queryKey: ['analytics', 'recentActivity'],
+    queryFn: async () => unwrapList(await analyticsService.getRecentActivity()),
+    enabled: isOwnerOrAdmin,
+  });
+
+  const { data: attendanceChart = [] } = useQuery({
+    queryKey: ['analytics', 'attendanceChart'],
+    queryFn: async () => {
+      const aData = unwrap(await analyticsService.getAttendanceChart());
+      if (aData?.labels && aData?.datasets) {
+        return aData.labels.map((label, i) => ({
+          day: label,
+          rate: aData.datasets[0]?.data?.[i] || 0,
+        })).slice(-7);
       }
-      if (results[3]?.status === 'fulfilled' && results[3].value) {
-        const fData = unwrap(results[3].value);
-        if (fData?.labels && fData?.datasets) {
-          setFinanceChart(fData.labels.map((label, i) => ({
-            month: MONTH_NAMES_UZ[parseInt(label.split('/')[0]) - 1] || label,
-            income: fData.datasets[0]?.data?.[i] || 0,
-            expense: fData.datasets[1]?.data?.[i] || 0,
-          })));
-        }
-      }
-      if (results[4]?.status === 'fulfilled' && results[4].value) {
-        setTopGroups(unwrapList(results[4].value));
-      }
-      if (results[5]?.status === 'fulfilled' && results[5].value) {
-        setRecentActivity(unwrapList(results[5].value));
-      }
-      if (results[6]?.status === 'fulfilled' && results[6].value) {
-        const aData = unwrap(results[6].value);
-        if (aData?.labels && aData?.datasets) {
-          setAttendanceChart(aData.labels.map((label, i) => ({
-            day: label,
-            rate: aData.datasets[0]?.data?.[i] || 0,
-          })).slice(-7));
-        }
-      }
-      if (results[7]?.status === 'fulfilled' && results[7].value) {
-        setDebtorsSummary(unwrap(results[7].value) || null);
-      }
-      if (results[8]?.status === 'fulfilled' && results[8].value) {
-        setLeadsData(unwrap(results[8].value) || null);
-      }
-      if (results[9]?.status === 'fulfilled' && results[9].value) {
-        const fd = results[9].value?.data?.data || results[9].value?.data || null;
-        setFinanceStats(fd);
-      }
-    } catch (err) {
-      setError("Ma'lumotlarni yuklashda xatolik");
-    } finally {
-      setLoading(false);
-    }
-  };
+      return [];
+    },
+    enabled: !isTeacher,
+  });
+
+  const { data: debtorsSummary = null } = useQuery({
+    queryKey: ['analytics', 'debtorsSummary'],
+    queryFn: async () => unwrap(await analyticsService.getDebtorsSummary()) || null,
+    enabled: isOwnerOrAdmin,
+  });
+
+  const { data: leadsData = null } = useQuery({
+    queryKey: ['analytics', 'leadsData'],
+    queryFn: async () => unwrap(await analyticsService.getLeadsChart()) || null,
+    enabled: isOwnerOrAdmin,
+  });
+
+  const { data: financeStats = null } = useQuery({
+    queryKey: ['analytics', 'financeStats'],
+    queryFn: async () => {
+      const res = await financeDashboardService.summary();
+      return res?.data?.data || res?.data || null;
+    },
+    enabled: isOwnerOrAdmin,
+  });
+
+  const loading = loadingStats;
+  const error = isErrorStats ? "Ma'lumotlarni yuklashda xatolik" : null;
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Xayrli tong' : hour < 18 ? 'Xayrli kun' : 'Xayrli kech';
@@ -480,7 +477,7 @@ export default function Dashboard() {
         <div className="text-center">
           <FontAwesomeIcon icon={faExclamationTriangle} className="w-10 h-10 mb-3" style={{ color: C.danger }} />
           <p className="text-sm" style={{ color: C.textSec }}>{error}</p>
-          <button onClick={fetchDashboard} className="mt-3 px-4 py-2 text-white rounded-lg text-sm font-medium" style={{ backgroundColor: C.primary }}>
+          <button onClick={() => qc.invalidateQueries({ queryKey: ['analytics'] })} className="mt-3 px-4 py-2 text-white rounded-lg text-sm font-medium" style={{ backgroundColor: C.primary }}>
             Qayta yuklash
           </button>
         </div>
