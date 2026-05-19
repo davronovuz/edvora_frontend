@@ -3,11 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faChevronRight, faPhone, faEnvelope, faMapMarkerAlt, faCalendarAlt,
-  faUsers, faWallet, faExclamationTriangle, faUser, faInfoCircle,
-  faUserGraduate, faLayerGroup, faChalkboardTeacher, faClock,
-  faMoneyBillWave, faCreditCard, faMobileAlt, faExchangeAlt,
-  faCheckCircle, faTimesCircle, faSnowflake, faPlus, faReceipt,
-  faFileInvoiceDollar, faChartLine,
+  faUsers, faExclamationTriangle, faUser, faLayerGroup, faChalkboardTeacher,
+  faClock, faMoneyBillWave, faCreditCard, faMobileAlt, faExchangeAlt,
+  faCheckCircle, faTimesCircle, faSnowflake, faReceipt, faFileInvoiceDollar,
+  faChartLine, faPenToSquare, faPrint, faUndo, faArrowUp, faArrowDown,
+  faArrowRight, faGraduationCap, faStar, faPlay,
 } from '@fortawesome/free-solid-svg-icons';
 import { faTelegram } from '@fortawesome/free-brands-svg-icons';
 import { studentsService } from '@/services/students';
@@ -16,7 +16,9 @@ import { billingInvoicesService } from '@/services/billing';
 import { attendanceService } from '@/services/attendance';
 import { unwrap, unwrapList } from '@/services/api';
 import { formatMoney, formatDate, formatMonth } from '@/utils/format';
-import { useCreatePayment } from '@/hooks/queries/usePayments';
+import { useCreatePayment, useRefundPayment } from '@/hooks/queries/usePayments';
+import { useFreezeStudent, useUnfreezeStudent } from '@/hooks/queries/useStudents';
+import { useConfirm } from '@/hooks/useConfirm';
 import { notify } from '@/lib/notify';
 import Modal from '@/components/ui/Modal';
 
@@ -29,7 +31,6 @@ const STATUS_CFG = {
   archived:  { label: 'Arxivlangan',    color: '#94A3B8', bg: 'rgba(148,163,184,0.12)' },
   inactive:  { label: 'Nofaol',         color: '#94A3B8', bg: 'rgba(148,163,184,0.12)' },
 };
-
 const METHOD_CFG = {
   cash:     { label: 'Naqd',     icon: faMoneyBillWave, color: '#22C55E' },
   card:     { label: 'Karta',    icon: faCreditCard,    color: '#3B82F6' },
@@ -37,14 +38,12 @@ const METHOD_CFG = {
   payme:    { label: 'Payme',    icon: faMobileAlt,     color: '#00CCCC' },
   click:    { label: 'Click',    icon: faMobileAlt,     color: '#F97316' },
 };
-
 const PAY_STATUS = {
   completed: { label: "To'langan",   color: '#22C55E' },
   pending:   { label: 'Kutilmoqda',  color: '#EAB308' },
   cancelled: { label: 'Bekor',       color: '#EF4444' },
   refunded:  { label: 'Qaytarilgan', color: '#8B5CF6' },
 };
-
 const fm = (v) => formatMoney(v);
 const fd = (d) => (d ? formatDate(d) : '—');
 
@@ -58,7 +57,7 @@ function Avatar({ name = '', size = 40 }) {
       width: size, height: size, borderRadius: '50%', flexShrink: 0,
       background: `linear-gradient(135deg, hsl(${20 + hue} 85% 55%), hsl(${10 + hue} 85% 45%))`,
       color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontWeight: 700, fontSize: size * 0.34, letterSpacing: 0.5,
+      fontWeight: 700, fontSize: size * 0.34,
     }}>{initials || '?'}</div>
   );
 }
@@ -94,22 +93,49 @@ function Tabs({ tabs, value, onChange }) {
 }
 
 // ─── StatCard ────────────────────────────────────────────────
-function StatCard({ label, value, sub, icon, color }) {
+function StatCard({ label, value, sub, icon, color, trend }) {
+  const trendCfg = { up: { i: faArrowUp, c: '#22C55E' }, down: { i: faArrowDown, c: '#EF4444' }, stable: { i: faArrowRight, c: '#94A3B8' } }[trend];
   return (
     <div className="card" style={{ padding: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <div style={{
-          width: 30, height: 30, borderRadius: 8, background: color + '1f', color,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: color + '1f', color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <FontAwesomeIcon icon={icon} style={{ width: 13, height: 13 }} />
         </div>
-        <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--text-muted)' }}>
-          {label}
-        </span>
+        <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--text-muted)' }}>{label}</span>
       </div>
-      <p style={{ fontSize: 19, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>{value}</p>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        <p style={{ fontSize: 19, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>{value}</p>
+        {trendCfg && <FontAwesomeIcon icon={trendCfg.i} style={{ width: 11, color: trendCfg.c }} />}
+      </div>
       {sub && <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</p>}
+    </div>
+  );
+}
+
+// ─── EmptyBox ─────────────────────────────────────────────────
+function EmptyBox({ icon, title, text }) {
+  return (
+    <div className="card" style={{ padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, minHeight: 180, justifyContent: 'center' }}>
+      <div style={{ width: 46, height: 46, borderRadius: 12, background: 'var(--bg-tertiary)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <FontAwesomeIcon icon={icon} style={{ width: 20 }} />
+      </div>
+      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</p>
+      {text && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{text}</p>}
+    </div>
+  );
+}
+
+// ─── Field row ────────────────────────────────────────────────
+function FieldRow({ icon, label, value }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: 'var(--bg-tertiary)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <FontAwesomeIcon icon={icon} style={{ width: 13, height: 13 }} />
+      </div>
+      <div>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{label}</p>
+        <p style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--text-primary)' }}>{value}</p>
+      </div>
     </div>
   );
 }
@@ -124,39 +150,24 @@ function ProfileTab({ student }) {
     { icon: faMapMarkerAlt,label: 'Manzil',          value: student.address },
     { icon: faTelegram,    label: 'Telegram',        value: student.telegram_username ? `@${student.telegram_username}` : null },
   ].filter(f => f.value);
-
   const parentFields = [
     { icon: faUser,  label: 'Ota-ona ismi',     value: student.parent_name },
     { icon: faPhone, label: 'Ota-ona telefoni', value: student.parent_phone },
   ].filter(f => f.value);
 
-  const Card = ({ title, items }) => (
-    <div className="card" style={{ padding: 20 }}>
-      <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text-muted)', marginBottom: 16 }}>{title}</p>
-      {items.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {items.map((f, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: 'var(--bg-tertiary)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <FontAwesomeIcon icon={f.icon} style={{ width: 13, height: 13 }} />
-              </div>
-              <div>
-                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{f.label}</p>
-                <p style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--text-primary)' }}>{f.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>Ma'lumot kiritilmagan</p>
-      )}
-    </div>
-  );
-
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
-      <Card title="Shaxsiy ma'lumotlar" items={fields} />
-      {parentFields.length > 0 && <Card title="Ota-ona ma'lumotlari" items={parentFields} />}
+      <div className="card" style={{ padding: 20 }}>
+        <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text-muted)', marginBottom: 16 }}>Shaxsiy ma'lumotlar</p>
+        {fields.length ? <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{fields.map((f, i) => <FieldRow key={i} {...f} />)}</div>
+          : <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>Ma'lumot kiritilmagan</p>}
+      </div>
+      {parentFields.length > 0 && (
+        <div className="card" style={{ padding: 20 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text-muted)', marginBottom: 16 }}>Ota-ona ma'lumotlari</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{parentFields.map((f, i) => <FieldRow key={i} {...f} />)}</div>
+        </div>
+      )}
       {student.notes && (
         <div className="card" style={{ padding: 20, gridColumn: '1 / -1' }}>
           <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--text-muted)', marginBottom: 10 }}>Izoh</p>
@@ -169,9 +180,7 @@ function ProfileTab({ student }) {
 
 // ─── GroupsTab ────────────────────────────────────────────────
 function GroupsTab({ groups, navigate }) {
-  if (groups.length === 0) {
-    return <EmptyBox icon={faLayerGroup} title="Guruhlar yo'q" text="Bu o'quvchi hech qaysi guruhga qo'shilmagan" />;
-  }
+  if (groups.length === 0) return <EmptyBox icon={faLayerGroup} title="Guruhlar yo'q" text="Bu o'quvchi hech qaysi guruhga qo'shilmagan" />;
   const dayNames = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
@@ -179,12 +188,10 @@ function GroupsTab({ groups, navigate }) {
         <div key={g.id} className="card" onClick={() => navigate(`/app/groups/${g.id}`)}
           style={{ padding: 16, cursor: 'pointer', borderLeft: '4px solid var(--primary-600)' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
-            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>{g.name}</p>
-            <span style={{
-              fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{g.name}</p>
+            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
               background: g.status === 'active' ? 'rgba(34,197,94,0.12)' : 'var(--bg-tertiary)',
-              color: g.status === 'active' ? '#22C55E' : 'var(--text-muted)',
-            }}>{g.status === 'active' ? 'Faol' : g.status}</span>
+              color: g.status === 'active' ? '#22C55E' : 'var(--text-muted)' }}>{g.status === 'active' ? 'Faol' : g.status}</span>
           </div>
           {g.course_name && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{g.course_name}</p>}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 11.5, color: 'var(--text-secondary)' }}>
@@ -205,7 +212,7 @@ function GroupsTab({ groups, navigate }) {
 }
 
 // ─── FinanceTab ───────────────────────────────────────────────
-function FinanceTab({ invoices, payments, debt, nextPayment, onPay, navigate, studentId }) {
+function FinanceTab({ invoices, payments, onPay, onRefund, onReceipt, navigate, studentId }) {
   const openInvoices = invoices
     .filter(i => ['unpaid', 'partial', 'overdue'].includes(i.status))
     .sort((a, b) => new Date(a.due_date || 0) - new Date(b.due_date || 0));
@@ -213,7 +220,6 @@ function FinanceTab({ invoices, payments, debt, nextPayment, onPay, navigate, st
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Outstanding invoices */}
       <div className="card" style={{ padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -232,16 +238,17 @@ function FinanceTab({ invoices, payments, debt, nextPayment, onPay, navigate, st
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {openInvoices.map(inv => {
               const rem = Number(inv.total_amount) - Number(inv.paid_amount || 0);
+              const overdue = inv.status === 'overdue';
               return (
-                <div key={inv.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-color)' }}>
+                <div key={inv.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, border: `1px solid ${overdue ? 'rgba(239,68,68,0.3)' : 'var(--border-color)'}` }}>
                   <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(239,68,68,0.1)', color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <FontAwesomeIcon icon={faFileInvoiceDollar} style={{ width: 14 }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {inv.group_name || 'Guruh'} — {formatMonth(inv.period_month, inv.period_year)}
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{inv.group_name || 'Guruh'} — {formatMonth(inv.period_month, inv.period_year)}</p>
+                    <p style={{ fontSize: 11.5, color: overdue ? '#EF4444' : 'var(--text-muted)' }}>
+                      {overdue ? 'Muddati o\'tgan' : 'Muddat'}: {fd(inv.due_date)}
                     </p>
-                    <p style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>To'lov muddati: {fd(inv.due_date)}</p>
                   </div>
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#EF4444' }}>{fm(rem)}</span>
                 </div>
@@ -250,17 +257,13 @@ function FinanceTab({ invoices, payments, debt, nextPayment, onPay, navigate, st
           </div>
         )}
         <button onClick={onPay}
-          style={{
-            marginTop: 14, width: '100%', height: 44, borderRadius: 11, border: 'none', cursor: 'pointer',
+          style={{ marginTop: 14, width: '100%', height: 44, borderRadius: 11, border: 'none', cursor: 'pointer',
             background: 'linear-gradient(135deg, #22C55E, #16A34A)', color: '#fff', fontSize: 14, fontWeight: 700,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            boxShadow: '0 4px 14px rgba(34,197,94,0.32)',
-          }}>
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 14px rgba(34,197,94,0.32)' }}>
           <FontAwesomeIcon icon={faMoneyBillWave} style={{ width: 16 }} /> To'lov qabul qilish
         </button>
       </div>
 
-      {/* Payment history */}
       <div className="card" style={{ padding: 18 }}>
         <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>
           To'lovlar tarixi {sortedPayments.length > 0 && `(${sortedPayments.length})`}
@@ -280,11 +283,20 @@ function FinanceTab({ invoices, payments, debt, nextPayment, onPay, navigate, st
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)' }}>{fm(p.amount)}</p>
                     <p style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
-                      {fd(p.created_at)} • {m.label}
-                      {p.period_month ? ` • ${formatMonth(p.period_month, p.period_year)} uchun` : ''}
+                      {fd(p.created_at)} • {m.label}{p.period_month ? ` • ${formatMonth(p.period_month, p.period_year)}` : ''}
                     </p>
                   </div>
                   <span style={{ fontSize: 11, fontWeight: 600, color: st.color }}>{st.label}</span>
+                  <button onClick={() => onReceipt(p)} title="Kvitansiya"
+                    style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                    <FontAwesomeIcon icon={faPrint} style={{ width: 12 }} />
+                  </button>
+                  {p.status === 'completed' && (
+                    <button onClick={() => onRefund(p)} title="Qaytarish"
+                      style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border-color)', background: 'transparent', color: '#8B5CF6', cursor: 'pointer' }}>
+                      <FontAwesomeIcon icon={faUndo} style={{ width: 12 }} />
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -296,113 +308,113 @@ function FinanceTab({ invoices, payments, debt, nextPayment, onPay, navigate, st
 }
 
 // ─── AttendanceTab ────────────────────────────────────────────
-function AttendanceTab({ attendance }) {
+function AttendanceTab({ attendance, progress }) {
   const stats = attendance?.statistics || attendance || {};
-  const rate = stats.rate ?? stats.attendance_rate ?? null;
+  const att = progress?.attendance || {};
+  const rate = att.month_rate ?? stats.rate ?? stats.attendance_rate ?? null;
   const present = stats.present ?? stats.present_count ?? 0;
   const absent = stats.absent ?? stats.absent_count ?? 0;
   const late = stats.late ?? stats.late_count ?? 0;
-  const total = stats.total ?? stats.total_count ?? (present + absent + late);
   const records = attendance?.records || attendance?.attendances || attendance?.history || [];
 
-  if (!rate && total === 0 && records.length === 0) {
+  if (rate == null && present + absent + late === 0 && records.length === 0) {
     return <EmptyBox icon={faChartLine} title="Davomat ma'lumoti yo'q" text="Hali davomat belgilanmagan" />;
   }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-        <StatCard label="Davomat" value={rate != null ? `${Math.round(rate)}%` : '—'} icon={faChartLine} color="#8B5CF6" />
+        <StatCard label="Joriy oy" value={rate != null ? `${Math.round(rate)}%` : '—'} icon={faChartLine} color="#8B5CF6" trend={att.trend} />
+        <StatCard label="90 kun" value={att.quarter_rate != null ? `${Math.round(att.quarter_rate)}%` : '—'} icon={faChartLine} color="#3B82F6" />
         <StatCard label="Kelgan" value={present} icon={faCheckCircle} color="#22C55E" />
         <StatCard label="Kelmagan" value={absent} icon={faTimesCircle} color="#EF4444" />
-        <StatCard label="Kechikkan" value={late} icon={faClock} color="#EAB308" />
       </div>
       {records.length > 0 && (
         <div className="card" style={{ padding: 18 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>So'nggi davomat</p>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {records.slice(0, 20).map((r, i) => {
-              const st = r.status || r.attendance_status;
-              const ok = st === 'present' || st === 'came';
-              const isLate = st === 'late';
-              const color = ok ? '#22C55E' : isLate ? '#EAB308' : '#EF4444';
-              const label = ok ? 'Keldi' : isLate ? 'Kechikdi' : 'Kelmadi';
-              return (
-                <div key={r.id || i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: i ? '1px solid var(--border-color)' : 'none' }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                    {fd(r.date || r.lesson_date || r.created_at)}
-                    {r.group_name ? ` • ${r.group_name}` : ''}
-                  </span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color }}>{label}</span>
-                </div>
-              );
-            })}
-          </div>
+          {records.slice(0, 25).map((r, i) => {
+            const st = r.status || r.attendance_status;
+            const ok = st === 'present' || st === 'came';
+            const isLate = st === 'late';
+            const color = ok ? '#22C55E' : isLate ? '#EAB308' : '#EF4444';
+            return (
+              <div key={r.id || i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: i ? '1px solid var(--border-color)' : 'none' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{fd(r.date || r.lesson_date || r.created_at)}{r.group_name ? ` • ${r.group_name}` : ''}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color }}>{ok ? 'Keldi' : isLate ? 'Kechikdi' : 'Kelmadi'}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-// ─── EmptyBox ─────────────────────────────────────────────────
-function EmptyBox({ icon, title, text }) {
+// ─── GradesTab ────────────────────────────────────────────────
+function GradesTab({ grades, progress }) {
+  const g = progress?.grades || {};
+  if ((!grades || grades.length === 0) && g.exam_avg == null && g.homework_avg == null) {
+    return <EmptyBox icon={faGraduationCap} title="Baholar yo'q" text="Hali baho qo'yilmagan" />;
+  }
   return (
-    <div className="card" style={{ padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, minHeight: 180, justifyContent: 'center' }}>
-      <div style={{ width: 46, height: 46, borderRadius: 12, background: 'var(--bg-tertiary)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <FontAwesomeIcon icon={icon} style={{ width: 20 }} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+        <StatCard label="Imtihon o'rtacha" value={g.exam_avg != null ? g.exam_avg : '—'} sub={g.exam_count ? `${g.exam_count} ta imtihon` : null} icon={faStar} color="#F59E0B" />
+        <StatCard label="Uy vazifasi" value={g.homework_avg != null ? g.homework_avg : '—'} sub={g.homework_pending ? `${g.homework_pending} ta kutilmoqda` : null} icon={faGraduationCap} color="#3B82F6" />
       </div>
-      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</p>
-      {text && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{text}</p>}
+      {grades && grades.length > 0 && (
+        <div className="card" style={{ padding: 18 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Dars baholari ({grades.length})</p>
+          {grades.slice(0, 50).map((r, i) => {
+            const score = r.score ?? r.grade ?? r.value;
+            const comment = r.comment || r.note || r.feedback;
+            return (
+              <div key={r.id || i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderTop: i ? '1px solid var(--border-color)' : 'none' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(245,158,11,0.14)', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>
+                  {score ?? '—'}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{r.group_name || r.group?.name || 'Dars'}</p>
+                  <p style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                    {fd(r.date)}{comment ? ` • ${comment}` : ''}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── PayModal ─────────────────────────────────────────────────
-function PayModal({ open, onClose, student, groups, debt, onSuccess }) {
+function PayModal({ onClose, student, groups, debt, onSuccess }) {
   const now = new Date();
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(debt > 0 ? String(debt) : '');
   const [method, setMethod] = useState('cash');
-  const [groupId, setGroupId] = useState('');
+  const [groupId, setGroupId] = useState(groups[0]?.id || '');
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [note, setNote] = useState('');
   const createPayment = useCreatePayment();
 
-  useEffect(() => {
-    if (!open) return;
-    setAmount(debt > 0 ? String(debt) : '');
-    setMethod('cash');
-    setGroupId(groups[0]?.id || '');
-    setMonth(now.getMonth() + 1);
-    setYear(now.getFullYear());
-    setNote('');
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const selectedGroup = groups.find(g => String(g.id) === String(groupId));
-
   const submit = async () => {
     const num = parseFloat(amount);
     if (!num || num <= 0) { notify.error('Summani kiriting'); return; }
     try {
       await createPayment.mutateAsync({
-        student: student.id,
-        amount: num,
-        payment_method: method,
-        payment_type: 'tuition',
-        period_month: month,
-        period_year: year,
-        note,
-        ...(groupId ? { group: groupId } : {}),
+        student: student.id, amount: num, payment_method: method, payment_type: 'tuition',
+        period_month: month, period_year: year, note, ...(groupId ? { group: groupId } : {}),
       });
-      onClose();
-      onSuccess();
-    } catch { /* hook xatoni ko'rsatadi */ }
+      onClose(); onSuccess();
+    } catch { /* hook notifies */ }
   };
-
   const MONTHS = Array.from({ length: 12 }, (_, i) => ({ v: i + 1, l: formatMonth(i + 1) }));
+  const inp = { width: '100%', height: 44, padding: '0 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', fontSize: 13 };
 
   return (
-    <Modal open={open} onClose={onClose} title="To'lov qabul qilish" size="sm">
+    <Modal open onClose={onClose} title="To'lov qabul qilish" size="sm">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10, background: 'var(--bg-tertiary)' }}>
           <Avatar name={`${student.first_name || ''} ${student.last_name || ''}`} size={38} />
@@ -411,12 +423,11 @@ function PayModal({ open, onClose, student, groups, debt, onSuccess }) {
             {debt > 0 && <p style={{ fontSize: 12, color: '#EF4444' }}>Qarz: {fm(debt)}</p>}
           </div>
         </div>
-
         <div>
           <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 6 }}>Summa</label>
           <div style={{ position: 'relative' }}>
             <input type="number" autoFocus value={amount} onChange={e => setAmount(e.target.value)} placeholder="0"
-              style={{ width: '100%', height: 52, padding: '0 56px 0 16px', borderRadius: 12, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', fontSize: 20, fontWeight: 700 }} />
+              style={{ ...inp, height: 52, padding: '0 56px 0 16px', fontSize: 20, fontWeight: 700 }} />
             <span style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--text-muted)' }}>so'm</span>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
@@ -434,68 +445,49 @@ function PayModal({ open, onClose, student, groups, debt, onSuccess }) {
             )}
           </div>
         </div>
-
         <div>
           <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 6 }}>To'lov usuli</label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
             {Object.entries(METHOD_CFG).map(([k, m]) => (
               <button key={k} onClick={() => setMethod(k)}
-                style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, padding: '9px 0',
-                  borderRadius: 10, cursor: 'pointer',
-                  border: `1px solid ${method === k ? m.color : 'var(--border-color)'}`,
-                  background: method === k ? m.color + '14' : 'transparent',
-                }}>
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, padding: '9px 0', borderRadius: 10, cursor: 'pointer',
+                  border: `1px solid ${method === k ? m.color : 'var(--border-color)'}`, background: method === k ? m.color + '14' : 'transparent' }}>
                 <FontAwesomeIcon icon={m.icon} style={{ width: 15, color: method === k ? m.color : 'var(--text-muted)' }} />
                 <span style={{ fontSize: 10, fontWeight: 600, color: method === k ? m.color : 'var(--text-muted)' }}>{m.label}</span>
               </button>
             ))}
           </div>
         </div>
-
         {groups.length > 0 && (
           <div>
             <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 6 }}>Guruh</label>
-            <select value={groupId} onChange={e => setGroupId(e.target.value)}
-              style={{ width: '100%', height: 44, padding: '0 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', fontSize: 13 }}>
+            <select value={groupId} onChange={e => setGroupId(e.target.value)} style={inp}>
               <option value="">— Guruhsiz —</option>
               {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
           </div>
         )}
-
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div>
             <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 6 }}>Oy</label>
-            <select value={month} onChange={e => setMonth(Number(e.target.value))}
-              style={{ width: '100%', height: 44, padding: '0 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', fontSize: 13 }}>
+            <select value={month} onChange={e => setMonth(Number(e.target.value))} style={inp}>
               {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
             </select>
           </div>
           <div>
             <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 6 }}>Yil</label>
-            <input type="number" value={year} onChange={e => setYear(Number(e.target.value))}
-              style={{ width: '100%', height: 44, padding: '0 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', fontSize: 13 }} />
+            <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} style={inp} />
           </div>
         </div>
-
         <div>
-          <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 6 }}>Izoh (ixtiyoriy)</label>
+          <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 6 }}>Izoh</label>
           <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
-            style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', fontSize: 13, resize: 'none' }} />
+            style={{ ...inp, height: 'auto', padding: 12, resize: 'none' }} />
         </div>
-
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose}
-            style={{ flex: 1, height: 46, borderRadius: 11, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
-            Bekor
-          </button>
+          <button onClick={onClose} style={{ flex: 1, height: 46, borderRadius: 11, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>Bekor</button>
           <button onClick={submit} disabled={createPayment.isPending}
-            style={{
-              flex: 1, height: 46, borderRadius: 11, border: 'none', cursor: 'pointer',
-              background: 'linear-gradient(135deg, #22C55E, #16A34A)', color: '#fff', fontSize: 13.5, fontWeight: 700,
-              opacity: createPayment.isPending ? 0.6 : 1,
-            }}>
+            style={{ flex: 1, height: 46, borderRadius: 11, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg, #22C55E, #16A34A)', color: '#fff', fontSize: 13.5, fontWeight: 700, opacity: createPayment.isPending ? 0.6 : 1 }}>
             {createPayment.isPending ? 'Saqlanmoqda...' : 'Qabul qilish'}
           </button>
         </div>
@@ -504,34 +496,155 @@ function PayModal({ open, onClose, student, groups, debt, onSuccess }) {
   );
 }
 
+// ─── EditModal ────────────────────────────────────────────────
+function FormLabel({ children }) {
+  return <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 5 }}>{children}</label>;
+}
+
+function EditModal({ onClose, student, onSuccess }) {
+  const [form, setForm] = useState(() => ({
+    first_name: student.first_name || '', last_name: student.last_name || '',
+    phone: student.phone || '', email: student.email || '', address: student.address || '',
+    birth_date: student.birth_date || '', parent_name: student.parent_name || '',
+    parent_phone: student.parent_phone || '', notes: student.notes || '',
+  }));
+  const [saving, setSaving] = useState(false);
+  const F = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const save = async () => {
+    if (!form.first_name?.trim() || !form.last_name?.trim()) { notify.error('Ism va familiya kerak'); return; }
+    setSaving(true);
+    try {
+      await studentsService.update(student.id, form);
+      notify.success("Ma'lumotlar yangilandi");
+      onClose(); onSuccess();
+    } catch (e) {
+      notify.error(e?.response?.data?.detail || 'Saqlashda xato');
+    }
+    setSaving(false);
+  };
+  const inp = { width: '100%', height: 42, padding: '0 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', fontSize: 13 };
+
+  return (
+    <Modal open onClose={onClose} title="O'quvchini tahrirlash" size="md">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div><FormLabel>Ism *</FormLabel><input style={inp} value={form.first_name || ''} onChange={e => F('first_name', e.target.value)} /></div>
+          <div><FormLabel>Familiya *</FormLabel><input style={inp} value={form.last_name || ''} onChange={e => F('last_name', e.target.value)} /></div>
+          <div><FormLabel>Telefon</FormLabel><input style={inp} value={form.phone || ''} onChange={e => F('phone', e.target.value)} /></div>
+          <div><FormLabel>Email</FormLabel><input style={inp} value={form.email || ''} onChange={e => F('email', e.target.value)} /></div>
+          <div><FormLabel>Tug'ilgan sana</FormLabel><input type="date" style={inp} value={form.birth_date || ''} onChange={e => F('birth_date', e.target.value)} /></div>
+          <div><FormLabel>Manzil</FormLabel><input style={inp} value={form.address || ''} onChange={e => F('address', e.target.value)} /></div>
+          <div><FormLabel>Ota-ona ismi</FormLabel><input style={inp} value={form.parent_name || ''} onChange={e => F('parent_name', e.target.value)} /></div>
+          <div><FormLabel>Ota-ona telefoni</FormLabel><input style={inp} value={form.parent_phone || ''} onChange={e => F('parent_phone', e.target.value)} /></div>
+        </div>
+        <div><FormLabel>Izoh</FormLabel><textarea rows={2} style={{ ...inp, height: 'auto', padding: 10, resize: 'none' }} value={form.notes || ''} onChange={e => F('notes', e.target.value)} /></div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, height: 44, borderRadius: 10, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Bekor</button>
+          <button onClick={save} disabled={saving} style={{ flex: 1, height: 44, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #F97316, #EA580C)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+            {saving ? '...' : 'Saqlash'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── FreezeModal ──────────────────────────────────────────────
+function FreezeModal({ onClose, student, onSuccess }) {
+  const [reason, setReason] = useState('');
+  const [start, setStart] = useState(new Date().toISOString().slice(0, 10));
+  const [end, setEnd] = useState('');
+  const freeze = useFreezeStudent();
+  const submit = () => {
+    if (!reason.trim() || reason.trim().length < 3) { notify.error('Sabab kamida 3 ta belgi'); return; }
+    const data = { start_date: start, reason: reason.trim() };
+    if (end) data.end_date = end;
+    freeze.mutate({ id: student.id, data }, { onSuccess: () => { onClose(); onSuccess(); } });
+  };
+  const inp = { width: '100%', height: 42, padding: '0 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', fontSize: 13 };
+  return (
+    <Modal open onClose={onClose} title="O'quvchini muzlatish" size="sm">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <p style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Muzlatilgan o'quvchiga hisob-faktura yaratilmaydi. Keyin bitta bosishda qaytariladi.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div><label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 5 }}>Boshlanish</label><input type="date" style={inp} value={start} onChange={e => setStart(e.target.value)} /></div>
+          <div><label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 5 }}>Tugash (ixtiyoriy)</label><input type="date" style={inp} value={end} onChange={e => setEnd(e.target.value)} /></div>
+        </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 5 }}>Sabab *</label>
+          <textarea rows={2} style={{ ...inp, height: 'auto', padding: 10, resize: 'none' }} value={reason} onChange={e => setReason(e.target.value)} placeholder="Masalan: ta'tilga chiqdi" />
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, height: 44, borderRadius: 10, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Bekor</button>
+          <button onClick={submit} disabled={freeze.isPending} style={{ flex: 1, height: 44, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #06B6D4, #0891B2)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: freeze.isPending ? 0.6 : 1 }}>
+            {freeze.isPending ? '...' : 'Muzlatish'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Print helpers ────────────────────────────────────────────
+function printReceipt(p, studentName) {
+  const w = window.open('', '_blank');
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head><title>Kvitansiya</title>
+  <style>body{font-family:Arial;max-width:380px;margin:20px auto;padding:20px}
+  h2{text-align:center;margin:0 0 4px}.sub{text-align:center;color:#666;font-size:12px;margin-bottom:20px}
+  .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #ddd}
+  .total{font-size:18px;font-weight:bold;padding:12px 0;border-top:2px solid #000;margin-top:8px}
+  .footer{text-align:center;margin-top:24px;font-size:11px;color:#999}</style></head><body>
+  <h2>TO'LOV KVITANSIYASI</h2><div class="sub">${new Date(p.created_at).toLocaleString('uz')}</div>
+  <div class="row"><span>O'quvchi</span><b>${studentName}</b></div>
+  <div class="row"><span>Kvitansiya №</span><span>${p.receipt_number || '—'}</span></div>
+  <div class="row"><span>Guruh</span><span>${p.group_name || '—'}</span></div>
+  <div class="row"><span>Davr</span><span>${p.period_month ? formatMonth(p.period_month, p.period_year) : '—'}</span></div>
+  <div class="row total"><span>JAMI</span><span>${formatMoney(p.amount)}</span></div>
+  <div class="footer">MarkazEdu</div><script>window.print()</script></body></html>`);
+  w.document.close();
+}
+
 // ─── Main ─────────────────────────────────────────────────────
 export default function StudentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [student, setStudent] = useState(null);
   const [groups, setGroups] = useState([]);
   const [payments, setPayments] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [attendance, setAttendance] = useState(null);
+  const [progress, setProgress] = useState(null);
+  const [grades, setGrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('profile');
   const [payOpen, setPayOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [freezeOpen, setFreezeOpen] = useState(false);
+
+  const refundPayment = useRefundPayment();
+  const unfreezeStudent = useUnfreezeStudent();
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, g, p, inv, att] = await Promise.allSettled([
+      const [s, g, p, inv, att, prog, gr] = await Promise.allSettled([
         studentsService.getById(id),
         studentsService.getGroups(id),
         paymentsService.getAll({ student: id, page_size: 200 }),
         billingInvoicesService.getAll({ student: id, page_size: 200 }),
         attendanceService.byStudent({ student_id: id }),
+        studentsService.getProgressSummary(id),
+        studentsService.getLessonGrades(id),
       ]);
       if (s.status === 'fulfilled') setStudent(unwrap(s.value));
       if (g.status === 'fulfilled') setGroups(unwrapList(g.value));
       if (p.status === 'fulfilled') setPayments(unwrapList(p.value));
       if (inv.status === 'fulfilled') setInvoices(unwrapList(inv.value));
       if (att.status === 'fulfilled') setAttendance(unwrap(att.value));
+      if (prog.status === 'fulfilled') setProgress(unwrap(prog.value));
+      if (gr.status === 'fulfilled') setGrades(unwrapList(gr.value));
     } finally {
       setLoading(false);
     }
@@ -540,25 +653,30 @@ export default function StudentDetail() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const debt = useMemo(
-    () => invoices
-      .filter(i => ['unpaid', 'partial', 'overdue'].includes(i.status))
+    () => invoices.filter(i => ['unpaid', 'partial', 'overdue'].includes(i.status))
       .reduce((s, i) => s + (Number(i.total_amount) - Number(i.paid_amount || 0)), 0),
     [invoices],
   );
-
   const nextPayment = useMemo(() => {
-    const open = invoices
-      .filter(i => ['unpaid', 'partial', 'overdue'].includes(i.status) && i.due_date)
+    const open = invoices.filter(i => ['unpaid', 'partial', 'overdue'].includes(i.status) && i.due_date)
       .sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
     return open[0] || null;
   }, [invoices]);
-
   const totalPaid = useMemo(
     () => payments.filter(p => p.status === 'completed').reduce((s, p) => s + Number(p.amount || 0), 0),
     [payments],
   );
 
-  const attRate = attendance?.statistics?.rate ?? attendance?.rate ?? null;
+  const handleRefund = async (p) => {
+    const ok = await confirm({ title: "To'lovni qaytarish", description: `${fm(p.amount)} qaytariladi. Bog'liq hisob-faktura ham yangilanadi.`, variant: 'warning', confirmText: 'Ha, qaytarish' });
+    if (!ok) return;
+    refundPayment.mutate(p.id, { onSuccess: loadData });
+  };
+  const handleUnfreeze = async () => {
+    const ok = await confirm({ title: 'Faollashtirish', description: 'O\'quvchi muzlatishdan chiqariladi.', variant: 'warning' });
+    if (!ok) return;
+    unfreezeStudent.mutate(id, { onSuccess: loadData });
+  };
 
   if (loading) {
     return (
@@ -567,14 +685,11 @@ export default function StudentDetail() {
       </div>
     );
   }
-
   if (!student) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 12 }}>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>O'quvchi topilmadi</p>
-        <button onClick={() => navigate('/app/students')} style={{ color: 'var(--primary-600)', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13, textDecoration: 'underline' }}>
-          Ro'yxatga qaytish
-        </button>
+        <button onClick={() => navigate('/app/students')} style={{ color: 'var(--primary-600)', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13, textDecoration: 'underline' }}>Ro'yxatga qaytish</button>
       </div>
     );
   }
@@ -582,15 +697,18 @@ export default function StudentDetail() {
   const fullName = `${student.first_name || ''} ${student.last_name || ''}`.trim();
   const status = STATUS_CFG[student.status] || STATUS_CFG.active;
   const frozen = student.status === 'frozen' || student.is_frozen;
+  const examAvg = progress?.grades?.exam_avg;
+
+  const iconBtn = {
+    width: 40, height: 40, borderRadius: 10, border: '1px solid var(--border-color)',
+    background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  };
 
   return (
     <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Breadcrumb */}
+      {ConfirmDialog}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-        <button onClick={() => navigate('/app/students')}
-          style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, fontSize: 12 }}>
-          O'quvchilar
-        </button>
+        <button onClick={() => navigate('/app/students')} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, fontSize: 12 }}>O'quvchilar</button>
         <FontAwesomeIcon icon={faChevronRight} style={{ width: 10, height: 10 }} />
         <span style={{ color: 'var(--text-primary)' }}>{fullName}</span>
       </div>
@@ -603,34 +721,47 @@ export default function StudentDetail() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
               <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1B365D', letterSpacing: -0.4, margin: 0 }}>{fullName}</h1>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: status.bg, color: status.color, padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: status.color }} />
-                {status.label}
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: status.color }} />{status.label}
               </span>
               {debt > 0 && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(239,68,68,0.12)', color: '#EF4444', padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}>
-                  <FontAwesomeIcon icon={faExclamationTriangle} style={{ width: 10 }} />
-                  Qarzdor: {fm(debt)}
+                  <FontAwesomeIcon icon={faExclamationTriangle} style={{ width: 10 }} />Qarzdor: {fm(debt)}
                 </span>
               )}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12.5, color: 'var(--text-secondary)' }}>
               {student.phone && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><FontAwesomeIcon icon={faPhone} style={{ width: 12 }} />{student.phone}</span>}
+              {student.parent_phone && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><FontAwesomeIcon icon={faUser} style={{ width: 12 }} />{student.parent_phone}</span>}
               {groups.length > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><FontAwesomeIcon icon={faUsers} style={{ width: 12 }} />{groups.length} ta guruh</span>}
-              {student.created_at && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><FontAwesomeIcon icon={faCalendarAlt} style={{ width: 12 }} />{fd(student.created_at)}</span>}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          {/* Action toolbar */}
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
             <button onClick={() => setPayOpen(true)}
-              style={{
-                height: 40, padding: '0 18px', borderRadius: 11, border: 'none', cursor: 'pointer',
+              style={{ height: 40, padding: '0 16px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: 'linear-gradient(135deg, #22C55E, #16A34A)', color: '#fff', fontSize: 13, fontWeight: 700,
-                display: 'inline-flex', alignItems: 'center', gap: 7, boxShadow: '0 4px 14px rgba(34,197,94,0.3)',
-              }}>
-              <FontAwesomeIcon icon={faMoneyBillWave} style={{ width: 14 }} /> To'lov qabul qilish
+                display: 'inline-flex', alignItems: 'center', gap: 7, boxShadow: '0 4px 14px rgba(34,197,94,0.3)' }}>
+              <FontAwesomeIcon icon={faMoneyBillWave} style={{ width: 14 }} /> To'lov
             </button>
+            {student.phone && (
+              <a href={`tel:${student.phone}`} title="Qo'ng'iroq" style={{ ...iconBtn, color: '#22C55E', textDecoration: 'none' }}>
+                <FontAwesomeIcon icon={faPhone} style={{ width: 14 }} />
+              </a>
+            )}
+            <button onClick={() => setEditOpen(true)} title="Tahrirlash" style={{ ...iconBtn, color: 'var(--text-secondary)' }}>
+              <FontAwesomeIcon icon={faPenToSquare} style={{ width: 14 }} />
+            </button>
+            {frozen ? (
+              <button onClick={handleUnfreeze} title="Faollashtirish" style={{ ...iconBtn, color: '#06B6D4', borderColor: '#06B6D4' }}>
+                <FontAwesomeIcon icon={faPlay} style={{ width: 13 }} />
+              </button>
+            ) : (
+              <button onClick={() => setFreezeOpen(true)} title="Muzlatish" style={{ ...iconBtn, color: '#06B6D4' }}>
+                <FontAwesomeIcon icon={faSnowflake} style={{ width: 14 }} />
+              </button>
+            )}
           </div>
         </div>
-
         {frozen && (
           <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(6,182,212,0.07)', border: '1px solid rgba(6,182,212,0.25)' }}>
             <FontAwesomeIcon icon={faSnowflake} style={{ width: 15, color: '#06B6D4' }} />
@@ -644,34 +775,36 @@ export default function StudentDetail() {
         )}
       </div>
 
-      {/* Stat cards */}
+      {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
         <StatCard label="Joriy qarz" value={debt > 0 ? fm(debt) : '0'} icon={faExclamationTriangle} color={debt > 0 ? '#EF4444' : '#22C55E'} />
         <StatCard label="Keyingi to'lov" value={nextPayment ? fd(nextPayment.due_date) : '—'}
           sub={nextPayment ? formatMonth(nextPayment.period_month, nextPayment.period_year) : 'Qarz yo\'q'} icon={faCalendarAlt} color="#F97316" />
         <StatCard label="Jami to'langan" value={fm(totalPaid)} icon={faReceipt} color="#22C55E" />
-        <StatCard label="Davomat" value={attRate != null ? `${Math.round(attRate)}%` : '—'} icon={faChartLine} color="#8B5CF6" />
+        <StatCard label="Davomat" value={progress?.attendance?.month_rate != null ? `${Math.round(progress.attendance.month_rate)}%` : '—'}
+          icon={faChartLine} color="#8B5CF6" trend={progress?.attendance?.trend} />
+        <StatCard label="O'rtacha baho" value={examAvg != null ? examAvg : '—'} icon={faStar} color="#F59E0B" />
       </div>
 
-      {/* Tabs */}
       <Tabs value={tab} onChange={setTab}
         tabs={[
           { value: 'profile',    label: 'Profil' },
           { value: 'groups',     label: 'Guruhlar', count: groups.length || null },
           { value: 'finance',    label: 'Moliya' },
           { value: 'attendance', label: 'Davomat' },
+          { value: 'grades',     label: 'Baholar', count: grades.length || null },
         ]}
       />
-
       {tab === 'profile'    && <ProfileTab student={student} />}
       {tab === 'groups'     && <GroupsTab groups={groups} navigate={navigate} />}
-      {tab === 'finance'    && (
-        <FinanceTab invoices={invoices} payments={payments} debt={debt} nextPayment={nextPayment}
-          onPay={() => setPayOpen(true)} navigate={navigate} studentId={id} />
-      )}
-      {tab === 'attendance' && <AttendanceTab attendance={attendance} />}
+      {tab === 'finance'    && <FinanceTab invoices={invoices} payments={payments}
+        onPay={() => setPayOpen(true)} onRefund={handleRefund} onReceipt={(p) => printReceipt(p, fullName)} navigate={navigate} studentId={id} />}
+      {tab === 'attendance' && <AttendanceTab attendance={attendance} progress={progress} />}
+      {tab === 'grades'     && <GradesTab grades={grades} progress={progress} />}
 
-      <PayModal open={payOpen} onClose={() => setPayOpen(false)} student={student} groups={groups} debt={debt} onSuccess={loadData} />
+      {payOpen && <PayModal onClose={() => setPayOpen(false)} student={student} groups={groups} debt={debt} onSuccess={loadData} />}
+      {editOpen && <EditModal onClose={() => setEditOpen(false)} student={student} onSuccess={loadData} />}
+      {freezeOpen && <FreezeModal onClose={() => setFreezeOpen(false)} student={student} onSuccess={loadData} />}
     </div>
   );
 }

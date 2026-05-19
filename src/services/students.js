@@ -20,6 +20,7 @@ export const studentsService = {
   // Progress & history
   getProgressSummary: (id) => api.get(`/students/${id}/progress-summary/`),
   getTransferHistory: (id) => api.get(`/students/${id}/transfer-history/`),
+  getLessonGrades: (id, params = {}) => api.get(`/students/${id}/lesson-grades/`, { params }),
 
   // Tags
   getTags: (id) => api.get(`/students/${id}/tags/`),
