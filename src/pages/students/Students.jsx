@@ -1004,7 +1004,7 @@ export default function Students() {
                       onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                       onClick={(e) => {
                         if (e.target.closest('input[type="checkbox"]') || e.target.closest('.actions-cell')) return;
-                        setFilters({ student: String(s.id) });
+                        navigate(`/app/students/${s.id}`);
                       }}
                     >
                       <td className="p-4" onClick={e => e.stopPropagation()}>
